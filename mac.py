@@ -11,18 +11,27 @@ not_connected = []
 
 def connect(ip):
     '''' Connect to router using .1 address from each ip route from ip_list'''
+    print(ip)
+    openSSHRoutes = SSHRoutes()
+    
+    host = str(getSiteRouter(ip))
+    
+    if host in openSSHRoutes: 
 
-    try:
-        net_connect = ConnectHandler(device_type='cisco_ios',
-                                     host=str(getSiteRouter(ip)),
-                                     username=cfg.ssh['username'],
-                                     password=cfg.ssh['password'])
-        return net_connect
+        try:
+            net_connect = ConnectHandler(device_type='cisco_ios',
+                                         host=host,
+                                         username=cfg.ssh['username'],
+                                         password=cfg.ssh['password'])
+            return net_connect
 
-    except(netmiko.ssh_exception.NetMikoTimeoutException):
-        print('Could not connect to ' + (host))
-        not_connected.append(ip)
+        except(netmiko.ssh_exception.NetMikoTimeoutException):
+            print('Could not connect to ' + (host))
+            not_connected.append(ip)
 
+    else:
+        print('Port 22 is not open for ' + (host))
+        
 
 def getMacAddress(ip):
     ''' Returns Mac Addresses from each site ARP Table'''
@@ -34,9 +43,6 @@ def getMacAddress(ip):
         # get list of subnets for each site
         siteSubnets = getSiteSubnets(ip)
 #       siteSubnets = usableIP(ip)
-
-#       get router for current route
-#       siteRouter = getSiteRouter(ip)
 
         mac_list = []
 
@@ -56,7 +62,6 @@ def getMacAddress(ip):
         return mac_list
 
 
-# I still need to do this ...
 # find only the routes to connect() that have 22 open
 def SSHRoutes():
     ''' Checks if route has port 22 open and returns only those routers that do'''
@@ -64,7 +69,6 @@ def SSHRoutes():
     ip_list = get_final_ip_list()
     noSSHroutes = []
     sshRoutes = []
-
     for ip in ip_list:
         host = str(getSiteRouter(ip))
         sshRoutes.append(host)
@@ -140,6 +144,7 @@ def main():
     ip_list = get_final_ip_list()
     for ip in ip_list:
         getMacAddress(ip)
+        usableIP()
 
-
+getMacAddress('10.8.1.0/24')
 main()

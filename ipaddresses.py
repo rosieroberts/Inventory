@@ -6,7 +6,6 @@ import re
 import config as cfg
 
 exclude_list = []
-communityKey = str(open('ipadd.conf', 'r').read().strip('\n'))
 
 # Core router
 session = Session(hostname=cfg.snmp['hostname'],
@@ -116,8 +115,8 @@ def get_final_ip_list():
 #   join ip_list and mask and return final list with usable ips/mask
     ips_with_mask = ['/'.join(x) for x in final_list]
 
-    for item in ips_with_mask:
-        print(item)
+#   for item in ips_with_mask:
+#       print(item)
     return(ips_with_mask)
 #   for item in final_list:
 #       print(item[0])
