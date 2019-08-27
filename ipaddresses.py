@@ -117,10 +117,10 @@ def get_final_ip_list():
 
 #   for item in ips_with_mask:
 #       print(item)
-    return(ips_with_mask)
-#   for item in final_list:
-#       print(item[0])
+#    for item in final_list:
+#        print(item[0])
 
+    return(ips_with_mask)
 #   return(final_list)
 
 get_final_ip_list()
