@@ -52,7 +52,11 @@ def getMacAddress(ip):
     if net_connect is not None:
 
         club_info = net_connect.send_command('sh cdp entry *')
-        club_result = club_regex.search(club_info).group(0)
+        club_result = club_regex.search(club_info)
+        if club_result != None:
+            club_result = club_result.group(0)
+        else:
+            club_result = 'null'
 
         arp_table = net_connect.send_command('sh arp')
         arp_list = arp_table.splitlines()
@@ -75,7 +79,7 @@ def getMacAddress(ip):
 
         print(mac_list)
 
-    output = open('inventory.json', 'a+')
+    output = open('inventory2.json', 'a+')
     output.write(json.dumps(mac_list))
     output.close()
 
@@ -164,7 +168,7 @@ def main():
         getMacAddress(ip)
 
 main()
-
+#getMacAddress('10.8.17.0/24')
 end = time.time()
 runtime = end - start
 print(runtime)
