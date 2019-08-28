@@ -11,6 +11,7 @@ import json
 import time
 import re
 
+
 start = time.time()
 
 
@@ -56,7 +57,7 @@ def getMacAddress(ip):
         if club_result != None:
             club_result = club_result.group(0)
         else:
-            club_result = 'null'
+            club_result = ''
 
         arp_table = net_connect.send_command('sh arp')
         arp_list = arp_table.splitlines()
@@ -70,10 +71,18 @@ def getMacAddress(ip):
 
                 ip_result = ip_result.group(0)
                 mac_result = mac_result.group(0)
-                subnet_mac = {'club': club_result, 'ip': ip_result, 'mac': mac_result}
+                hostname = getHostnames(ip_result)
+                if hostname == None:
+                    continue
+                
+                subnet_mac = {'ip': ip_result, 
+                              'club': club_result,
+                              'hostname': hostname['hostnames'], 
+                              'mac': mac_result, 
+                              'status': hostname['status']}
 
             else: 
-               continue
+                continue
 
             mac_list.append(subnet_mac)
 
@@ -86,6 +95,28 @@ def getMacAddress(ip):
     end2 = time.time()
     runtime2 = end2 - start2
     print(runtime2)
+
+def getHostnames(ip):
+
+    # Scan local network for all hosts
+    hosts = str(ip)
+    nmap_args = '-sn'
+    scanner = nmap.PortScanner()
+    scanner.scan(hosts=hosts, arguments=nmap_args)
+
+    host_list = []
+
+    for ip in scanner.all_hosts():
+
+        host = {'ip' : ip}
+
+        if 'hostnames' in scanner[ip]:
+            host['hostnames'] = scanner[ip].hostname()
+
+        if 'status' in scanner[ip]:
+            host['status'] = scanner[ip]['status']['state']
+
+            return host
 
 
 # find only the routes to connect() that have 22 open
@@ -167,8 +198,8 @@ def main():
     for ip in ip_list:
         getMacAddress(ip)
 
-main()
-#getMacAddress('10.8.17.0/24')
+#main()
+getMacAddress('10.10.13.0/24')
 end = time.time()
 runtime = end - start
 print(runtime)
