@@ -115,8 +115,8 @@ def get_final_ip_list():
 #   join ip_list and mask and return final list with usable ips/mask
     ips_with_mask = ['/'.join(x) for x in final_list]
 
-#   for item in ips_with_mask:
-#       print(item)
+#    for item in ips_with_mask:
+#        print(item)
 #    for item in final_list:
 #        print(item[0])
 
