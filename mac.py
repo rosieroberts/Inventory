@@ -13,8 +13,6 @@ import re
 
 
 start = time.time()
-
-
 not_connected = []
 
 def connect(ip):
@@ -33,13 +31,16 @@ def connect(ip):
                                          password=cfg.ssh['password'])
             return net_connect
 
-        except(netmiko.ssh_exception.NetMikoTimeoutException):
+        except(netmiko.ssh_exception.NetMikoTimeoutException,
+               netmiko.ssh_exception.NetMikoAuthenticationException):
+
             print('Could not connect to ' + (host))
             not_connected.append(ip)
 
     else:
         print('Port 22 is not open for ' + (host))
-        
+        not_connected.append(ip)      
+
 
 def getMacAddress(ip):
     start2 = time.time()
@@ -197,9 +198,11 @@ def main():
     ip_list = get_final_ip_list()
     for ip in ip_list:
         getMacAddress(ip)
+    print(not_connected)
 
-#main()
-getMacAddress('10.10.13.0/24')
+
+main()
+#getMacAddress('')
 end = time.time()
 runtime = end - start
 print(runtime)
