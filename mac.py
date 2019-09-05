@@ -15,39 +15,42 @@ import re
 start = time.time()
 not_connected = []
 
-def connect(ip):
+def connect(host):
     '''' Connect to router using .1 address from each ip route from ip_list'''
-    print(ip)
-    openSSHRoutes = SSHRoutes()
+    print(host)
+
+    #openSSHRoutes = SSHRoutes()
     
-    host = str(getSiteRouter(ip))
+    #host = str(getSiteRouter(ip))
     
-    if host in openSSHRoutes: 
+    #if host in openSSHRoutes: 
 
-        try:
-            net_connect = ConnectHandler(device_type='cisco_ios',
-                                         host=host,
-                                         username=cfg.ssh['username'],
-                                         password=cfg.ssh['password'])
-            return net_connect
+    try:
+        net_connect = ConnectHandler(device_type='cisco_ios',
+                                     host=host,
+                                     username=cfg.ssh['username'],
+                                     password=cfg.ssh['password'])
+        return net_connect
 
-        except(netmiko.ssh_exception.NetMikoTimeoutException,
-               netmiko.ssh_exception.NetMikoAuthenticationException):
+    except(netmiko.ssh_exception.NetMikoTimeoutException,
+           netmiko.ssh_exception.NetMikoAuthenticationException):
 
-            print('Could not connect to ' + (host))
-            not_connected.append(ip)
+        print('Could not connect to ' + (host))
+        not_connected.append(host)
 
-    else:
-        print('Port 22 is not open for ' + (host))
-        not_connected.append(ip)      
+#    else:
+ #       print('Port 22 is not open for ' + (host))
+  #      not_connected.append(ip)      
 
 
 def getMacAddress(ip):
     start2 = time.time()
-    net_connect = connect(ip)
+    host = str(getSiteRouter(ip))
+    net_connect = connect(host)
+    results = []
     mac_list = []
 
-    club_regex = re.compile(r'(Club[\d]{3})')
+    club_regex = re.compile(r'(?i)(Club[\d]{3})')
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = re.compile(r'(?:\d+\.){3}\d+')
 
@@ -58,8 +61,15 @@ def getMacAddress(ip):
         if club_result != None:
             club_result = club_result.group(0)
         else:
-            club_result = ''
+            ip = getSiteRouter(ip)
+            hostname = getHostnames(ip)
+            hostname_club = club_regex.search(hostname['hostnames'])
+            if hostname_club != None:
+                club_result = hostname_club.group(0)
 
+            else:
+                club_result = 'null'
+ 
         arp_table = net_connect.send_command('sh arp')
         arp_list = arp_table.splitlines()
         
@@ -72,7 +82,10 @@ def getMacAddress(ip):
 
                 ip_result = ip_result.group(0)
                 mac_result = mac_result.group(0)
+                mac_list.append(mac_result)
+
                 hostname = getHostnames(ip_result)
+
                 if hostname == None:
                     continue
                 
@@ -85,9 +98,15 @@ def getMacAddress(ip):
             else: 
                 continue
 
-            mac_list.append(subnet_mac)
+            results.append(subnet_mac)
 
+        print(results)
         print(mac_list)
+        print(len(mac_list))
+
+    switch_maclist = getSwitchMac(ip)
+    difference =[item for item in switch_maclist if item not in mac_list]
+    print(difference)
 
     output = open('inventory2.json', 'a+')
     output.write(json.dumps(mac_list))
@@ -96,6 +115,36 @@ def getMacAddress(ip):
     end2 = time.time()
     runtime2 = end2 - start2
     print(runtime2)
+
+def getSwitchMac(ip):
+
+    host = str(getSiteSwitch(ip))
+    net_connect = connect(host)
+    sw_mac_list = []
+    mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
+
+    if net_connect is not None:
+    
+        mac_table = net_connect.send_command('show mac address-table')
+        mac_table_list = mac_table.splitlines()
+
+        for item in mac_table_list:
+            string = item[2:4]
+            if string.isdigit():
+                mac_result = mac_regex.search(item)
+
+                if mac_result is not None:
+                    mac_result = mac_result.group(0)
+
+                sw_mac_list.append(mac_result)
+        mac_list = set(sw_mac_list)
+    print(mac_list)
+    print(len(mac_list))
+    return mac_list
+
+
+
+
 
 def getHostnames(ip):
 
@@ -127,6 +176,7 @@ def SSHRoutes():
     ip_list = get_final_ip_list()
     noSSHroutes = []
     sshRoutes = []
+
     for ip in ip_list:
         host = str(getSiteRouter(ip))
         sshRoutes.append(host)
@@ -196,13 +246,14 @@ def getSiteSubnets(ip):
 def main():
     
     ip_list = get_final_ip_list()
-    for ip in ip_list:
-        getMacAddress(ip)
-    print(not_connected)
+   # for ip in ip_list:
+       # getMacAddress(ip)
+    #print(not_connected)
 
+getSwitchMac('10.32.65.0/24')
 
-main()
-#getMacAddress('')
+#main()
+getMacAddress('10.32.65.0/24')
 end = time.time()
 runtime = end - start
 print(runtime)
