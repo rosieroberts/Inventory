@@ -13,12 +13,13 @@ import re
 
 start = time.time()
 not_connected = []
+macs_not_included = []
 
 def connect(host):
     '''' Connect to router using .1 address from each ip route from ip_list'''
     print(host)
     tries = 0
-    for i in range(10):
+    for i in range(2):
         for attempt in range(5):
             tries += 1
             print(tries)
@@ -79,7 +80,7 @@ def connect(host):
 
 def getRouterInfo(ip):
     ''' Return ip, location, hostname, mac address and status for
-    all devices in a site and append to a json file''' 
+    all devices in a site and append to a json file'''
     start2 = time.time()
     host = str(getSiteRouter(ip))
     net_connect = connect(host)
@@ -104,10 +105,11 @@ def getRouterInfo(ip):
 
             else:
                 club_result = 'null'
- 
+
+
         arp_table = net_connect.send_command('sh arp')
         arp_list = arp_table.splitlines()
-        
+
         for item in arp_list:
 
             ip_result = ip_regex.search(item)
@@ -122,20 +124,20 @@ def getRouterInfo(ip):
 
                 if hostname == None:
                     continue
-                
-                subnet_mac = {'ip': ip_result, 
+
+                subnet_mac = {'ip': ip_result,
                               'club': club_result,
-                              'hostname': hostname['hostnames'], 
-                              'mac': mac_result, 
-                              'status': hostname['status']}           
+                              'hostname': hostname['hostnames'],
+                              'mac': mac_result,
+                              'status': hostname['status']}
             else:
                 continue
-            
+
             results.append(subnet_mac)
 
         print(results)
 
-    output = open('inventory9-6-3.json', 'a+')
+    output = open('inventory9-6-2.json', 'a+')
     output.write(json.dumps(results))
     output.close()
 
@@ -143,26 +145,32 @@ def getRouterInfo(ip):
     runtime2 = end2 - start2
     print(runtime2)
 
+    net_connect.disconnect()
     return results
 
 
 def validateMacs(ip):
     ''' mac addresses in Switch not found in Router '''
-    #Need to figure out how to handle this'''
+    # Need to figure out how to handle this'''
+
     switch_maclist = getSwitchMac(ip)
     router_maclist = getRouterMac(ip)
 
-    difference =[item for item in switch_maclist if item not in router_maclist]
-    all_diff = []
-    for item in difference:
-        diff = []
-        diff.append(ip)
-        diff.append(item)
-        all_diff.append(diff)
+    if switch_maclist and router_maclist is not None:
+        difference =[item for item in switch_maclist if item not in router_maclist]
+        all_diff = []
+        for item in difference:
+            diff = []
+            diff.append(ip)
+            diff.append(item)
+            all_diff.append(diff)
 
-    print(all_diff)
-    return all_diff
-
+        print(all_diff)
+        macs_not_included.append(all_diff)
+        return all_diff
+    else:
+        print('Could not perform comparison ' + ip)
+        return None
 
 def getRouterMac(ip):
     ''' return list of mac addresses from a router arp table for a given subnet '''
@@ -182,18 +190,20 @@ def getRouterMac(ip):
                 continue
 
             mac_result = mac_result.group(0)
-            
+
             rt_mac_list.append(mac_result)
         mac_list = set(rt_mac_list)
 
         print('*************ROUTER**********')
         print(mac_list)
         print(len(mac_list))
+
+        net_connect.disconnect()
         return mac_list
 
     else:
-        return rt_mac_list        
- 
+        return None
+
 
 def getSwitchMac(ip):
     ''' return list of mac addressess from switch mac-tables for a given subnet'''
@@ -203,7 +213,7 @@ def getSwitchMac(ip):
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
     if net_connect is not None:
-    
+
         mac_table = net_connect.send_command('show mac address-table')
         mac_table_list = mac_table.splitlines()
 
@@ -223,10 +233,12 @@ def getSwitchMac(ip):
         print('*************SWITCH**********')
         print(mac_list)
         print(len(mac_list))
+
+        net_connect.disconnect()
         return mac_list
 
     else:
-        return sw_mac_list
+        return None
 
 def getHostnames(ip):
 
@@ -245,13 +257,16 @@ def getHostnames(ip):
         if 'hostnames' in scanner[ip]:
             host['hostnames'] = scanner[ip].hostname()
 
+            # Take out the .24hourfit.com string from hostname
+            host['hostnames'] = host['hostnames'].replace('.24hourfit.com', '')
+
         if 'status' in scanner[ip]:
             host['status'] = scanner[ip]['status']['state']
 
         return host
 
 
-#  This address will be used for getting router ARP
+#  Function to return only a site router IP which ends in '.1'.
 def getSiteRouter(ip):
     ''' Returns router IP when called'''
     siteHosts = ipaddress.ip_network(ip)
@@ -276,13 +291,13 @@ def getSiteSubnets(ip):
 
 
 def main():
-    ip_list = ['10.8.0.0/24']    
-    #ip_list = get_final_ip_list()
+    #ip_list = ['10.8.1.0/24', '10.10.10.0/24']
+    ip_list = get_final_ip_list()
     for ip in ip_list:
         getRouterInfo(ip)
         validateMacs(ip)
     print(not_connected)
-
+    print(macs_not_included)
 
 main()
 end = time.time()
