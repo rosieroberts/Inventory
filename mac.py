@@ -11,44 +11,79 @@ import json
 import time
 import re
 
-
 start = time.time()
 not_connected = []
 
 def connect(host):
     '''' Connect to router using .1 address from each ip route from ip_list'''
     print(host)
+    tries = 0
+    for i in range(10):
+        for attempt in range(5):
+            tries += 1
+            print(tries)
+            try:
+                net_connect = ConnectHandler(device_type='cisco_ios',
+                                             host=host,
+                                             username=cfg.ssh['username'],
+                                             password=cfg.ssh['password'])
+                return net_connect
 
-    #openSSHRoutes = SSHRoutes()
-    
-    #host = str(getSiteRouter(ip))
-    
-    #if host in openSSHRoutes: 
+            except(netmiko.ssh_exception.NetMikoTimeoutException,
+                   netmiko.ssh_exception.NetMikoAuthenticationException,
+                   OSError):
 
-    try:
-        net_connect = ConnectHandler(device_type='cisco_ios',
-                                     host=host,
-                                     username=cfg.ssh['username'],
-                                     password=cfg.ssh['password'])
-        return net_connect
+                # if connection fails and an Exception is raised,
+                # scan host to see if port 22 is open, if it is try to connect again
+                # if it is closed, return None and exit
+                nmap_args = 'p22'
+                scanner = nmap.PortScanner()
+                scanner.scan(hosts=host, arguments=nmap_args)
 
-    except(netmiko.ssh_exception.NetMikoTimeoutException,
-           netmiko.ssh_exception.NetMikoAuthenticationException):
+                for ip in scanner.all_hosts():
+                    h = {'ip' : ip}
 
-        print('Could not connect to ' + (host))
+                    if scanner[ip].has_tcp(22):
+                       # print(scanner[ip].tcp(22))
+                        if scanner[ip]['tcp'][22]['state'] == 'closed':
+                            print('port 22 is showing closed for ' + (host))
+                            not_connected.append(host)
+                            return None
+                            break
+                        else:
+                            print('Port 22 is open ')
+                            break
+                    else:
+                        print('port 22 is closed for ' + (host))
+                        not_connected.append(host)
+                        return None
+                        break
+
+                print('Exception raised, trying to connect again ' +(host))
+
+            # if connection was not possible and the error was not caught...
+            else:
+                print('Could not connect to ' + (host))
+                break
+
+        # Inner loop tries to connect 5 times
+        else:
+            print('failed after 5 tries to connect to ' + (host))
+
+    # exhausted all tries to connect, return None and exit
+    else:
+        print('Connection to the following device is not possible: ' + (host))
         not_connected.append(host)
-
-#    else:
- #       print('Port 22 is not open for ' + (host))
-  #      not_connected.append(ip)      
+        return None
 
 
-def getMacAddress(ip):
+def getRouterInfo(ip):
+    ''' Return ip, location, hostname, mac address and status for
+    all devices in a site and append to a json file''' 
     start2 = time.time()
     host = str(getSiteRouter(ip))
     net_connect = connect(host)
     results = []
-    mac_list = []
 
     club_regex = re.compile(r'(?i)(Club[\d]{3})')
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
@@ -82,7 +117,6 @@ def getMacAddress(ip):
 
                 ip_result = ip_result.group(0)
                 mac_result = mac_result.group(0)
-                mac_list.append(mac_result)
 
                 hostname = getHostnames(ip_result)
 
@@ -93,31 +127,76 @@ def getMacAddress(ip):
                               'club': club_result,
                               'hostname': hostname['hostnames'], 
                               'mac': mac_result, 
-                              'status': hostname['status']}
-
-            else: 
+                              'status': hostname['status']}           
+            else:
                 continue
-
+            
             results.append(subnet_mac)
 
         print(results)
-        print(mac_list)
-        print(len(mac_list))
 
-    switch_maclist = getSwitchMac(ip)
-    difference =[item for item in switch_maclist if item not in mac_list]
-    print(difference)
-
-    output = open('inventory2.json', 'a+')
-    output.write(json.dumps(mac_list))
+    output = open('inventory9-6-3.json', 'a+')
+    output.write(json.dumps(results))
     output.close()
 
     end2 = time.time()
     runtime2 = end2 - start2
     print(runtime2)
 
-def getSwitchMac(ip):
+    return results
 
+
+def validateMacs(ip):
+    ''' mac addresses in Switch not found in Router '''
+    #Need to figure out how to handle this'''
+    switch_maclist = getSwitchMac(ip)
+    router_maclist = getRouterMac(ip)
+
+    difference =[item for item in switch_maclist if item not in router_maclist]
+    all_diff = []
+    for item in difference:
+        diff = []
+        diff.append(ip)
+        diff.append(item)
+        all_diff.append(diff)
+
+    print(all_diff)
+    return all_diff
+
+
+def getRouterMac(ip):
+    ''' return list of mac addresses from a router arp table for a given subnet '''
+    host = str(getSiteRouter(ip))
+    net_connect = connect(host)
+    rt_mac_list = []
+    mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
+
+    if net_connect is not None:
+
+        mac_table = net_connect.send_command('sh arp')
+        mac_table_list = mac_table.splitlines()
+        for item in mac_table_list:
+            mac_result = mac_regex.search(item)
+
+            if mac_result == None:
+                continue
+
+            mac_result = mac_result.group(0)
+            
+            rt_mac_list.append(mac_result)
+        mac_list = set(rt_mac_list)
+
+        print('*************ROUTER**********')
+        print(mac_list)
+        print(len(mac_list))
+        return mac_list
+
+    else:
+        return rt_mac_list        
+ 
+
+def getSwitchMac(ip):
+    ''' return list of mac addressess from switch mac-tables for a given subnet'''
     host = str(getSiteSwitch(ip))
     net_connect = connect(host)
     sw_mac_list = []
@@ -133,18 +212,21 @@ def getSwitchMac(ip):
             if string.isdigit():
                 mac_result = mac_regex.search(item)
 
-                if mac_result is not None:
-                    mac_result = mac_result.group(0)
+                if mac_result == None:
+                    continue
+
+                mac_result = mac_result.group(0)
 
                 sw_mac_list.append(mac_result)
         mac_list = set(sw_mac_list)
-    print(mac_list)
-    print(len(mac_list))
-    return mac_list
 
+        print('*************SWITCH**********')
+        print(mac_list)
+        print(len(mac_list))
+        return mac_list
 
-
-
+    else:
+        return sw_mac_list
 
 def getHostnames(ip):
 
@@ -166,57 +248,9 @@ def getHostnames(ip):
         if 'status' in scanner[ip]:
             host['status'] = scanner[ip]['status']['state']
 
-            return host
+        return host
 
 
-# find only the routes to connect() that have 22 open
-def SSHRoutes():
-    ''' Checks if route has port 22 open and returns only those routers that do'''
-
-    ip_list = get_final_ip_list()
-    noSSHroutes = []
-    sshRoutes = []
-
-    for ip in ip_list:
-        host = str(getSiteRouter(ip))
-        sshRoutes.append(host)
-
-        nmap_args = '-p22'
-        scanner = nmap.PortScanner()
-        scanner.scan(hosts=host, arguments=nmap_args)
-
-
-        for ip in scanner.all_hosts():
-            host = {'ip' : ip}
-
-            if scanner[ip]['tcp'][22]['state'] == 'closed':
-                noSSHroutes.append(ip)
-
-    sshRoutes = [item for item in sshRoutes if item not in noSSHroutes]
-
-    return sshRoutes
-
-
-# not used yet - 
-# use 'ping' to see whether or not a host is up and if it is add to list
-def usableIP(ip):
-    ''' Checks each site subnets for only hosts that are up & returns list'''
-    usable_host_list = []
-
-    status,result = sp.getstatusoutput('ping -c1 -w2 ' + ip)
-
-    if status == 0:
-        usable_host_list.append(ip)
-        print('System ' + ip + ' is UP!!!')
-    else:
-        print('System ' + ip + ' is DOWN!!!')
-
-
-    print(usable_host_list)
-    return usable_host_list
-
-
-# function to return only a site router IP which ends in '.1'
 #  This address will be used for getting router ARP
 def getSiteRouter(ip):
     ''' Returns router IP when called'''
@@ -226,12 +260,10 @@ def getSiteRouter(ip):
 
 
 # function to return only a site switch IP which ends in '.10'.
-# This address will be used for getting switch mac tables
 def getSiteSwitch(ip):
     ''' Returns switch IP when called'''
     siteHosts = ipaddress.ip_network(ip)
     allHosts = list(siteHosts.hosts())
-    print(allHosts[9])
     return(allHosts[9])
 
 
@@ -244,16 +276,15 @@ def getSiteSubnets(ip):
 
 
 def main():
-    
-    ip_list = get_final_ip_list()
-   # for ip in ip_list:
-       # getMacAddress(ip)
-    #print(not_connected)
+    ip_list = ['10.8.0.0/24']    
+    #ip_list = get_final_ip_list()
+    for ip in ip_list:
+        getRouterInfo(ip)
+        validateMacs(ip)
+    print(not_connected)
 
-getSwitchMac('10.32.65.0/24')
 
-#main()
-getMacAddress('10.32.65.0/24')
+main()
 end = time.time()
 runtime = end - start
 print(runtime)
