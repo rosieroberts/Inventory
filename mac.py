@@ -7,12 +7,11 @@ from ipaddresses import get_final_ip_list
 import ipaddress
 import nmap
 import config as cfg
-import subprocess as sp
 import json
 import time
 import re
 import traceback
-
+from netaddr import *
 
 start = time.time()
 not_connected = []
@@ -23,7 +22,7 @@ def connect(host):
     '''' Connect to router using .1 address from each ip route from ip_list'''
     print(host)
     tries = 0
-    for i in range(2):
+    for i in range(1):
         for attempt in range(5):
             tries += 1
             print(tries)
@@ -38,10 +37,10 @@ def connect(host):
                    netmiko.ssh_exception.NetMikoAuthenticationException,
                    paramiko.ssh_exception.SSHException,
                    OSError):
- 
+
                 traceback.print_exc()
                 # if connection fails and an Exception is raised,
-                # scan host to see if port 22 is open, 
+                # scan host to see if port 22 is open,
                 # if it is open try to connect again
                 # if it is closed, return None and exit
                 nmap_args = 'p22'
@@ -67,7 +66,7 @@ def connect(host):
                         return None
                         break
 
-                print('Exception raised, trying to connect again ' +(host))
+                print('Exception raised, trying to connect again ' + (host))
         # Inner loop tries to connect 5 times
         else:
             print('failed after 5 tries to connect to ' + (host))
@@ -117,7 +116,14 @@ def getRouterInfo(ip):
             if ip_result is not None and mac_result is not None:
 
                 ip_result = ip_result.group(0)
-                mac_result = mac_result.group(0)
+                mac_result = EUI(str(mac_result.group(0)))
+
+                # change format to 'XX:XX:XX:XX:XX:XX'                
+                mac_result.dialect = mac_unix_expanded
+                mac_result = (str(mac_result)).upper()
+
+                oui = mac_result[:8]
+                print(oui)
 
                 hostname = getHostnames(ip_result)
 
@@ -156,8 +162,8 @@ def validateMacs(ip):
     router_maclist = getRouterMac(ip)
 
     if switch_maclist and router_maclist is not None:
-        difference =[item for item in switch_maclist
-                     if item not in router_maclist]
+        difference = [item for item in switch_maclist
+                      if item not in router_maclist]
 
         all_diff = []
         for item in difference:
@@ -176,7 +182,7 @@ def validateMacs(ip):
 
 
 def getRouterMac(ip):
-    ''' return list of mac addresses from a 
+    ''' return list of mac addresses from a
     router arp table for a given subnet '''
     host = str(getSiteRouter(ip))
     net_connect = connect(host)
@@ -210,7 +216,7 @@ def getRouterMac(ip):
 
 
 def getSwitchMac(ip):
-    ''' return list of mac addressess from 
+    ''' return list of mac addressess from
     switch mac-tables for a given subnet'''
     host = str(getSiteSwitch(ip))
     net_connect = connect(host)
@@ -252,8 +258,6 @@ def getHostnames(ip):
     nmap_args = '-sn'
     scanner = nmap.PortScanner()
     scanner.scan(hosts=hosts, arguments=nmap_args)
-
-    host_list = []
 
     for ip in scanner.all_hosts():
 
@@ -297,12 +301,13 @@ def getSiteSubnets(ip):
 
 def main():
     ip_list = ['10.10.46.0/24', '10.10.250.0/24']
-   # ip_list = get_final_ip_list()
+    # ip_list = get_final_ip_list()
     for ip in ip_list:
         getRouterInfo(ip)
         validateMacs(ip)
     print(not_connected)
     print(macs_not_included)
+
 
 main()
 end = time.time()
