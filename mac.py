@@ -11,10 +11,13 @@ import subprocess as sp
 import json
 import time
 import re
+import traceback
+
 
 start = time.time()
 not_connected = []
 macs_not_included = []
+
 
 def connect(host):
     '''' Connect to router using .1 address from each ip route from ip_list'''
@@ -35,7 +38,8 @@ def connect(host):
                    netmiko.ssh_exception.NetMikoAuthenticationException,
                    paramiko.ssh_exception.SSHException,
                    OSError):
-
+ 
+                traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open, 
                 # if it is open try to connect again
@@ -64,16 +68,9 @@ def connect(host):
                         break
 
                 print('Exception raised, trying to connect again ' +(host))
-
-            # if connection was not possible and the error was not caught...
-          # else:
-              # print('Could not connect to ' + (host))
-              # break
-
         # Inner loop tries to connect 5 times
         else:
             print('failed after 5 tries to connect to ' + (host))
-
     # exhausted all tries to connect, return None and exit
     else:
         print('Connection to the following device is not possible: ' + (host))
@@ -299,8 +296,8 @@ def getSiteSubnets(ip):
 
 
 def main():
-    #ip_list = ['10.11.115.0/24', '10.11.115.0/24']
-    ip_list = get_final_ip_list()
+    ip_list = ['10.10.46.0/24', '10.10.250.0/24']
+   # ip_list = get_final_ip_list()
     for ip in ip_list:
         getRouterInfo(ip)
         validateMacs(ip)
