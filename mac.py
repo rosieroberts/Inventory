@@ -2,6 +2,7 @@
 
 import netmiko
 from netmiko import ConnectHandler
+import paramiko
 from ipaddresses import get_final_ip_list
 import ipaddress
 import nmap
@@ -32,10 +33,12 @@ def connect(host):
 
             except(netmiko.ssh_exception.NetMikoTimeoutException,
                    netmiko.ssh_exception.NetMikoAuthenticationException,
+                   paramiko.ssh_exception.SSHException,
                    OSError):
 
                 # if connection fails and an Exception is raised,
-                # scan host to see if port 22 is open, if it is try to connect again
+                # scan host to see if port 22 is open, 
+                # if it is open try to connect again
                 # if it is closed, return None and exit
                 nmap_args = 'p22'
                 scanner = nmap.PortScanner()
@@ -45,7 +48,7 @@ def connect(host):
                     h = {'ip' : ip}
 
                     if scanner[ip].has_tcp(22):
-                       # print(scanner[ip].tcp(22))
+                        # print(scanner[ip].tcp(22))
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             print('port 22 is showing closed for ' + (host))
                             not_connected.append(host)
@@ -63,9 +66,9 @@ def connect(host):
                 print('Exception raised, trying to connect again ' +(host))
 
             # if connection was not possible and the error was not caught...
-            else:
-                print('Could not connect to ' + (host))
-                break
+          # else:
+              # print('Could not connect to ' + (host))
+              # break
 
         # Inner loop tries to connect 5 times
         else:
@@ -105,7 +108,6 @@ def getRouterInfo(ip):
 
             else:
                 club_result = 'null'
-
 
         arp_table = net_connect.send_command('sh arp')
         arp_list = arp_table.splitlines()
@@ -157,7 +159,9 @@ def validateMacs(ip):
     router_maclist = getRouterMac(ip)
 
     if switch_maclist and router_maclist is not None:
-        difference =[item for item in switch_maclist if item not in router_maclist]
+        difference =[item for item in switch_maclist
+                     if item not in router_maclist]
+
         all_diff = []
         for item in difference:
             diff = []
@@ -168,12 +172,15 @@ def validateMacs(ip):
         print(all_diff)
         macs_not_included.append(all_diff)
         return all_diff
+
     else:
         print('Could not perform comparison ' + ip)
         return None
 
+
 def getRouterMac(ip):
-    ''' return list of mac addresses from a router arp table for a given subnet '''
+    ''' return list of mac addresses from a 
+    router arp table for a given subnet '''
     host = str(getSiteRouter(ip))
     net_connect = connect(host)
     rt_mac_list = []
@@ -206,7 +213,8 @@ def getRouterMac(ip):
 
 
 def getSwitchMac(ip):
-    ''' return list of mac addressess from switch mac-tables for a given subnet'''
+    ''' return list of mac addressess from 
+    switch mac-tables for a given subnet'''
     host = str(getSiteSwitch(ip))
     net_connect = connect(host)
     sw_mac_list = []
@@ -240,9 +248,9 @@ def getSwitchMac(ip):
     else:
         return None
 
-def getHostnames(ip):
 
-    # Scan local network for all hosts
+def getHostnames(ip):
+    ''' Scan local network for all hosts'''
     hosts = str(ip)
     nmap_args = '-sn'
     scanner = nmap.PortScanner()
@@ -291,7 +299,7 @@ def getSiteSubnets(ip):
 
 
 def main():
-    #ip_list = ['10.8.1.0/24', '10.10.10.0/24']
+    #ip_list = ['10.11.115.0/24', '10.11.115.0/24']
     ip_list = get_final_ip_list()
     for ip in ip_list:
         getRouterInfo(ip)
@@ -303,4 +311,3 @@ main()
 end = time.time()
 runtime = end - start
 print(runtime)
-
