@@ -66,10 +66,6 @@ def connect(host):
 
                 print('Exception raised, trying to connect again ' + (host))
 
-        # Inner loop tries to connect 5 times
-        else:
-            print('failed after 5 tries to connect to ' + (host))
-    
     # exhausted all tries to connect, return None and exit
     print('Connection to the following device is not possible: ' + (host))
     not_connected.append(host)
