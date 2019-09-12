@@ -19,7 +19,7 @@ macs_not_included = []
 
 
 def connect(host):
-    '''' Connect to router using .1 address from each ip route from ip_list'''
+    """ Connect to router using .1 address from each ip route from ip_list"""
     print(host)
     tries = 0
     for i in range(1):
@@ -39,7 +39,7 @@ def connect(host):
                    OSError):
 
                 print(tries)
-                # traceback.print_exc()
+                traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
@@ -49,10 +49,10 @@ def connect(host):
                 scanner.scan(hosts=host, arguments=nmap_args)
 
                 for ip in scanner.all_hosts():
-                    h = {'ip' : ip}
+                #    h = {'ip' : ip}
 
                     if scanner[ip].has_tcp(22):
- 
+
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             print('port 22 is showing closed for ' + (host))
                             not_connected.append(host)
@@ -86,11 +86,11 @@ def routerConnection(host):
 def switchConnection(host):
     switch_connect = connect(host)
     return switch_connect
- 
+
 
 def getRouterInfo(conn):
-    ''' Return ip, location, hostname, mac address and status for
-    all devices in a site and append to a json file'''
+    """ Return ip, location, hostname, mac address and status for
+    all devices in a site and append to a json file"""
     start2 = time.time()
 
     club_result = clubID(conn)
@@ -145,7 +145,7 @@ def getRouterInfo(conn):
 
 
 def macOUI(mac):
-    ''' Return OUI from mac address passed in argument'''
+    """ Return OUI from mac address passed in argument"""
     # get first three octets for oui
     oui = mac_result[:8]
 
@@ -153,8 +153,8 @@ def macOUI(mac):
 
 
 def macAddressFormat(mac):
-    ''' Return formatted version of mac address
-    to identify device to format: XX:XX:XX:XX:XX:XX '''
+    """ Return formatted version of mac address
+    to identify device to format: XX:XX:XX:XX:XX:XX """
 
     formatted_mac = EUI(str(mac))
     formatted_mac.dialect = mac_unix_expanded
@@ -164,11 +164,9 @@ def macAddressFormat(mac):
 
 
 def clubID(conn):
-    ''' Return clubID for router in argument'''
- 
-    results = []
+    """ Return clubID for router in argument"""
 
-    club_regex = re.compile(r'(?i)(Club[\d]{3})')
+    club_rgx = re.compile(r'(?i)(Club[\d]{3})')
 
     for i in range(1):
         for j in range(1):
@@ -176,14 +174,14 @@ def clubID(conn):
 
                 try:
                     club_info = conn.send_command('sh cdp entry *')
-                    club_result = club_regex.search(club_info)
+                    club_result = club_rgx.search(club_info)
 
                     if club_result != None:
                         club_result = club_result.group(0)
 
                     else:
                         hostname = getHostnames(host)
-                        hostname_club = club_regex.search(hostname['hostnames'])
+                        hostname_club = club_rgx.search(hostname['hostnames'])
 
                         if hostname_club != None:
                             club_result = hostname_club.group(0)
@@ -202,7 +200,7 @@ def clubID(conn):
                         print('getting clubID from nmap hostname')
 
                         hostname = getHostnames(host)
-                        hostname_club = club_regex.search(hostname['hostnames'])
+                        hostname_club = club_rgx.search(hostname['hostnames'])
 
                         if hostname_club != None:
                             club_result = hostname_club.group(0)
@@ -218,10 +216,11 @@ def clubID(conn):
 
 
 def validateMacs(router_maclist, switch_maclist, ip):
-    ''' mac addresses in Switch not found in Router '''
-    # Need to figure out how to handle this'''
+    """ mac addresses in Switch not found in Router """
+    # Need to figure out how to handle this
 
-    router_maclist, switch_maclist = getDeviceMac(router_maclist, switch_maclist)
+    router_maclist, switch_maclist = getDeviceMac(router_maclist,
+                                                  switch_maclist)
 
     if switch_maclist and router_maclist is not None:
         difference = [item for item in switch_maclist
@@ -244,14 +243,14 @@ def validateMacs(router_maclist, switch_maclist, ip):
 
 
 def getDeviceMac(router_conn, switch_conn):
-    ''' return list of mac addresses from a
-    router arp table for a given subnet '''
+    """ return list of mac addresses from a
+    router arp table for a given subnet """
     router_maclist = []
 
     switch_maclist = []
 
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
- 
+
     if router_conn and switch_conn is not None:
 
         mac_table = router_conn.send_command('sh arp')
@@ -302,7 +301,7 @@ def getDeviceMac(router_conn, switch_conn):
 
 
 def getHostnames(ip):
-    ''' Scan local network for all hosts'''
+    """ Scan local network for all hosts"""
     hosts = str(ip)
     nmap_args = '-sn'
     scanner = nmap.PortScanner()
@@ -326,7 +325,7 @@ def getHostnames(ip):
 
 #  Function to return only a site router IP which ends in '.1'.
 def getSiteRouter(ip):
-    ''' Returns router IP when called'''
+    """ Returns router IP when called"""
     siteHosts = ipaddress.ip_network(ip)
     firstHost = next(siteHosts.hosts())
     return(firstHost)
@@ -334,7 +333,7 @@ def getSiteRouter(ip):
 
 # function to return only a site switch IP which ends in '.10'.
 def getSiteSwitch(ip):
-    ''' Returns switch IP when called'''
+    """ Returns switch IP when called"""
     siteHosts = ipaddress.ip_network(ip)
     allHosts = list(siteHosts.hosts())
     return(allHosts[9])
@@ -342,13 +341,15 @@ def getSiteSwitch(ip):
 
 # return all usable subnets for a given IP
 def getSiteSubnets(ip):
-    ''' Returns all subnets per site when called'''
+    """ Returns all subnets per site when called"""
     siteHosts = ipaddress.ip_network(ip)
     allHosts = list(siteHosts.hosts())
     return(allHosts)
 
 
 def main():
+    """ main function to run, use get_ip_list for all sites
+    or use a specific list of ips"""
     #ip_list = ['10.10.46.0/24', '10.10.250.0/24']
     ip_list = get_ip_list()
     for ip in ip_list:

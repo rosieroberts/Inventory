@@ -110,7 +110,7 @@ def get_ip_list():
     final_list = [item for item in ip_list if item[0] not in exclude_list]
 
     #   join ip_list and mask and return final list with usable ips/mask
-    #   format: ['ip/mask'] 
+    #   format: ['ip/mask']
     ips_with_mask = ['/'.join(x) for x in final_list]
 
     # for item in ips_with_mask:
