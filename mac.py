@@ -49,7 +49,6 @@ def connect(host):
                 scanner.scan(hosts=host, arguments=nmap_args)
 
                 for ip in scanner.all_hosts():
-                #    h = {'ip' : ip}
 
                     if scanner[ip].has_tcp(22):
 
@@ -57,7 +56,6 @@ def connect(host):
                             print('port 22 is showing closed for ' + (host))
                             not_connected.append(host)
                             return None
-                            break
                         else:
                             print('Port 22 is open ')
                             break
@@ -65,17 +63,17 @@ def connect(host):
                         print('port 22 is closed for ' + (host))
                         not_connected.append(host)
                         return None
-                        break
 
                 print('Exception raised, trying to connect again ' + (host))
+
         # Inner loop tries to connect 5 times
         else:
             print('failed after 5 tries to connect to ' + (host))
+    
     # exhausted all tries to connect, return None and exit
-    else:
-        print('Connection to the following device is not possible: ' + (host))
-        not_connected.append(host)
-        return None
+    print('Connection to the following device is not possible: ' + (host))
+    not_connected.append(host)
+    return None
 
 
 def routerConnection(host):
@@ -88,12 +86,12 @@ def switchConnection(host):
     return switch_connect
 
 
-def getRouterInfo(conn):
+def getRouterInfo(conn, host):
     """ Return ip, location, hostname, mac address and status for
     all devices in a site and append to a json file"""
     start2 = time.time()
 
-    club_result = clubID(conn)
+    club_result = clubID(conn, host)
 
     results = []
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
@@ -147,7 +145,7 @@ def getRouterInfo(conn):
 def macOUI(mac):
     """ Return OUI from mac address passed in argument"""
     # get first three octets for oui
-    oui = mac_result[:8]
+    oui = mac[:8]
 
     return oui
 
@@ -163,7 +161,7 @@ def macAddressFormat(mac):
     return formatted_mac
 
 
-def clubID(conn):
+def clubID(conn, host):
     """ Return clubID for router in argument"""
 
     club_rgx = re.compile(r'(?i)(Club[\d]{3})')
@@ -350,12 +348,12 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    #ip_list = ['10.10.46.0/24', '10.10.250.0/24']
+    # ip_list = ['10.10.46.0/24', '10.10.250.0/24']
     ip_list = get_ip_list()
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
         switch_connect = switchConnection(str(getSiteSwitch(ip)))
-        getRouterInfo(router_connect)
+        getRouterInfo(router_connect, str(getSiteRouter(ip)))
         validateMacs(router_connect, switch_connect, ip)
         router_connect.disconnect()
         switch_connect.disconnect()
