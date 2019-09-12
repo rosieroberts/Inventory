@@ -77,6 +77,7 @@ def connect(host):
         not_connected.append(host)
         return None
 
+
 def routerConnection(host):
     router_connect = connect(host)
     return router_connect
@@ -85,7 +86,7 @@ def routerConnection(host):
 def switchConnection(host):
     switch_connect = connect(host)
     return switch_connect
-    
+ 
 
 def getRouterInfo(conn):
     ''' Return ip, location, hostname, mac address and status for
@@ -161,8 +162,9 @@ def macAddressFormat(mac):
 
     return formatted_mac
 
+
 def clubID(conn):
-    ''' Return clubID for router in argument'''   
+    ''' Return clubID for router in argument'''
  
     results = []
 
@@ -212,7 +214,7 @@ def clubID(conn):
                         print('could not get clubID')
                         club_result = 'null'
 
-                    return club_result               
+                    return club_result
 
 
 def validateMacs(router_maclist, switch_maclist, ip):
@@ -249,7 +251,7 @@ def getDeviceMac(router_conn, switch_conn):
     switch_maclist = []
 
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
-    
+ 
     if router_conn and switch_conn is not None:
 
         mac_table = router_conn.send_command('sh arp')
@@ -289,7 +291,7 @@ def getDeviceMac(router_conn, switch_conn):
         print(router_maclist)
         print(len(router_maclist))
 
-        print('*************SWITCH**********')        
+        print('*************SWITCH**********')
         print(switch_maclist)
         print(len(switch_maclist))
 
