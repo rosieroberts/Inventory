@@ -1,3 +1,7 @@
 #ignore 
 
 config.py
+test_files
+mac_address.json
+other_versions
+__pycache__/
