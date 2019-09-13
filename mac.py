@@ -23,7 +23,7 @@ def connect(host):
     print(host)
     tries = 0
     for i in range(1):
-        for attempt in range(5):
+        for attempt in range(1):
             tries += 1
 
             try:
@@ -39,7 +39,7 @@ def connect(host):
                    OSError):
 
                 print(tries)
-                traceback.print_exc()
+                #traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
@@ -78,7 +78,17 @@ def routerConnection(host):
 
 
 def switchConnection(host):
-    switch_connect = connect(host)
+    # ips that do not have a switch, therefore there is no way to
+    # do a comparison, skip
+    excluded_ips = ['10.11.166.10', '10.11.189.10']
+
+    if host not in excluded_ips:
+        switch_connect = connect(host)
+
+    else:
+        switch_connect = None
+        print('There is no switch for ' + host)
+
     return switch_connect
 
 
@@ -93,41 +103,57 @@ def getRouterInfo(conn, host):
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = re.compile(r'(?:\d+\.){3}\d+')
 
-    if conn is not None:
+    for i in range(1):
 
-        arp_table = conn.send_command('sh arp')
-        arp_list = arp_table.splitlines()
+        for j in range(1):
 
-        for item in arp_list:
+            if conn is not None:
 
-            ip_result = ip_regex.search(item)
-            mac_result = mac_regex.search(item)
+                arp_table = conn.send_command('sh arp')
+                arp_list = arp_table.splitlines()
 
-            if ip_result is not None and mac_result is not None:
+                for item in arp_list:
 
-                ip_result = ip_result.group(0)
-                mac_result = mac_result.group(0)
+                    try:
 
-                mac_result = macAddressFormat(mac_result)
+                        ip_result = ip_regex.search(item)
+                        mac_result = mac_regex.search(item)
 
-                hostname = getHostnames(ip_result)
+                        if ip_result is not None and mac_result is not None:
 
-                if hostname == None:
-                    continue
+                            ip_result = ip_result.group(0)
+                            mac_result = mac_result.group(0)
 
-                subnet_mac = {'ip': ip_result,
-                              'club': club_result,
-                              'hostname': hostname['hostnames'],
-                              'mac': mac_result,
-                              'status': hostname['status']}
-            else:
-                continue
+                            mac_result = macAddressFormat(mac_result)
 
-            results.append(subnet_mac)
+                            hostname = getHostnames(ip_result)
 
-        print(results)
+                            if hostname == None:
+                                continue
 
-    output = open('inventory9-6-2.json', 'a+')
+                            subnet_mac = {'ip': ip_result,
+                                          'club': club_result,
+                                          'hostname': hostname['hostnames'],
+                                          'mac': mac_result,
+                                          'status': hostname['status']}
+
+
+                            results.append(subnet_mac)
+
+                    except(OSError):
+
+                        if i_count == 0:
+                            print('Could not send command "sh arp", trying again')
+                            break
+
+                        else:
+                            print('Could not get arp table ' + (host))
+                            continue
+
+
+    print(results)
+
+    output = open('inventory9-13.json', 'a+')
     output.write(json.dumps(results))
     output.close()
 
@@ -163,7 +189,9 @@ def clubID(conn, host):
     club_rgx = re.compile(r'(?i)(Club[\d]{3})')
 
     for i in range(1):
+
         for j in range(1):
+
             if conn is not None:
 
                 try:
@@ -187,12 +215,11 @@ def clubID(conn, host):
 
                 except(OSError):
                     if i == 0:
-                        print('Could not send command, trying again')
+                        print('Could not send command, for clubID. Trying again')
                         break
 
                     if i == 1 and j == 0:
                         print('getting clubID from nmap hostname')
-
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
@@ -200,23 +227,27 @@ def clubID(conn, host):
                             club_result = hostname_club.group(0)
 
                         else:
+                            print('could not get hostname')
                             club_result = 'null'
 
                     else:
                         print('could not get clubID')
                         club_result = 'null'
 
+                    print('returning "null"')
+
                     return club_result
 
 
-def validateMacs(router_maclist, switch_maclist, ip):
+def validateMacs(router_conn, switch_conn, ip):
     """ mac addresses in Switch not found in Router """
     # Need to figure out how to handle this
 
-    router_maclist, switch_maclist = getDeviceMac(router_maclist,
-                                                  switch_maclist)
+    if router_conn and switch_conn is not None:
 
-    if switch_maclist and router_maclist is not None:
+        router_maclist, switch_maclist = getDeviceMac(router_conn,
+                                                      switch_conn)
+
         difference = [item for item in switch_maclist
                       if item not in router_maclist]
 
@@ -344,15 +375,17 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    # ip_list = ['10.10.46.0/24', '10.10.250.0/24']
+    #ip_list = ['10.11.166.0/24', '10.96.9.0/24']
     ip_list = get_ip_list()
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
         switch_connect = switchConnection(str(getSiteSwitch(ip)))
         getRouterInfo(router_connect, str(getSiteRouter(ip)))
         validateMacs(router_connect, switch_connect, ip)
-        router_connect.disconnect()
-        switch_connect.disconnect()
+        if router_connect is not None:
+            router_connect.disconnect()
+        if switch_connect is not None:
+            switch_connect.disconnect()
 
     print(not_connected)
     print(macs_not_included)
