@@ -39,7 +39,7 @@ def connect(host):
                    OSError):
 
                 print(tries)
-                #traceback.print_exc()
+                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
@@ -137,19 +137,17 @@ def getRouterInfo(conn, host):
                                           'mac': mac_result,
                                           'status': hostname['status']}
 
-
                             results.append(subnet_mac)
 
                     except(OSError):
 
-                        if i_count == 0:
-                            print('Could not send command "sh arp", trying again')
+                        if i == 0:
+                            print('Could not send cmd "sh arp", trying again')
                             break
 
                         else:
                             print('Could not get arp table ' + (host))
                             continue
-
 
     print(results)
 
@@ -215,7 +213,7 @@ def clubID(conn, host):
 
                 except(OSError):
                     if i == 0:
-                        print('Could not send command, for clubID. Trying again')
+                        print('Could not send command, cdp. Trying again')
                         break
 
                     if i == 1 and j == 0:
@@ -375,7 +373,7 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    #ip_list = ['10.11.166.0/24', '10.96.9.0/24']
+    # ip_list = ['10.11.166.0/24', '10.96.9.0/24']
     ip_list = get_ip_list()
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
