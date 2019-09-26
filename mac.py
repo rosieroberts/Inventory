@@ -16,6 +16,7 @@ from netaddr import *
 start = time.time()
 not_connected = []
 macs_not_included = []
+clubs = []
 
 
 def connect(host):
@@ -109,12 +110,12 @@ def getRouterInfo(conn, host):
 
             if conn is not None:
 
-                arp_table = conn.send_command('sh arp')
-                arp_list = arp_table.splitlines()
+                try:
 
-                for item in arp_list:
+                    arp_table = conn.send_command('sh arp')
+                    arp_list = arp_table.splitlines()
 
-                    try:
+                    for item in arp_list:
 
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
@@ -128,30 +129,41 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
+                            deviceType = getDeviceType(ip_result)
+                            print(ip_result)
+
                             if hostname == None:
                                 continue
 
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
+                                          'device': deviceType, 
                                           'hostname': hostname['hostnames'],
                                           'mac': mac_result,
                                           'status': hostname['status']}
 
                             results.append(subnet_mac)
 
-                    except(OSError):
+                    clubs.append(club_result)
 
-                        if i == 0:
-                            print('Could not send cmd "sh arp", trying again')
-                            break
+                except(OSError):
 
-                        else:
-                            print('Could not get arp table ' + (host))
-                            continue
+                    if i == 0:
+                        print('Could not send cmd "sh arp", trying again')
+                        break
+
+                    else:
+                        print('Could not get arp table ' + (host))
+                        not_connected.append(host)
+                        failed_results = {'host': host,
+                                          'club': club_result,
+                                          'status': 'could not get arp table'}
+                        results.append(failed_results)
+                        continue
 
     print(results)
 
-    output = open('inventory9-13.json', 'a+')
+    output = open('inventory9-24.json', 'a+')
     output.write(json.dumps(results))
     output.close()
 
@@ -160,6 +172,24 @@ def getRouterInfo(conn, host):
     print(runtime2)
 
     return results
+
+
+def getDeviceType(host):
+    """ Returns the device type based on ip address"""
+    device_type = 'null'
+
+    octets =host.split('.')
+    last_octet = int(octets[-1])
+    first_octet = int(octets[0])
+    second_octet = int(octets[1])
+ 
+    if first_octet == 10:
+        device_type = cfg.deviceType(last_octet)
+
+    if first_octet == 172 and second_octet == 24:
+        device_type = cfg.phoneDevice(first_octet, second_octet)
+
+    return device_type
 
 
 def macOUI(mac):
@@ -249,16 +279,15 @@ def validateMacs(router_conn, switch_conn, ip):
         difference = [item for item in switch_maclist
                       if item not in router_maclist]
 
-        all_diff = []
         for item in difference:
-            diff = []
-            diff.append(ip)
-            diff.append(item)
-            all_diff.append(diff)
 
-        print(all_diff)
-        macs_not_included.append(all_diff)
-        return all_diff
+            diff = {'ip': ip,
+                    'club': clubs[-1],
+                    'mac': item}
+                
+            macs_not_included.append(diff)
+
+        return diff
 
     else:
         print('Could not perform comparison ' + ip)
@@ -288,6 +317,9 @@ def getDeviceMac(router_conn, switch_conn):
             mac_result = mac_result.group(0)
 
             router_maclist.append(mac_result)
+        print('raw router_maclist')
+        print(router_maclist)
+        print(len(router_maclist))
         router_maclist = set(router_maclist)
 
         mac_table = switch_conn.send_command('show mac address-table')
@@ -304,6 +336,9 @@ def getDeviceMac(router_conn, switch_conn):
                 mac_result = mac_result.group(0)
 
                 switch_maclist.append(mac_result)
+        print('raw switch list')
+        print(switch_maclist)
+        print(len(switch_maclist))
         switch_maclist = set(switch_maclist)
 
         router_maclist = [macAddressFormat(item) for item in router_maclist]
@@ -373,8 +408,8 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    # ip_list = ['10.11.166.0/24', '10.96.9.0/24']
-    ip_list = get_ip_list()
+    ip_list = ['10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
+    # ip_list = get_ip_list()
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
         switch_connect = switchConnection(str(getSiteSwitch(ip)))
@@ -385,9 +420,14 @@ def main():
         if switch_connect is not None:
             switch_connect.disconnect()
 
+    print('The following ', len(not_connected), ' hosts were not scanned')
     print(not_connected)
-    print(macs_not_included)
 
+    print('The following ', len(clubs), ' clubs were scanned')
+    print(clubs)
+
+    print('The following ', len(macs_not_included), ' devices were not included in the report')
+    print(macs_not_included)
 
 main()
 end = time.time()
