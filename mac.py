@@ -114,7 +114,7 @@ def getRouterInfo(conn, host):
 
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
-
+ 
                     for item in arp_list:
 
                         ip_result = ip_regex.search(item)
@@ -125,12 +125,11 @@ def getRouterInfo(conn, host):
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
 
+                            deviceType = getDeviceType(ip_result)
+ 
                             mac_result = macAddressFormat(mac_result)
 
                             hostname = getHostnames(ip_result)
-
-                            deviceType = getDeviceType(ip_result)
-                            print(ip_result)
 
                             if hostname == None:
                                 continue
@@ -142,7 +141,15 @@ def getRouterInfo(conn, host):
                                           'mac': mac_result,
                                           'status': hostname['status']}
 
-                            results.append(subnet_mac)
+                            # The first value added to 'results'
+                            # is the router value. Subsequently, the rest
+                            # of the mac values are compared to the first
+                            # value. If the mac address is the same,
+                            # values are not written to 'results' to avoid
+                            # duplicate values from final list.
+
+                            if len(results) == 0 or subnet_mac['mac'] != results[0]['mac']:
+                                results.append(subnet_mac)
 
                     clubs.append(club_result)
 
@@ -160,8 +167,8 @@ def getRouterInfo(conn, host):
                                           'status': 'could not get arp table'}
                         results.append(failed_results)
                         continue
-
-    print(results)
+    for item in results:
+        print(item)
 
     output = open('inventory9-24.json', 'a+')
     output.write(json.dumps(results))
@@ -178,7 +185,7 @@ def getDeviceType(host):
     """ Returns the device type based on ip address"""
     device_type = 'null'
 
-    octets =host.split('.')
+    octets = host.split('.')
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
     second_octet = int(octets[1])
@@ -287,7 +294,7 @@ def validateMacs(router_conn, switch_conn, ip):
                 
             macs_not_included.append(diff)
 
-        return diff
+            print(diff)
 
     else:
         print('Could not perform comparison ' + ip)
@@ -317,9 +324,6 @@ def getDeviceMac(router_conn, switch_conn):
             mac_result = mac_result.group(0)
 
             router_maclist.append(mac_result)
-        print('raw router_maclist')
-        print(router_maclist)
-        print(len(router_maclist))
         router_maclist = set(router_maclist)
 
         mac_table = switch_conn.send_command('show mac address-table')
@@ -336,21 +340,10 @@ def getDeviceMac(router_conn, switch_conn):
                 mac_result = mac_result.group(0)
 
                 switch_maclist.append(mac_result)
-        print('raw switch list')
-        print(switch_maclist)
-        print(len(switch_maclist))
         switch_maclist = set(switch_maclist)
 
         router_maclist = [macAddressFormat(item) for item in router_maclist]
         switch_maclist = [macAddressFormat(item) for item in switch_maclist]
-
-        print('*************ROUTER**********')
-        print(router_maclist)
-        print(len(router_maclist))
-
-        print('*************SWITCH**********')
-        print(switch_maclist)
-        print(len(switch_maclist))
 
         return router_maclist, switch_maclist
 
@@ -371,9 +364,6 @@ def getHostnames(ip):
 
         if 'hostnames' in scanner[ip]:
             host['hostnames'] = scanner[ip].hostname()
-
-            # Take out the .24hourfit.com string from hostname
-            host['hostnames'] = host['hostnames'].replace('.24hourfit.com', '')
 
         if 'status' in scanner[ip]:
             host['status'] = scanner[ip]['status']['state']
