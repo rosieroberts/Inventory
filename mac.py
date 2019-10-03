@@ -12,12 +12,15 @@ import time
 import re
 import traceback
 from netaddr import *
+import urllib
+import csv
 
 start = time.time()
 not_connected = []
 macs_not_included = []
 clubs = []
-
+mac_ouis = []
+mac_ouis2 = []
 
 def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
@@ -37,7 +40,8 @@ def connect(host):
             except(netmiko.ssh_exception.NetMikoTimeoutException,
                    netmiko.ssh_exception.NetMikoAuthenticationException,
                    paramiko.ssh_exception.SSHException,
-                   OSError):
+                   OSError,
+                   ValueError):
 
                 print(tries)
                 # traceback.print_exc()
@@ -67,10 +71,10 @@ def connect(host):
 
                 print('Exception raised, trying to connect again ' + (host))
 
-    # exhausted all tries to connect, return None and exit
-    print('Connection to the following device is not possible: ' + (host))
-    not_connected.append(host)
-    return None
+        # exhausted all tries to connect, return None and exit
+        print('Connection to the following device is not possible: ' + (host))
+        not_connected.append(host)
+        return None
 
 
 def routerConnection(host):
@@ -116,7 +120,7 @@ def getRouterInfo(conn, host):
                     arp_list = arp_table.splitlines()
  
                     for item in arp_list:
-
+                        
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
 
@@ -124,19 +128,21 @@ def getRouterInfo(conn, host):
 
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
-
                             deviceType = getDeviceType(ip_result)
  
                             mac_result = macAddressFormat(mac_result)
+                            vendor = getOuiVendor(mac_result)
 
                             hostname = getHostnames(ip_result)
 
                             if hostname == None:
                                 continue
 
+                            print(ip_result, mac_result, vendor)
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
-                                          'device': deviceType, 
+                                          'device': deviceType,
+                                          'vendor': vendor, 
                                           'hostname': hostname['hostnames'],
                                           'mac': mac_result,
                                           'status': hostname['status']}
@@ -170,9 +176,16 @@ def getRouterInfo(conn, host):
     for item in results:
         print(item)
 
-    output = open('inventory9-24.json', 'a+')
+    output = open('inventory9-30.json', 'a+')
     output.write(json.dumps(results))
     output.close()
+    
+    keys = results[0].keys()
+    with open('inventory.csv','a') as csvfile:
+        csvwriter = csv.DictWriter(csvfile, keys)
+        csvwriter.writeheader()
+        csvwriter.writerows(results)
+      
 
     end2 = time.time()
     runtime2 = end2 - start2
@@ -197,6 +210,70 @@ def getDeviceType(host):
         device_type = cfg.phoneDevice(first_octet, second_octet)
 
     return device_type
+
+
+def getOuiVendor(mac):
+    """ Returns vendor for each device based on mac address """
+    oui = macOUI(mac)
+    print(oui)
+    cisco = ['54:BF:64', # not working?
+             '00:7E:95',
+             '50:F7:22',
+             '00:72:78',
+             '68:2C:7B',
+             '00:AA:6E', # not working?
+             '00:D6:FE', # not working?
+             '00:3C:10',
+             '0C:D0:F8',
+             '50:F7:22',
+             '70:0B:4F',
+             '70:1F:53',
+             'B0:90:7E',
+             '00:45:1D'] # not working?
+
+    meraki = ['E0:CB:BC']
+
+    asustek = ['2C:FD:A1',
+               '0C:9D:92',
+               '18:31:BF',
+               '4C:ED:FB',
+               'B0:6E:BF']
+
+    HeFei = ['8C:16:45']
+
+    dell = ['6C:2B:59',
+            'B8:85:84',
+            '54:BF:64',
+            '50:9A:4C',
+            'E4:B9:7A',
+            '8C:EC:4B',
+            'D8:9E:F3']
+
+    try:
+        mac_oui = EUI(mac).oui
+        vendor = mac_oui.registration().org
+        return vendor
+
+    # Some of the OUIs are not included in the IEEE.org txt used in netaddr.
+    # the list of OUIs here is gatherered from Wireshark,
+    # the lists above are hardcoded because the list is rather small
+    except(NotRegisteredError):
+        vendor = None
+
+        if oui in cisco:
+            vendor = 'Cisco Systems, Inc'
+        if oui in dell:
+            vendor = 'Dell Inc.'
+        if oui in asustek:
+            vendor = 'AsustekC ASUSTek COMPUTER INC.'
+        if oui in HeFei:
+            vendor = 'LcfcHefe LCFC(HeFei) Electronics Technology co., ltd'
+        if oui in meraki:
+            vendor = 'CiscoMer Cisco Meraki'
+
+        mac_ouis.append(oui)
+
+        return vendor
 
 
 def macOUI(mac):
@@ -398,7 +475,7 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
+    ip_list = ['10.10.54.0/24', '10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
     # ip_list = get_ip_list()
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
@@ -410,6 +487,12 @@ def main():
         if switch_connect is not None:
             switch_connect.disconnect()
 
+    ouis = set(mac_ouis)
+    
+    print('The following OUI vendors were not found ')
+    for item in ouis:
+        print(item)
+
     print('The following ', len(not_connected), ' hosts were not scanned')
     print(not_connected)
 
@@ -420,6 +503,7 @@ def main():
     print(macs_not_included)
 
 main()
+
 end = time.time()
 runtime = end - start
 print(runtime)
