@@ -11,7 +11,7 @@ import json
 import time
 import re
 import traceback
-from netaddr import *
+from netaddr import * #need to import only specific stuff
 import urllib
 import csv
 
