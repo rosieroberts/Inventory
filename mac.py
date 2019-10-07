@@ -27,7 +27,7 @@ def connect(host):
     print(host)
     tries = 0
     for i in range(1):
-        for attempt in range(1):
+        for attempt in range(2):
             tries += 1
 
             try:
@@ -82,7 +82,7 @@ def routerConnection(host):
     return router_connect
 
 
-def switchConnection(host):
+def switchConnection(host):#
     # ips that do not have a switch, therefore there is no way to
     # do a comparison, skip
     excluded_ips = ['10.11.166.10', '10.11.189.10']
@@ -138,7 +138,6 @@ def getRouterInfo(conn, host):
                             if hostname == None:
                                 continue
 
-                            print(ip_result, mac_result, vendor)
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
                                           'device': deviceType,
@@ -173,25 +172,29 @@ def getRouterInfo(conn, host):
                                           'status': 'could not get arp table'}
                         results.append(failed_results)
                         continue
-    for item in results:
-        print(item)
-
-    output = open('inventory9-30.json', 'a+')
-    output.write(json.dumps(results))
-    output.close()
-    
-    keys = results[0].keys()
-    with open('inventory.csv','a') as csvfile:
-        csvwriter = csv.DictWriter(csvfile, keys)
-        csvwriter.writeheader()
-        csvwriter.writerows(results)
       
-
     end2 = time.time()
     runtime2 = end2 - start2
     print(runtime2)
 
     return results
+
+
+def writeToFiles(results, header_added):
+    """ function to print and add results to .json and .csv files"""
+    if len(results) != 0:
+        for item in results:
+            print(item)
+        output = open('inventory9-30.json', 'a+')
+        output.write(json.dumps(results))
+        output.close()
+
+        keys = results[0].keys()
+        with open('inventory.csv','a') as csvfile:
+            csvwriter = csv.DictWriter(csvfile, keys)
+            if header_added == False:
+                csvwriter.writeheader()
+            csvwriter.writerows(results)
 
 
 def getDeviceType(host):
@@ -215,7 +218,6 @@ def getDeviceType(host):
 def getOuiVendor(mac):
     """ Returns vendor for each device based on mac address """
     oui = macOUI(mac)
-    print(oui)
     cisco = ['54:BF:64', # not working?
              '00:7E:95',
              '50:F7:22',
@@ -351,7 +353,7 @@ def clubID(conn, host):
                     return club_result
 
 
-def validateMacs(router_conn, switch_conn, ip):
+def validateMacs(router_conn, switch_conn, ip):#
     """ mac addresses in Switch not found in Router """
     # Need to figure out how to handle this
 
@@ -383,7 +385,7 @@ def getDeviceMac(router_conn, switch_conn):
     router arp table for a given subnet """
     router_maclist = []
 
-    switch_maclist = []
+    switch_maclist = [] #
 
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
@@ -403,24 +405,24 @@ def getDeviceMac(router_conn, switch_conn):
             router_maclist.append(mac_result)
         router_maclist = set(router_maclist)
 
-        mac_table = switch_conn.send_command('show mac address-table')
-        mac_table_list = mac_table.splitlines()
+        mac_table = switch_conn.send_command('show mac address-table')#
+        mac_table_list = mac_table.splitlines()#
 
-        for item in mac_table_list:
-            string = item[2:4]
-            if string.isdigit():
-                mac_result = mac_regex.search(item)
+        for item in mac_table_list:#
+            string = item[2:4]#
+            if string.isdigit():#
+                mac_result = mac_regex.search(item)#
 
-                if mac_result == None:
-                    continue
+                if mac_result == None:#
+                    continue#
 
-                mac_result = mac_result.group(0)
+                mac_result = mac_result.group(0)#
 
-                switch_maclist.append(mac_result)
-        switch_maclist = set(switch_maclist)
+                switch_maclist.append(mac_result)#
+        switch_maclist = set(switch_maclist)#
 
         router_maclist = [macAddressFormat(item) for item in router_maclist]
-        switch_maclist = [macAddressFormat(item) for item in switch_maclist]
+        switch_maclist = [macAddressFormat(item) for item in switch_maclist]#
 
         return router_maclist, switch_maclist
 
@@ -457,11 +459,11 @@ def getSiteRouter(ip):
 
 
 # function to return only a site switch IP which ends in '.10'.
-def getSiteSwitch(ip):
-    """ Returns switch IP when called"""
-    siteHosts = ipaddress.ip_network(ip)
-    allHosts = list(siteHosts.hosts())
-    return(allHosts[9])
+def getSiteSwitch(ip):#
+    """ Returns switch IP when called"""#
+    siteHosts = ipaddress.ip_network(ip)#
+    allHosts = list(siteHosts.hosts())#
+    return(allHosts[9])#
 
 
 # return all usable subnets for a given IP
@@ -476,16 +478,19 @@ def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
     ip_list = ['10.10.54.0/24', '10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
+    header_added = False
     # ip_list = get_ip_list()
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
-        switch_connect = switchConnection(str(getSiteSwitch(ip)))
-        getRouterInfo(router_connect, str(getSiteRouter(ip)))
-        validateMacs(router_connect, switch_connect, ip)
+        switch_connect = switchConnection(str(getSiteSwitch(ip)))#
+        results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
+        validateMacs(router_connect, switch_connect, ip)#
+        writeToFiles(results, header_added)
         if router_connect is not None:
             router_connect.disconnect()
-        if switch_connect is not None:
-            switch_connect.disconnect()
+        if switch_connect is not None:#
+            switch_connect.disconnect()#
+        header_added = True
 
     ouis = set(mac_ouis)
     
@@ -499,8 +504,8 @@ def main():
     print('The following ', len(clubs), ' clubs were scanned')
     print(clubs)
 
-    print('The following ', len(macs_not_included), ' devices were not included in the report')
-    print(macs_not_included)
+    print('The following ', len(macs_not_included), ' devices were not included in the report')#
+    print(macs_not_included)#
 
 main()
 
