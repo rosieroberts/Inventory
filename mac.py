@@ -19,14 +19,13 @@ start = time.time()
 not_connected = []
 clubs = []
 mac_ouis = []
-mac_ouis2 = []
 
 def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
     print(host)
     tries = 0
-    for i in range(1):
-        for attempt in range(2):
+    for attempt in range(1):
+        for attempt2 in range(2):
             tries += 1
 
             try:
@@ -67,8 +66,8 @@ def connect(host):
                         print('port 22 is closed for ' + (host))
                         not_connected.append(host)
                         return None
-
-                print('Exception raised, trying to connect again ' + (host))
+                if tries == 1:
+                    print('Exception raised, trying to connect again ' + (host))
 
         # exhausted all tries to connect, return None and exit
         print('Connection to the following device is not possible: ' + (host))
@@ -92,9 +91,9 @@ def getRouterInfo(conn, host):
     mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = re.compile(r'(?:\d+\.){3}\d+')
 
-    for i in range(1):
+    for attempt in range(1):
 
-        for j in range(1):
+        for attempt2 in range(1):
 
             if conn is not None:
 
@@ -144,7 +143,7 @@ def getRouterInfo(conn, host):
 
                 except(OSError):
 
-                    if i == 0:
+                    if attempt == 0:
                         print('Could not send cmd "sh arp", trying again')
                         break
 
@@ -202,20 +201,20 @@ def getDeviceType(host):
 def getOuiVendor(mac):
     """ Returns vendor for each device based on mac address """
     oui = macOUI(mac)
-    cisco = ['54:BF:64', # not working?
+    cisco = ['54:BF:64',
              '00:7E:95',
              '50:F7:22',
              '00:72:78',
              '68:2C:7B',
-             '00:AA:6E', # not working?
-             '00:D6:FE', # not working?
+             '00:AA:6E',
+             '00:D6:FE',
              '00:3C:10',
              '0C:D0:F8',
              '50:F7:22',
              '70:0B:4F',
              '70:1F:53',
              'B0:90:7E',
-             '00:45:1D'] # not working?
+             '00:45:1D']
 
     meraki = ['E0:CB:BC']
 
@@ -225,7 +224,8 @@ def getOuiVendor(mac):
                '4C:ED:FB',
                'B0:6E:BF']
 
-    HeFei = ['8C:16:45']
+    HeFei = ['8C:16:45',
+             'E8:6A:64']
 
     dell = ['6C:2B:59',
             'B8:85:84',
@@ -233,7 +233,8 @@ def getOuiVendor(mac):
             '50:9A:4C',
             'E4:B9:7A',
             '8C:EC:4B',
-            'D8:9E:F3']
+            'D8:9E:F3',
+            '00:4E:01']
 
     try:
         mac_oui = EUI(mac).oui
@@ -286,9 +287,9 @@ def clubID(conn, host):
 
     club_rgx = re.compile(r'(?i)(Club[\d]{3})')
 
-    for i in range(1):
+    for attempt in range(1):
 
-        for j in range(1):
+        for attempt2 in range(1):
 
             if conn is not None:
 
@@ -312,11 +313,11 @@ def clubID(conn, host):
                     return club_result
 
                 except(OSError):
-                    if i == 0:
+                    if attempt == 0:
                         print('Could not send command, cdp. Trying again')
                         break
 
-                    if i == 1 and j == 0:
+                    if attempt == 1 and tries == 0:
                         print('getting clubID from nmap hostname')
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
@@ -407,23 +408,22 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.10.54.0/24', '10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
+    #ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
     header_added = False
-    # ip_list = get_ip_list()
+    ip_list = get_ip_list()
+
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
         results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
         writeToFiles(results, header_added)
+
         if router_connect is not None:
             router_connect.disconnect()
         header_added = True
 
+    # ouis: list of OUIs that were not found using Netaddr(for debugging)
     ouis = set(mac_ouis)
     
-    print('The following OUI vendors were not found ')
-    for item in ouis:
-        print(item)
-
     print('The following ', len(not_connected), ' hosts were not scanned')
     print(not_connected)
 
