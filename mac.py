@@ -10,10 +10,9 @@ import config as cfg
 import json
 import time
 import re
-import traceback
-from netaddr import EUI, IPAddress, IPNetwork, mac_unix_expanded
+# import traceback
+from netaddr import EUI, IPAddress, mac_unix_expanded
 from netaddr.core import NotRegisteredError
-import urllib
 import csv
 
 start = time.time()
