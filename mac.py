@@ -25,8 +25,8 @@ def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
     print(host)
     tries = 0
-    for attempt in range(1):
-        for attempt2 in range(2):
+    for _ in range(1):
+        for _ in range(2):
             tries += 1
 
             try:
@@ -94,7 +94,7 @@ def getRouterInfo(conn, host):
 
     for attempt in range(1):
 
-        for attempt2 in range(1):
+        for _ in range(1):
 
             if conn is not None:
 
