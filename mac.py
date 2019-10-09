@@ -11,7 +11,8 @@ import json
 import time
 import re
 import traceback
-from netaddr import *  # need to import only specific stuff
+from netaddr import EUI, IPAddress, IPNetwork, mac_unix_expanded
+from netaddr.core import NotRegisteredError, AddrFormatError, DictDotLookup
 import urllib
 import csv
 
