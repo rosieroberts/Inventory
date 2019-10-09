@@ -138,7 +138,8 @@ def getRouterInfo(conn, host):
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
 
-                            if len(results) == 0 or subnet_mac['mac'] != results[0]['mac']:
+                            if (len(results) == 0 or 
+                                subnet_mac['mac'] != results[0]['mac']):
                                 results.append(subnet_mac)
 
                     clubs.append(club_result)
