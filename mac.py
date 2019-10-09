@@ -11,7 +11,7 @@ import json
 import time
 import re
 # import traceback
-from netaddr import EUI, IPAddress, mac_unix_expanded
+from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 import csv
 
