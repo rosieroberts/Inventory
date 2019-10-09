@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 
-import netmiko
 from netmiko import ConnectHandler
-import paramiko
+from netmiko.ssh_exception import (
+    NetMikoTimeoutException,
+    NetMikoAuthenticationException)
+from paramiko.ssh_exception import SSHException
 from ips import get_ip_list
-import ipaddress
-import nmap
+from ipaddress import ip_network
+from nmap import PortScanner
 import config as cfg
-import json
-import time
-import re
+from json import dumps
+from time import time
+from re import compile
 # import traceback
 from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
-import csv
+from csv import DictWriter
 
-start = time.time()
+start = time()
 not_connected = []
 clubs = []
 mac_ouis = []
@@ -36,9 +38,9 @@ def connect(host):
                                              password=cfg.ssh['password'])
                 return net_connect
 
-            except(netmiko.ssh_exception.NetMikoTimeoutException,
-                   netmiko.ssh_exception.NetMikoAuthenticationException,
-                   paramiko.ssh_exception.SSHException,
+            except(NetMikoTimeoutException,
+                   NetMikoAuthenticationException,
+                   SSHException,
                    OSError,
                    ValueError):
 
@@ -49,7 +51,7 @@ def connect(host):
                 # if it is open try to connect again
                 # if it is closed, return None and exit
                 nmap_args = 'p22'
-                scanner = nmap.PortScanner()
+                scanner = PortScanner()
                 scanner.scan(hosts=host, arguments=nmap_args)
 
                 for ip in scanner.all_hosts():
@@ -84,13 +86,13 @@ def routerConnection(host):
 def getRouterInfo(conn, host):
     """ Return ip, location, hostname, mac address and status for
     all devices in a site and append to a json file"""
-    start2 = time.time()
+    start2 = time()
 
     club_result = clubID(conn, host)
 
     results = []
-    mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
-    ip_regex = re.compile(r'(?:\d+\.){3}\d+')
+    mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
+    ip_regex = compile(r'(?:\d+\.){3}\d+')
 
     for attempt in range(1):
 
@@ -158,7 +160,7 @@ def getRouterInfo(conn, host):
                         results.append(failed_results)
                         continue
 
-    end2 = time.time()
+    end2 = time()
     runtime2 = end2 - start2
     print(runtime2)
 
@@ -171,12 +173,12 @@ def writeToFiles(results, header_added):
         for item in results:
             print(item)
         output = open('inventory9-30.json', 'a+')
-        output.write(json.dumps(results))
+        output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
         with open('inventory.csv', 'a') as csvfile:
-            csvwriter = csv.DictWriter(csvfile, keys)
+            csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
@@ -287,7 +289,7 @@ def macAddressFormat(mac):
 def clubID(conn, host):
     """ Return clubID for router in argument"""
 
-    club_rgx = re.compile(r'(?i)(Club[\d]{3})')
+    club_rgx = compile(r'(?i)(Club[\d]{3})')
 
     for attempt in range(1):
 
@@ -345,7 +347,7 @@ def getDeviceMac(router_conn):
     router arp table for a given subnet """
     router_maclist = []
 
-    mac_regex = re.compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
+    mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
     if router_conn is not None:
 
@@ -375,7 +377,7 @@ def getHostnames(ip):
     """ Scan local network for all hosts"""
     hosts = str(ip)
     nmap_args = '-sn'
-    scanner = nmap.PortScanner()
+    scanner = PortScanner()
     scanner.scan(hosts=hosts, arguments=nmap_args)
 
     for ip in scanner.all_hosts():
@@ -394,7 +396,7 @@ def getHostnames(ip):
 #  Function to return only a site router IP which ends in '.1'.
 def getSiteRouter(ip):
     """ Returns router IP when called"""
-    siteHosts = ipaddress.ip_network(ip)
+    siteHosts = ip_network(ip)
     firstHost = next(siteHosts.hosts())
     return(firstHost)
 
@@ -402,7 +404,7 @@ def getSiteRouter(ip):
 # return all usable subnets for a given IP
 def getSiteSubnets(ip):
     """ Returns all subnets per site when called"""
-    siteHosts = ipaddress.ip_network(ip)
+    siteHosts = ip_network(ip)
     allHosts = list(siteHosts.hosts())
     return(allHosts)
 
@@ -435,6 +437,6 @@ def main():
 
 main()
 
-end = time.time()
+end = time()
 runtime = end - start
 print(runtime)
