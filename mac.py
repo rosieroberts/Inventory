@@ -12,7 +12,7 @@ import time
 import re
 import traceback
 from netaddr import EUI, IPAddress, IPNetwork, mac_unix_expanded
-from netaddr.core import NotRegisteredError, AddrFormatError, DictDotLookup
+from netaddr.core import NotRegisteredError
 import urllib
 import csv
 
