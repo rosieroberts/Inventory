@@ -11,7 +11,7 @@ import json
 import time
 import re
 import traceback
-from netaddr import * #need to import only specific stuff
+from netaddr import *  # need to import only specific stuff
 import urllib
 import csv
 
@@ -19,6 +19,7 @@ start = time.time()
 not_connected = []
 clubs = []
 mac_ouis = []
+
 
 def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
@@ -67,7 +68,7 @@ def connect(host):
                         not_connected.append(host)
                         return None
                 if tries == 1:
-                    print('Exception raised, trying to connect again ' + (host))
+                    print('Exception, trying to connect again ' + (host))
 
         # exhausted all tries to connect, return None and exit
         print('Connection to the following device is not possible: ' + (host))
@@ -101,9 +102,9 @@ def getRouterInfo(conn, host):
 
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
- 
+
                     for item in arp_list:
-                        
+
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
 
@@ -112,19 +113,19 @@ def getRouterInfo(conn, host):
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
                             deviceType = getDeviceType(ip_result)
- 
+
                             mac_result = macAddressFormat(mac_result)
                             vendor = getOuiVendor(mac_result)
 
                             hostname = getHostnames(ip_result)
 
-                            if hostname == None:
+                            if hostname is None:
                                 continue
 
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
                                           'device': deviceType,
-                                          'vendor': vendor, 
+                                          'vendor': vendor,
                                           'hostname': hostname['hostnames'],
                                           'mac': mac_result,
                                           'status': hostname['status']}
@@ -155,7 +156,7 @@ def getRouterInfo(conn, host):
                                           'status': 'could not get arp table'}
                         results.append(failed_results)
                         continue
-      
+
     end2 = time.time()
     runtime2 = end2 - start2
     print(runtime2)
@@ -173,9 +174,9 @@ def writeToFiles(results, header_added):
         output.close()
 
         keys = results[0].keys()
-        with open('inventory.csv','a') as csvfile:
+        with open('inventory.csv', 'a') as csvfile:
             csvwriter = csv.DictWriter(csvfile, keys)
-            if header_added == False:
+            if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
 
@@ -188,7 +189,7 @@ def getDeviceType(host):
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
     second_octet = int(octets[1])
- 
+
     if first_octet == 10:
         device_type = cfg.deviceType(last_octet)
 
@@ -297,14 +298,14 @@ def clubID(conn, host):
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
 
-                    if club_result != None:
+                    if club_result is not None:
                         club_result = club_result.group(0)
 
                     else:
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
-                        if hostname_club != None:
+                        if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
                         else:
@@ -317,12 +318,12 @@ def clubID(conn, host):
                         print('Could not send command, cdp. Trying again')
                         break
 
-                    if attempt == 1 and tries == 0:
+                    if attempt == 1 and attempt2 == 0:
                         print('getting clubID from nmap hostname')
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
-                        if hostname_club != None:
+                        if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
                         else:
@@ -353,7 +354,7 @@ def getDeviceMac(router_conn):
         for item in mac_table_list:
             mac_result = mac_regex.search(item)
 
-            if mac_result == None:
+            if mac_result is not None:
                 continue
 
             mac_result = mac_result.group(0)
@@ -378,7 +379,7 @@ def getHostnames(ip):
 
     for ip in scanner.all_hosts():
 
-        host = {'ip' : ip}
+        host = {'ip': ip}
 
         if 'hostnames' in scanner[ip]:
             host['hostnames'] = scanner[ip].hostname()
@@ -408,7 +409,7 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    #ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24', '10.96.9.0/24', '10.11.166.0/24']
+    # ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24']
     header_added = False
     ip_list = get_ip_list()
 
@@ -423,7 +424,7 @@ def main():
 
     # ouis: list of OUIs that were not found using Netaddr(for debugging)
     ouis = set(mac_ouis)
-    
+
     print('The following ', len(not_connected), ' hosts were not scanned')
     print(not_connected)
 
