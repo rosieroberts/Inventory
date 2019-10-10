@@ -234,7 +234,8 @@ def getOuiVendor(mac):
                'B0:6E:BF']
 
     HeFei = ['8C:16:45',
-             'E8:6A:64']
+             'E8:6A:64',
+             '98:FA:9B']
 
     dell = ['6C:2B:59',
             'B8:85:84',
