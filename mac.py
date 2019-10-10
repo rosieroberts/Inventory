@@ -5,6 +5,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from paramiko.ssh_exception import SSHException
+from paramiko import channel
 from ips import get_ip_list
 from ipaddress import ip_network
 from nmap import PortScanner
@@ -12,7 +13,7 @@ import config as cfg
 from json import dumps
 from time import time
 from re import compile
-# import traceback
+import traceback
 from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 from csv import DictWriter
@@ -36,7 +37,10 @@ def connect(host):
                                              host=host,
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
-                                             auth_timeout=20)
+                                             blocking_timeout=20)
+
+
+                print(net_connect) 
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -46,7 +50,7 @@ def connect(host):
                    ValueError):
 
                 print(tries)
-                # traceback.print_exc()
+                traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
