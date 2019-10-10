@@ -35,7 +35,8 @@ def connect(host):
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
-                                             password=cfg.ssh['password'])
+                                             password=cfg.ssh['password'],
+                                             auth_timeout=20)
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -412,9 +413,9 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    # ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24']
+    ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24']
     header_added = False
-    ip_list = get_ip_list()
+    # ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
@@ -424,9 +425,6 @@ def main():
         if router_connect is not None:
             router_connect.disconnect()
         header_added = True
-
-    # ouis: list of OUIs that were not found using Netaddr(for debugging)
-    ouis = set(mac_ouis)
 
     print('The following ', len(not_connected), ' hosts were not scanned')
     print(not_connected)
