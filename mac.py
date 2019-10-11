@@ -204,7 +204,7 @@ def getDeviceType(host):
     if first_octet == 172 and second_octet == 24:
         device_type = cfg.phoneDevice(first_octet, second_octet)
 
-    if host == '10.11.226.1' and first_octet == 172 and second_octet == 27:
+    if host == '172.27.198.140' and first_octet == 172 and second_octet == 27:
         device_type = cfg.deviceType(last_octet)
 
     return device_type
@@ -299,6 +299,7 @@ def clubID(conn, host):
     """ Return clubID for router in argument"""
 
     club_rgx = compile(r'(?i)(Club[\d]{3})')
+    reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
 
     for attempt in range(1):
 
@@ -309,6 +310,9 @@ def clubID(conn, host):
                 try:
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
+
+                    if club_result is None:
+                        club_result = reg_rgx.search(club_info)
 
                     if club_result is not None:
                         club_result = club_result.group(0)
