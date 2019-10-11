@@ -31,16 +31,16 @@ def connect(host):
     for _ in range(1):
         for _ in range(2):
             tries += 1
-
+            startconn = time()
             try:
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
-
-
-                print(net_connect) 
+                endconn = time()
+                time_elapsed = endconn - startconn
+                print(time_elapsed)
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -192,13 +192,14 @@ def writeToFiles(results, header_added):
 def getDeviceType(host, club_result):
     """ Returns the device type based on ip address"""
     device_type = 'null'
-
+    print(club_result)
     octets = host.split('.')
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
     second_octet = int(octets[1])
-
-    if club_result[:4].lower == 'club':
+    print(club_result[:4].lower())
+    print(club_result[:3].lower())
+    if club_result[:4].lower() == 'club':
 
         if first_octet == 10:
             device_type = cfg.clubDeviceType(last_octet)
@@ -209,7 +210,7 @@ def getDeviceType(host, club_result):
         if host == '172.27.198.140' and first_octet == 172 and second_octet == 27:
             device_type = cfg.clubDeviceType(last_octet)
 
-    if club_result[:3].lower == 'reg':
+    if club_result[:3].lower() == 'reg':
 
         if first_octet == 10:
             device_type = cfg.regionDeviceType(last_octet)
@@ -400,7 +401,7 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24']
+    ip_list = ['10.32.28.0/24', '10.8.17.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.32.31.0/24']
     header_added = False
     # ip_list = get_ip_list()
 
