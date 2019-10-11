@@ -192,13 +192,12 @@ def writeToFiles(results, header_added):
 def getDeviceType(host, club_result):
     """ Returns the device type based on ip address"""
     device_type = 'null'
-    print(club_result)
+    
     octets = host.split('.')
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
     second_octet = int(octets[1])
-    print(club_result[:4].lower())
-    print(club_result[:3].lower())
+
     if club_result[:4].lower() == 'club':
 
         if first_octet == 10:
