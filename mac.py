@@ -213,41 +213,6 @@ def getDeviceType(host):
 def getOuiVendor(mac):
     """ Returns vendor for each device based on mac address """
     oui = macOUI(mac)
-    cisco = ['54:BF:64',
-             '00:7E:95',
-             '50:F7:22',
-             '00:72:78',
-             '68:2C:7B',
-             '00:AA:6E',
-             '00:D6:FE',
-             '00:3C:10',
-             '0C:D0:F8',
-             '50:F7:22',
-             '70:0B:4F',
-             '70:1F:53',
-             'B0:90:7E',
-             '00:45:1D']
-
-    meraki = ['E0:CB:BC']
-
-    asustek = ['2C:FD:A1',
-               '0C:9D:92',
-               '18:31:BF',
-               '4C:ED:FB',
-               'B0:6E:BF']
-
-    HeFei = ['8C:16:45',
-             'E8:6A:64',
-             '98:FA:9B']
-
-    dell = ['6C:2B:59',
-            'B8:85:84',
-            '54:BF:64',
-            '50:9A:4C',
-            'E4:B9:7A',
-            '8C:EC:4B',
-            'D8:9E:F3',
-            '00:4E:01']
 
     try:
         mac_oui = EUI(mac).oui
@@ -260,15 +225,15 @@ def getOuiVendor(mac):
     except(NotRegisteredError):
         vendor = None
 
-        if oui in cisco:
+        if oui in cfg.cisco:
             vendor = 'Cisco Systems, Inc'
-        if oui in dell:
+        if oui in cfg.dell:
             vendor = 'Dell Inc.'
-        if oui in asustek:
+        if oui in cfg.asustek:
             vendor = 'AsustekC ASUSTek COMPUTER INC.'
-        if oui in HeFei:
+        if oui in cfg.HeFei:
             vendor = 'LcfcHefe LCFC(HeFei) Electronics Technology co., ltd'
-        if oui in meraki:
+        if oui in cfg.meraki:
             vendor = 'CiscoMer Cisco Meraki'
 
         mac_ouis.append(oui)
