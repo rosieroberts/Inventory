@@ -177,12 +177,12 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory9-30.json', 'a+')
+        output = open('inventory10-11-3.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory.csv', 'a') as csvfile:
+        with open('inventory10-11-3.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -215,7 +215,7 @@ def getDeviceType(host, club_result):
             device_type = cfg.regionDeviceType(last_octet)
 
         if first_octet == 172 and second_octet == 23:
-            device_type = 'Phone''
+            device_type = 'Phone'
 
     return device_type
 
