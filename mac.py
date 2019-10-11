@@ -177,12 +177,12 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory10-11-3.json', 'a+')
+        output = open('inventory10-11.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory10-11-3.csv', 'a') as csvfile:
+        with open('inventory10-11.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -192,7 +192,7 @@ def writeToFiles(results, header_added):
 def getDeviceType(host, club_result):
     """ Returns the device type based on ip address"""
     device_type = 'null'
-    
+
     octets = host.split('.')
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
@@ -400,9 +400,9 @@ def getSiteSubnets(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.32.28.0/24', '10.8.17.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.32.31.0/24']
+    #ip_list = ['10.32.28.0/24', '10.8.17.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.32.31.0/24']
     header_added = False
-    # ip_list = get_ip_list()
+    ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
