@@ -204,6 +204,9 @@ def getDeviceType(host):
     if first_octet == 172 and second_octet == 24:
         device_type = cfg.phoneDevice(first_octet, second_octet)
 
+    if host == '10.11.226.1' and first_octet == 172 and second_octet == 27:
+        device_type = cfg.deviceType(last_octet)
+
     return device_type
 
 
