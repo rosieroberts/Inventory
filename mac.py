@@ -119,7 +119,7 @@ def getRouterInfo(conn, host):
 
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
-                            deviceType = getDeviceType(ip_result)
+                            deviceType = getDeviceType(ip_result, club_result)
 
                             mac_result = macAddressFormat(mac_result)
                             vendor = getOuiVendor(mac_result)
@@ -189,7 +189,7 @@ def writeToFiles(results, header_added):
             csvwriter.writerows(results)
 
 
-def getDeviceType(host):
+def getDeviceType(host, club_result):
     """ Returns the device type based on ip address"""
     device_type = 'null'
 
@@ -198,14 +198,24 @@ def getDeviceType(host):
     first_octet = int(octets[0])
     second_octet = int(octets[1])
 
-    if first_octet == 10:
-        device_type = cfg.deviceType(last_octet)
+    if club_result[:4].lower == 'club':
 
-    if first_octet == 172 and second_octet == 24:
-        device_type = cfg.phoneDevice(first_octet, second_octet)
+        if first_octet == 10:
+            device_type = cfg.clubDeviceType(last_octet)
 
-    if host == '172.27.198.140' and first_octet == 172 and second_octet == 27:
-        device_type = cfg.deviceType(last_octet)
+        if first_octet == 172 and second_octet == 24:
+            device_type = 'Phone'
+
+        if host == '172.27.198.140' and first_octet == 172 and second_octet == 27:
+            device_type = cfg.clubDeviceType(last_octet)
+
+    if club_result[:3].lower == 'reg':
+
+        if first_octet == 10:
+            device_type = cfg.regionDeviceType(last_octet)
+
+        if first_octet == 172 and second_octet == 23:
+            device_type = 'Phone''
 
     return device_type
 
