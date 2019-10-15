@@ -93,6 +93,10 @@ def getRouterInfo(conn, host):
     all devices in a site and append to a json file"""
     start2 = time()
 
+    octets = host.split('.')
+    last_octet = int(octets[-1])
+    first_octet = int(octets[0])
+
     club_result = clubID(conn, host)
 
     results = []
@@ -206,8 +210,13 @@ def getDeviceType(host, club_result):
         if first_octet == 172 and second_octet == 24:
             device_type = 'Phone'
 
-        if host == '172.27.198.140' and first_octet == 172 and second_octet == 27:
+        #  IP not within usual configuration
+        if host == cfg.club910:
             device_type = cfg.clubDeviceType(last_octet)
+
+        # ISP provider for club 963. Not usual instance
+        if host == cfg.club963:
+            device_type = 'Router (ISP Provider)'
 
     if club_result[:3].lower() == 'reg':
 
