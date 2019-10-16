@@ -257,8 +257,9 @@ def getOuiVendor(mac):
         return vendor
 
     # Some of the OUIs are not included in the IEEE.org txt used in netaddr.
-    # the list of OUIs here is gatherered from Wireshark,
-    # the lists above are hardcoded because the list is rather small
+    # Those OUIs not included are added in config.py and are gatherered
+    # from WireShark. The vendor list is hardcoded because it is rather small.
+
     except(NotRegisteredError):
         vendor = None
 
@@ -383,14 +384,6 @@ def getSiteRouter(ip):
     siteHosts = ip_network(ip)
     firstHost = next(siteHosts.hosts())
     return(firstHost)
-
-
-# return all usable subnets for a given IP
-def getSiteSubnets(ip):
-    """ Returns all subnets per site when called"""
-    siteHosts = ip_network(ip)
-    allHosts = list(siteHosts.hosts())
-    return(allHosts)
 
 
 def main():
