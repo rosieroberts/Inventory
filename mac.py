@@ -99,9 +99,9 @@ def getRouterInfo(conn, host):
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
 
-    for _ in range(1):
+    for attempt in range(1):
 
-        for attempt in range(2):
+        for _ in range(1):
 
             if conn is not None:
 
@@ -174,7 +174,7 @@ def getRouterInfo(conn, host):
 
                 except(OSError):
 
-                    if attempt == 1:
+                    if attempt == 0:
                         print('Could not send cmd "sh arp", trying again')
                         break
 
