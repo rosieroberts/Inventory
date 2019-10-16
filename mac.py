@@ -99,9 +99,9 @@ def getRouterInfo(conn, host):
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
 
-    for attempt in range(1):
+    for _ in range(1):
 
-        for _ in range(1):
+        for attempt in range(2):
 
             if conn is not None:
 
@@ -174,7 +174,7 @@ def getRouterInfo(conn, host):
 
                 except(OSError):
 
-                    if attempt == 0:
+                    if attempt == 1:
                         print('Could not send cmd "sh arp", trying again')
                         break
 
@@ -304,9 +304,9 @@ def clubID(conn, host):
     club_rgx = compile(r'(?i)(Club[\d]{3})')
     reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
 
-    for attempt in range(1):
+    for _ in range(1):
 
-        for attempt2 in range(1):
+        for attempt in range(2):
 
             if conn is not None:
 
@@ -333,11 +333,11 @@ def clubID(conn, host):
                     return club_result
 
                 except(OSError):
-                    if attempt == 0:
+                    if attempt == 1:
                         print('Could not send command, cdp. Trying again')
                         break
 
-                    if attempt == 1 and attempt2 == 0:
+                    if attempt == 2:
                         print('getting clubID from nmap hostname')
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
@@ -346,7 +346,7 @@ def clubID(conn, host):
                             club_result = hostname_club.group(0)
 
                         else:
-                            print('could not get hostname')
+                            print('could not get clubID')
                             club_result = 'null'
 
                     else:
@@ -389,9 +389,9 @@ def getSiteRouter(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    #ip_list = ['10.32.28.0/24', '10.8.17.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.32.31.0/24']
+    ip_list = ['10.8.8.0/24', '10.8.17.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.32.31.0/24']
     header_added = False
-    ip_list = get_ip_list()
+    # ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
