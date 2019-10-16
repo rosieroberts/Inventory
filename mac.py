@@ -152,22 +152,17 @@ def getRouterInfo(conn, host):
                             # duplicate values from final list.
 
                             if len(results) == 0:
-                                print(len(results))
                                 if first_octet == 10 and last_octet == 1:
-                                    print(first_octet, last_octet)
                                     results.append(subnet_mac)
                                 else:
                                     not_added.append(subnet_mac)
-                                    print(not_added)
 
                             if len(results) != 0 and subnet_mac['mac'] != results[0]['mac']:
-                                print(len(results), subnet_mac, results[0]['mac'])
                                 results.append(subnet_mac)
 
                     if not_added != 0:
                         for item in not_added:
                             if item['mac'] != results[0]['mac']:
-                                print(item['mac'], results[0]['mac'], item)
                                 results.append(item)
 
                     clubs.append(club_result)
