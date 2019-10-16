@@ -220,15 +220,20 @@ def getDeviceType(host, club_result):
     first_octet = int(octets[0])
     second_octet = int(octets[1])
     third_octet = int(octets[2])
-    
-    if club_result is None:
-        octets_list = [first_octet, second_octet, third_octet]
+
+    if club_result is 'null':
+        octets_list = [str(first_octet), str(second_octet), str(third_octet)]
         octets = str('.'.join(octets_list))
 
         if octets in cfg.regHosts:
             club_result = 'reg'
+
         if octets not in cfg.regHosts:
-            club_result = 'club'
+
+            if first_octet == 172 and second_octet == 23:
+                club_result = 'reg'
+            else:
+                club_result = 'club'
 
     if club_result[:4].lower() == 'club':
 
@@ -314,6 +319,8 @@ def clubID(conn, host):
     club_rgx = compile(r'(?i)(Club[\d]{3})')
     reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
 
+    club_result = '--'
+
     for _ in range(1):
 
         for attempt in range(2):
@@ -321,7 +328,6 @@ def clubID(conn, host):
             if conn is not None:
 
                 try:
-                    raise OSError('This is just a test!')
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
 
@@ -331,20 +337,20 @@ def clubID(conn, host):
                     if club_result is not None:
                         club_result = club_result.group(0)
 
-                    else:
+                    if club_result is None:
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
-                        else:
+                        if hostname_club is None:
                             club_result = 'null'
 
                 except(OSError):
                     if attempt == 0:
                         print('Could not send command, cdp. Trying again')
-                        break
+                        continue
 
                     if attempt == 1:
                         print('getting clubID from nmap hostname')
@@ -354,13 +360,9 @@ def clubID(conn, host):
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
-                        else:
+                        if hostname_club is None:
                             print('could not get clubID')
                             club_result = 'null'
-                    #probably remove
-                    if attempt == 2:
-                        print('Returning null')
-                        club_result = 'null'
 
         return club_result
 
