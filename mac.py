@@ -225,7 +225,7 @@ def getDeviceType(host, club_result):
         octets_list = [first_octet, second_octet, third_octet]
         octets = str('.'.join(octets_list))
 
-        if octets is in cfg.regHosts:
+        if octets in cfg.regHosts:
             club_result = 'reg'
         if octets not in cfg.regHosts:
             club_result = 'club'
