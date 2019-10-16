@@ -93,15 +93,14 @@ def getRouterInfo(conn, host):
     all devices in a site and append to a json file"""
     start2 = time()
 
-    octets = host.split('.')
-    last_octet = int(octets[-1])
-    first_octet = int(octets[0])
+    
 
     club_result = clubID(conn, host)
 
     results = []
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
+    not_added = []
 
     for attempt in range(1):
 
@@ -124,7 +123,11 @@ def getRouterInfo(conn, host):
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
                             deviceType = getDeviceType(ip_result, club_result)
-
+                            
+                            octets = ip_result.split('.')
+                            last_octet = int(octets[-1])
+                            first_octet = int(octets[0])
+                            
                             mac_result = macAddressFormat(mac_result)
                             vendor = getOuiVendor(mac_result)
 
@@ -148,9 +151,24 @@ def getRouterInfo(conn, host):
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
 
-                            if (len(results) == 0 or
-                                    subnet_mac['mac'] != results[0]['mac']):
+                            if (len(results)) == 0:
+                                print(len(results))
+                                if first_octet == 10 and last_octet == 1:
+                                    print(first_octet, last_octet)
+                                    results.append(subnet_mac)
+                                else:
+                                    not_added.append(subnet_mac)
+                                    print(not_added)
+
+                            if (len(results)) > 0 and subnet_mac['mac'] != results[0]['mac']):
+                                print(len(results), subnet_mac, results[0]['mac'])
                                 results.append(subnet_mac)
+
+                    if not_added != 0:
+                        for item in not_added:
+                            if item['mac'] != results[0]['mac']):
+                                print(item['mac'], results[0]['mac'], item)
+                                results.append(item)
 
                     clubs.append(club_result)
 
