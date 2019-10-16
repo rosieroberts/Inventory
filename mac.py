@@ -92,9 +92,6 @@ def getRouterInfo(conn, host):
     """ Return ip, location, hostname, mac address and status for
     all devices in a site and append to a json file"""
     start2 = time()
-
-    
-
     club_result = clubID(conn, host)
 
     results = []
@@ -145,9 +142,11 @@ def getRouterInfo(conn, host):
                                           'status': hostname['status']}
 
                             # The first value added to 'results'
-                            # is the router value. Subsequently, the rest
-                            # of the mac values are compared to the first
-                            # value. If the mac address is the same,
+                            # is the router value. This is only added if the
+                            # host IP is 10.x.x.1. 
+                            # Subsequently, the rest of the mac values
+                            # are compared to the first value.
+                            # If the mac address is the same,
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
 
@@ -159,6 +158,12 @@ def getRouterInfo(conn, host):
 
                             if len(results) != 0 and subnet_mac['mac'] != results[0]['mac']:
                                 results.append(subnet_mac)
+
+                    # when the first value in sh arp is not 10.x.x.1 items
+                    # are added to not_added list until it finds the router.
+                    # Then, not_added items mac's are compared to router
+                    # mac's, and if different, added to results to avoid
+                    # duplicate values
 
                     if not_added != 0:
                         for item in not_added:
@@ -274,7 +279,7 @@ def getOuiVendor(mac):
 
 
 def macOUI(mac):
-    """ Return OUI from mac address passed in argument"""
+    """ Returns OUI from mac address passed in argument"""
     # get first three octets for oui
     oui = mac[:8]
 
@@ -350,37 +355,6 @@ def clubID(conn, host):
                     print('returning "null"')
 
                     return club_result
-
-
-def getDeviceMac(router_conn):
-    """ return list of mac addresses from a
-    router arp table for a given subnet """
-    router_maclist = []
-
-    mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
-
-    if router_conn is not None:
-
-        mac_table = router_conn.send_command('sh arp')
-        mac_table_list = mac_table.splitlines()
-
-        for item in mac_table_list:
-            mac_result = mac_regex.search(item)
-
-            if mac_result is not None:
-                continue
-
-            mac_result = mac_result.group(0)
-
-            router_maclist.append(mac_result)
-        router_maclist = set(router_maclist)
-
-        router_maclist = [macAddressFormat(item) for item in router_maclist]
-
-        return router_maclist
-
-    else:
-        return None
 
 
 def getHostnames(ip):
