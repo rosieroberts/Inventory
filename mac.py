@@ -219,6 +219,16 @@ def getDeviceType(host, club_result):
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
     second_octet = int(octets[1])
+    third_octet = int(octets[2])
+    
+    if club_result is None:
+        octets_list = [first_octet, second_octet, third_octet]
+        octets = str('.'.join(octets_list))
+
+        if octets is in cfg.regHosts:
+            club_result = 'reg'
+        if octets not in cfg.regHosts:
+            club_result = 'club'
 
     if club_result[:4].lower() == 'club':
 
@@ -311,6 +321,7 @@ def clubID(conn, host):
             if conn is not None:
 
                 try:
+                    raise OSError('This is just a test!')
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
 
@@ -330,14 +341,12 @@ def clubID(conn, host):
                         else:
                             club_result = 'null'
 
-                    return club_result
-
                 except(OSError):
-                    if attempt == 1:
+                    if attempt == 0:
                         print('Could not send command, cdp. Trying again')
                         break
 
-                    if attempt == 2:
+                    if attempt == 1:
                         print('getting clubID from nmap hostname')
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
@@ -348,14 +357,12 @@ def clubID(conn, host):
                         else:
                             print('could not get clubID')
                             club_result = 'null'
-
-                    else:
-                        print('could not get clubID')
+                    #probably remove
+                    if attempt == 2:
+                        print('Returning null')
                         club_result = 'null'
 
-                    print('returning "null"')
-
-                    return club_result
+        return club_result
 
 
 def getHostnames(ip):
@@ -389,7 +396,7 @@ def getSiteRouter(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.8.8.0/24', '10.8.17.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.32.31.0/24']
+    ip_list = ['10.8.8.0/24', '10.11.227.0/24', '10.11.228.0/24', '10.11.241.0/24', '10.11.252.0/24']
     header_added = False
     # ip_list = get_ip_list()
 
