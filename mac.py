@@ -5,6 +5,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from paramiko.ssh_exception import SSHException
+from paramiko import channel
 from ips import get_ip_list
 from ipaddress import ip_network
 from nmap import PortScanner
@@ -12,7 +13,7 @@ import config as cfg
 from json import dumps
 from time import time
 from re import compile
-# import traceback
+import traceback
 from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 from csv import DictWriter
@@ -30,12 +31,16 @@ def connect(host):
     for _ in range(1):
         for _ in range(2):
             tries += 1
-
+            startconn = time()
             try:
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
-                                             password=cfg.ssh['password'])
+                                             password=cfg.ssh['password'],
+                                             blocking_timeout=20)
+                endconn = time()
+                time_elapsed = endconn - startconn
+                print(time_elapsed)
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -45,7 +50,7 @@ def connect(host):
                    ValueError):
 
                 print(tries)
-                # traceback.print_exc()
+                traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
@@ -87,12 +92,12 @@ def getRouterInfo(conn, host):
     """ Return ip, location, hostname, mac address and status for
     all devices in a site and append to a json file"""
     start2 = time()
-
     club_result = clubID(conn, host)
 
     results = []
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
+    not_added = []
 
     for attempt in range(1):
 
@@ -114,8 +119,12 @@ def getRouterInfo(conn, host):
 
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
-                            deviceType = getDeviceType(ip_result)
-
+                            deviceType = getDeviceType(ip_result, club_result)
+                            
+                            octets = ip_result.split('.')
+                            last_octet = int(octets[-1])
+                            first_octet = int(octets[0])
+                            
                             mac_result = macAddressFormat(mac_result)
                             vendor = getOuiVendor(mac_result)
 
@@ -133,15 +142,33 @@ def getRouterInfo(conn, host):
                                           'status': hostname['status']}
 
                             # The first value added to 'results'
-                            # is the router value. Subsequently, the rest
-                            # of the mac values are compared to the first
-                            # value. If the mac address is the same,
+                            # is the router value. This is only added if the
+                            # host IP is 10.x.x.1. 
+                            # Subsequently, the rest of the mac values
+                            # are compared to the first value.
+                            # If the mac address is the same,
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
 
-                            if (len(results) == 0 or
-                                    subnet_mac['mac'] != results[0]['mac']):
+                            if len(results) == 0:
+                                if first_octet == 10 and last_octet == 1:
+                                    results.append(subnet_mac)
+                                else:
+                                    not_added.append(subnet_mac)
+
+                            if len(results) != 0 and subnet_mac['mac'] != results[0]['mac']:
                                 results.append(subnet_mac)
+
+                    # when the first value in sh arp is not 10.x.x.1 items
+                    # are added to not_added list until it finds the router.
+                    # Then, not_added items mac's are compared to router
+                    # mac's, and if different, added to results to avoid
+                    # duplicate values
+
+                    if not_added != 0:
+                        for item in not_added:
+                            if item['mac'] != results[0]['mac']:
+                                results.append(item)
 
                     clubs.append(club_result)
 
@@ -172,19 +199,19 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory9-30.json', 'a+')
+        output = open('inventory10-11.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory.csv', 'a') as csvfile:
+        with open('inventory10-11.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
 
 
-def getDeviceType(host):
+def getDeviceType(host, club_result):
     """ Returns the device type based on ip address"""
     device_type = 'null'
 
@@ -192,12 +219,45 @@ def getDeviceType(host):
     last_octet = int(octets[-1])
     first_octet = int(octets[0])
     second_octet = int(octets[1])
+    third_octet = int(octets[2])
 
-    if first_octet == 10:
-        device_type = cfg.deviceType(last_octet)
+    if club_result is 'null':
+        octets_list = [str(first_octet), str(second_octet), str(third_octet)]
+        octets = str('.'.join(octets_list))
 
-    if first_octet == 172 and second_octet == 24:
-        device_type = cfg.phoneDevice(first_octet, second_octet)
+        if octets in cfg.regHosts:
+            club_result = 'reg'
+
+        if octets not in cfg.regHosts:
+
+            if first_octet == 172 and second_octet == 23:
+                club_result = 'reg'
+            else:
+                club_result = 'club'
+
+    if club_result[:4].lower() == 'club':
+
+        if first_octet == 10:
+            device_type = cfg.clubDeviceType(last_octet)
+
+        if first_octet == 172 and second_octet == 24:
+            device_type = 'Phone'
+
+        #  IP not within usual configuration
+        if host == cfg.club910:
+            device_type = cfg.clubDeviceType(last_octet)
+
+        # ISP provider for club 963. Not usual instance
+        if host == cfg.club963:
+            device_type = 'Router (ISP Provider)'
+
+    if club_result[:3].lower() == 'reg':
+
+        if first_octet == 10:
+            device_type = cfg.regionDeviceType(last_octet)
+
+        if first_octet == 172 and second_octet == 23:
+            device_type = 'Phone'
 
     return device_type
 
@@ -205,40 +265,6 @@ def getDeviceType(host):
 def getOuiVendor(mac):
     """ Returns vendor for each device based on mac address """
     oui = macOUI(mac)
-    cisco = ['54:BF:64',
-             '00:7E:95',
-             '50:F7:22',
-             '00:72:78',
-             '68:2C:7B',
-             '00:AA:6E',
-             '00:D6:FE',
-             '00:3C:10',
-             '0C:D0:F8',
-             '50:F7:22',
-             '70:0B:4F',
-             '70:1F:53',
-             'B0:90:7E',
-             '00:45:1D']
-
-    meraki = ['E0:CB:BC']
-
-    asustek = ['2C:FD:A1',
-               '0C:9D:92',
-               '18:31:BF',
-               '4C:ED:FB',
-               'B0:6E:BF']
-
-    HeFei = ['8C:16:45',
-             'E8:6A:64']
-
-    dell = ['6C:2B:59',
-            'B8:85:84',
-            '54:BF:64',
-            '50:9A:4C',
-            'E4:B9:7A',
-            '8C:EC:4B',
-            'D8:9E:F3',
-            '00:4E:01']
 
     try:
         mac_oui = EUI(mac).oui
@@ -246,20 +272,21 @@ def getOuiVendor(mac):
         return vendor
 
     # Some of the OUIs are not included in the IEEE.org txt used in netaddr.
-    # the list of OUIs here is gatherered from Wireshark,
-    # the lists above are hardcoded because the list is rather small
+    # Those OUIs not included are added in config.py and are gatherered
+    # from WireShark. The vendor list is hardcoded because it is rather small.
+
     except(NotRegisteredError):
         vendor = None
 
-        if oui in cisco:
+        if oui in cfg.cisco:
             vendor = 'Cisco Systems, Inc'
-        if oui in dell:
+        if oui in cfg.dell:
             vendor = 'Dell Inc.'
-        if oui in asustek:
+        if oui in cfg.asustek:
             vendor = 'AsustekC ASUSTek COMPUTER INC.'
-        if oui in HeFei:
+        if oui in cfg.HeFei:
             vendor = 'LcfcHefe LCFC(HeFei) Electronics Technology co., ltd'
-        if oui in meraki:
+        if oui in cfg.meraki:
             vendor = 'CiscoMer Cisco Meraki'
 
         mac_ouis.append(oui)
@@ -268,7 +295,7 @@ def getOuiVendor(mac):
 
 
 def macOUI(mac):
-    """ Return OUI from mac address passed in argument"""
+    """ Returns OUI from mac address passed in argument"""
     # get first three octets for oui
     oui = mac[:8]
 
@@ -290,10 +317,13 @@ def clubID(conn, host):
     """ Return clubID for router in argument"""
 
     club_rgx = compile(r'(?i)(Club[\d]{3})')
+    reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
 
-    for attempt in range(1):
+    club_result = '--'
 
-        for attempt2 in range(1):
+    for _ in range(1):
+
+        for attempt in range(2):
 
             if conn is not None:
 
@@ -301,27 +331,28 @@ def clubID(conn, host):
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
 
+                    if club_result is None:
+                        club_result = reg_rgx.search(club_info)
+
                     if club_result is not None:
                         club_result = club_result.group(0)
 
-                    else:
+                    if club_result is None:
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
-                        else:
+                        if hostname_club is None:
                             club_result = 'null'
-
-                    return club_result
 
                 except(OSError):
                     if attempt == 0:
                         print('Could not send command, cdp. Trying again')
-                        break
+                        continue
 
-                    if attempt == 1 and attempt2 == 0:
+                    if attempt == 1:
                         print('getting clubID from nmap hostname')
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
@@ -329,48 +360,11 @@ def clubID(conn, host):
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
-                        else:
-                            print('could not get hostname')
+                        if hostname_club is None:
+                            print('could not get clubID')
                             club_result = 'null'
 
-                    else:
-                        print('could not get clubID')
-                        club_result = 'null'
-
-                    print('returning "null"')
-
-                    return club_result
-
-
-def getDeviceMac(router_conn):
-    """ return list of mac addresses from a
-    router arp table for a given subnet """
-    router_maclist = []
-
-    mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
-
-    if router_conn is not None:
-
-        mac_table = router_conn.send_command('sh arp')
-        mac_table_list = mac_table.splitlines()
-
-        for item in mac_table_list:
-            mac_result = mac_regex.search(item)
-
-            if mac_result is not None:
-                continue
-
-            mac_result = mac_result.group(0)
-
-            router_maclist.append(mac_result)
-        router_maclist = set(router_maclist)
-
-        router_maclist = [macAddressFormat(item) for item in router_maclist]
-
-        return router_maclist
-
-    else:
-        return None
+        return club_result
 
 
 def getHostnames(ip):
@@ -401,20 +395,12 @@ def getSiteRouter(ip):
     return(firstHost)
 
 
-# return all usable subnets for a given IP
-def getSiteSubnets(ip):
-    """ Returns all subnets per site when called"""
-    siteHosts = ip_network(ip)
-    allHosts = list(siteHosts.hosts())
-    return(allHosts)
-
-
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    # ip_list = ['10.32.28.0/24', '10.10.54.0/24', '10.6.16.0/24']
+    ip_list = ['10.8.8.0/24', '10.11.227.0/24', '10.11.228.0/24', '10.11.241.0/24', '10.11.252.0/24']
     header_added = False
-    ip_list = get_ip_list()
+    # ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
@@ -424,9 +410,6 @@ def main():
         if router_connect is not None:
             router_connect.disconnect()
         header_added = True
-
-    # ouis: list of OUIs that were not found using Netaddr(for debugging)
-    ouis = set(mac_ouis)
 
     print('The following ', len(not_connected), ' hosts were not scanned')
     print(not_connected)
