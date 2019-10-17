@@ -27,13 +27,11 @@ mac_ouis = []
 def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
     print(host)
-    tries = 0
-    for attempt2 in range(1):
+    for _ in range(1):
         for attempt in range(2):
-
+            print('Attempt to connect', attempt +1)
             startconn = time()
             try:
-                raise OSError
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
@@ -74,11 +72,10 @@ def connect(host):
                         print('port 22 is closed for ' + (host))
                         not_connected.append(host)
                         return None
-                print(attempt)
+                print('Attempt to connect', attempt +1)
                 if attempt == 0:
                     print('Exception, trying to connect again ' + (host))
-            print(attempt)
-        print(attempt2)
+
         # exhausted all tries to connect, return None and exit
         print('Connection to the following device is not possible: ' + (host))
         not_connected.append(host)
