@@ -28,11 +28,12 @@ def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
     print(host)
     tries = 0
-    for _ in range(1):
-        for _ in range(2):
-            tries += 1
+    for attempt2 in range(1):
+        for attempt in range(2):
+
             startconn = time()
             try:
+                raise OSError
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
@@ -49,8 +50,7 @@ def connect(host):
                    OSError,
                    ValueError):
 
-                print(tries)
-                traceback.print_exc()
+                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
@@ -74,9 +74,11 @@ def connect(host):
                         print('port 22 is closed for ' + (host))
                         not_connected.append(host)
                         return None
-                if tries == 1:
+                print(attempt)
+                if attempt == 0:
                     print('Exception, trying to connect again ' + (host))
-
+            print(attempt)
+        print(attempt2)
         # exhausted all tries to connect, return None and exit
         print('Connection to the following device is not possible: ' + (host))
         not_connected.append(host)
@@ -199,12 +201,12 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory10-11.json', 'a+')
+        output = open('inventory10-17.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory10-11.csv', 'a') as csvfile:
+        with open('inventory10-17.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
