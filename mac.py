@@ -29,14 +29,15 @@ def connect(host):
     print(host)
     for _ in range(1):
         for attempt in range(2):
-            print('Attempt to connect', attempt +1)
             startconn = time()
             try:
+
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
+                print('Attempt to connect', attempt +1)
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print(time_elapsed)
@@ -98,14 +99,13 @@ def getRouterInfo(conn, host):
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
 
-    for attempt in range(1):
+    for _ in range(1):
 
-        for _ in range(1):
+        for attempt2 in range(2):
 
             if conn is not None:
-
+                print(attempt2)
                 try:
-
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
 
@@ -172,10 +172,10 @@ def getRouterInfo(conn, host):
                     clubs.append(club_result)
 
                 except(OSError):
-
-                    if attempt == 0:
+                    print(attempt2)
+                    if attempt2 == 0:
                         print('Could not send cmd "sh arp", trying again')
-                        break
+                        continue
 
                     else:
                         print('Could not get arp table ' + (host))
@@ -183,8 +183,7 @@ def getRouterInfo(conn, host):
                         failed_results = {'host': host,
                                           'club': club_result,
                                           'status': 'could not get arp table'}
-                        results.append(failed_results)
-                        continue
+                        results.append(failed_results)             
 
     end2 = time()
     runtime2 = end2 - start2
@@ -198,12 +197,12 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory10-17.json', 'a+')
+        output = open('inventory10-18.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory10-17.csv', 'a') as csvfile:
+        with open('inventory10-18.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -410,10 +409,10 @@ def main():
             router_connect.disconnect()
         header_added = True
 
-    print('The following ', len(not_connected), ' hosts were not scanned')
+    print('The following', len(not_connected), 'hosts were not scanned')
     print(not_connected)
 
-    print('The following ', len(clubs), ' clubs were scanned')
+    print('The following', len(clubs), 'clubs were scanned')
     print(clubs)
 
 
