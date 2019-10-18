@@ -37,10 +37,10 @@ def connect(host):
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
-                print('Attempt to connect', attempt +1)
+                print('Attempt to connect', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print(time_elapsed)
+                print('Connection achieved in', time_elapsed)
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -104,11 +104,12 @@ def getRouterInfo(conn, host):
         for attempt2 in range(2):
 
             if conn is not None:
-                print(attempt2)
+
                 try:
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
-
+                    print('Sending sh arp command to router', attempt2 + 1)
+                    
                     for item in arp_list:
 
                         ip_result = ip_regex.search(item)
@@ -170,9 +171,10 @@ def getRouterInfo(conn, host):
                                 results.append(item)
 
                     clubs.append(club_result)
+                    return results
 
                 except(OSError):
-                    print(attempt2)
+
                     if attempt2 == 0:
                         print('Could not send cmd "sh arp", trying again')
                         continue
@@ -183,15 +185,14 @@ def getRouterInfo(conn, host):
                         failed_results = {'host': host,
                                           'club': club_result,
                                           'status': 'could not get arp table'}
-                        results.append(failed_results)             
+                        results.append(failed_results)
+                        return results             
 
     end2 = time()
     runtime2 = end2 - start2
-    print(runtime2)
+    print('Router information was received in', runtime2)
 
-    return results
-
-
+    
 def writeToFiles(results, header_added):
     """ function to print and add results to .json and .csv files"""
     if len(results) != 0:
@@ -328,6 +329,7 @@ def clubID(conn, host):
                 try:
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
+                    print('Getting club ID', attempt)
 
                     if club_result is None:
                         club_result = reg_rgx.search(club_info)
@@ -396,9 +398,9 @@ def getSiteRouter(ip):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.8.8.0/24', '10.11.227.0/24', '10.11.228.0/24', '10.11.241.0/24', '10.11.252.0/24']
+    # ip_list = ['10.8.8.0/24', '10.11.227.0/24', '10.11.228.0/24', '10.11.241.0/24', '10.11.252.0/24']
     header_added = False
-    # ip_list = get_ip_list()
+    ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
