@@ -95,6 +95,7 @@ def getRouterInfo(conn, host):
     club_result = clubID(conn, host)
 
     results = []
+    failed_results = []
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
@@ -171,7 +172,7 @@ def getRouterInfo(conn, host):
                                 results.append(item)
 
                     clubs.append(club_result)
-                    return results
+                    break
 
                 except(OSError):
 
@@ -185,13 +186,12 @@ def getRouterInfo(conn, host):
                         failed_results = {'host': host,
                                           'club': club_result,
                                           'status': 'could not get arp table'}
-                        results.append(failed_results)
-                        return results             
-
+                        failed_results.append(failed_results)
+                                    
     end2 = time()
     runtime2 = end2 - start2
     print('Router information was received in', runtime2)
-
+    return results 
     
 def writeToFiles(results, header_added):
     """ function to print and add results to .json and .csv files"""
