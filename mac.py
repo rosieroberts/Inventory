@@ -95,7 +95,7 @@ def getRouterInfo(conn, host):
     club_result = clubID(conn, host)
 
     results = []
-    failed_results = []
+    f_results = []
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
@@ -186,7 +186,7 @@ def getRouterInfo(conn, host):
                         failed_results = {'host': host,
                                           'club': club_result,
                                           'status': 'could not get arp table'}
-                        failed_results.append(failed_results)
+                        f_results.append(failed_results)
                                     
     end2 = time()
     runtime2 = end2 - start2
@@ -329,7 +329,7 @@ def clubID(conn, host):
                 try:
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
-                    print('Getting club ID', attempt)
+                    print('Getting club ID', attempt + 1)
 
                     if club_result is None:
                         club_result = reg_rgx.search(club_info)
@@ -346,6 +346,7 @@ def clubID(conn, host):
 
                         if hostname_club is None:
                             club_result = 'null'
+                    break
 
                 except(OSError):
                     if attempt == 0:
