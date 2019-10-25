@@ -31,7 +31,6 @@ def connect(host):
         for attempt in range(2):
             startconn = time()
             try:
-
                 net_connect = ConnectHandler(device_type='cisco_ios',
                                              host=host,
                                              username=cfg.ssh['username'],
@@ -72,7 +71,7 @@ def connect(host):
                     else:
                         print('port 22 is closed for ' + (host))
                         not_connected.append(host)
-                        return None
+                        continue
                 print('Attempt to connect', attempt +1)
                 if attempt == 0:
                     print('Exception, trying to connect again ' + (host))
@@ -131,7 +130,7 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
-                            asset_tag = assetTagGenerator(host, club_result)
+                            asset_tag = assetTagGenerator(ip_result, club_result)
 
                             if hostname is None:
                                 continue
@@ -399,10 +398,11 @@ def getSiteRouter(ip):
     firstHost = next(siteHosts.hosts())
     return(firstHost)
 
+
 def assetTagGenerator(host, club_result):
     octets = host.split('.')
-    last_octet = int(octets[-1])
-    third_octet = int(octets[2])
+    last_octet = octets[-1]
+    third_octet = octets[2]
 
     asset1 = '000'
     asset2 = 'N'
@@ -416,14 +416,18 @@ def assetTagGenerator(host, club_result):
     club_id = reg_n_regex.search(club_result)
 
     if club_id is None:
+
         club_id = club_n_regex.search(club_result)
-        
+
         if club_id is not None:
+
+            club_id = club_id.group(0)        
             asset1 = club_id
 
         else:
             asset1 = club_result
     else:
+        club_id = club_id.group(0)
         asset1 = club_result[3:]
 
     device_type = getDeviceType(host, club_result)
@@ -431,7 +435,6 @@ def assetTagGenerator(host, club_result):
 
     asset_tag = (asset1 + asset2 + asset3)
 
-    print(asset_tag)
     return asset_tag
 
 

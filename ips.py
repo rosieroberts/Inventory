@@ -61,6 +61,8 @@ def get_ips():
 def always_exclude():
     ''' Get IPs to exclude from warehouse and TSC'''
 
+    exclude_list.append('10.5.252.0')
+
     # Regex to exclude warehouse | TSC
     regex = re.compile(r'(^10\.11\.163\.)|(^10\.11\.20[0-7]\.)')
 
@@ -71,6 +73,7 @@ def always_exclude():
 
         if regex_value:
             exclude_list.append(item[0])
+    print(exclude_list)
     return(exclude_list)
 
 
