@@ -131,11 +131,14 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
+                            asset_tag = assetTagGenerator(host, club_result)
+
                             if hostname is None:
                                 continue
 
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
+                                          'asset_tag': asset_tag,
                                           'device': deviceType,
                                           'vendor': vendor,
                                           'hostname': hostname['hostnames'],
@@ -403,7 +406,7 @@ def assetTagGenerator(host, club_result):
 
     asset1 = '000'
     asset2 = 'N'
-    
+
     # last 2 octets of host ip address
     asset3 = ('-' + third_octet + '-' + last_octet)
 
@@ -428,6 +431,7 @@ def assetTagGenerator(host, club_result):
 
     asset_tag = (asset1 + asset2 + asset3)
 
+    print(asset_tag)
     return asset_tag
 
 
