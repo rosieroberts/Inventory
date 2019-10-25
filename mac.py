@@ -131,11 +131,14 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
+                            asset_tag = assetTagGenerator(host, club_result)
+
                             if hostname is None:
                                 continue
 
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
+                                          'asset_tag': asset_tag,
                                           'device': deviceType,
                                           'vendor': vendor,
                                           'hostname': hostname['hostnames'],
@@ -365,6 +368,7 @@ def clubID(conn, host):
                             print('could not get clubID')
                             club_result = 'null'
 
+        club_result = club_result.lower()
         return club_result
 
 
@@ -394,6 +398,41 @@ def getSiteRouter(ip):
     siteHosts = ip_network(ip)
     firstHost = next(siteHosts.hosts())
     return(firstHost)
+
+def assetTagGenerator(host, club_result):
+    octets = host.split('.')
+    last_octet = int(octets[-1])
+    third_octet = int(octets[2])
+
+    asset1 = '000'
+    asset2 = 'N'
+
+    # last 2 octets of host ip address
+    asset3 = ('-' + third_octet + '-' + last_octet)
+
+    club_n_regex = compile(r'([0-9]{3})')
+    reg_n_regex = compile(r'([REG]{3})')
+
+    club_id = reg_n_regex.search(club_result)
+
+    if club_id is None:
+        club_id = club_n_regex.search(club_result)
+        
+        if club_id is not None:
+            asset1 = club_id
+
+        else:
+            asset1 = club_result
+    else:
+        asset1 = club_result[3:]
+
+    device_type = getDeviceType(host, club_result)
+    asset2 = device_type[0].upper()
+
+    asset_tag = (asset1 + asset2 + asset3)
+
+    print(asset_tag)
+    return asset_tag
 
 
 def main():
