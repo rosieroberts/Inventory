@@ -415,12 +415,10 @@ def assetTagGenerator(host, club_result, mac):
     asset4 = ('-' + third_octet + '-' + last_octet)
 
     # Extract host's mac address last 4 characters to be added to asset3
-    mac_third = mac[-5:-2]
+    mac_third = mac[-5:-3]
     mac_fourth = mac[-2:]
 
-    asset3 = (mac_third + '-' + mac_fourth)
-
-    print(mac_third, mac_fourth, asset3)
+    asset3 = ('-' + mac_third + mac_fourth)
 
     club_n_regex = compile(r'([0-9]{3})')
     reg_n_regex = compile(r'([REG]{3})')
