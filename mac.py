@@ -70,7 +70,6 @@ def connect(host):
                             break
                     else:
                         print('port 22 is closed for ' + (host))
-                        not_connected.append(host)
                         continue
                 print('Attempt to connect', attempt +1)
                 if attempt == 0:
@@ -441,9 +440,9 @@ def assetTagGenerator(host, club_result):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    # ip_list = ['10.8.8.0/24', '10.11.227.0/24', '10.11.228.0/24', '10.11.241.0/24', '10.11.252.0/24']
+    ip_list = ['10.10.51.0/24', '10.11.26.0/24']
     header_added = False
-    ip_list = get_ip_list()
+    # ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
