@@ -46,7 +46,8 @@ def connect(host):
                    NetMikoAuthenticationException,
                    SSHException,
                    OSError,
-                   ValueError):
+                   ValueError,
+                   EOFError):
 
                 # traceback.print_exc()
                 # if connection fails and an Exception is raised,
@@ -446,10 +447,11 @@ def main():
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
-        results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
-        writeToFiles(results, header_added)
 
         if router_connect is not None:
+            results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
+            writeToFiles(results, header_added)
+
             router_connect.disconnect()
         header_added = True
 
