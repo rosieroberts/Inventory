@@ -73,7 +73,6 @@ def always_exclude():
 
         if regex_value:
             exclude_list.append(item[0])
-    print(exclude_list)
     return(exclude_list)
 
 
