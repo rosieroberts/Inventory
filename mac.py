@@ -130,7 +130,7 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
-                            asset_tag = assetTagGenerator(ip_result, club_result)
+                            asset_tag = assetTagGenerator(ip_result, club_result, mac_result)
 
                             if hostname is None:
                                 continue
@@ -399,24 +399,37 @@ def getSiteRouter(ip):
     return(firstHost)
 
 
-def assetTagGenerator(host, club_result):
+def assetTagGenerator(host, club_result, mac):
+    """ Returns a generated asset tag for the host """
+    # initialize assets with base values
+    asset1 = '000'
+    asset2 = 'N'
+    asset3 = 'ABCD'
+    asset4 = '000-000'    
+    
+    # Extract host IP's last two octets to be added to asset4
     octets = host.split('.')
     last_octet = octets[-1]
     third_octet = octets[2]
 
-    asset1 = '000'
-    asset2 = 'N'
+    asset4 = ('-' + third_octet + '-' + last_octet)
 
-    # last 2 octets of host ip address
-    asset3 = ('-' + third_octet + '-' + last_octet)
+    # Extract host's mac address last 4 characters to be added to asset3
+    mac_third = mac[-5:-4]
+    mac_fourth = mac[-2:-1]
+
+    asset3 = (mac_third + '-' + mac_fourth)
+
+    print(mac_third, mac_fourth, asset3)
 
     club_n_regex = compile(r'([0-9]{3})')
     reg_n_regex = compile(r'([REG]{3})')
 
+    # Extract club number to be used in asset1 (regional offices)
     club_id = reg_n_regex.search(club_result)
 
     if club_id is None:
-
+        # Extract club number for asset1 (clubs)
         club_id = club_n_regex.search(club_result)
 
         if club_id is not None:
@@ -430,10 +443,12 @@ def assetTagGenerator(host, club_result):
         club_id = club_id.group(0)
         asset1 = club_result[3:]
 
+    # Extract first letter of device type for asset2
     device_type = getDeviceType(host, club_result)
     asset2 = device_type[0].upper()
 
-    asset_tag = (asset1 + asset2 + asset3)
+    # Generated asset tag is the concatenation of all assets
+    asset_tag = (asset1 + asset2 + asset3 +  asset4)
 
     return asset_tag
 
@@ -441,9 +456,9 @@ def assetTagGenerator(host, club_result):
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.10.51.0/24', '10.11.26.0/24']
+    # ip_list = ['10.10.51.0/24', '10.11.26.0/24']
     header_added = False
-    # ip_list = get_ip_list()
+    ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
