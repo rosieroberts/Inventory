@@ -415,8 +415,8 @@ def assetTagGenerator(host, club_result, mac):
     asset4 = ('-' + third_octet + '-' + last_octet)
 
     # Extract host's mac address last 4 characters to be added to asset3
-    mac_third = mac[-5:-4]
-    mac_fourth = mac[-2:-1]
+    mac_third = mac[-5:-2]
+    mac_fourth = mac[-2:]
 
     asset3 = (mac_third + '-' + mac_fourth)
 
@@ -448,7 +448,7 @@ def assetTagGenerator(host, club_result, mac):
     asset2 = device_type[0].upper()
 
     # Generated asset tag is the concatenation of all assets
-    asset_tag = (asset1 + asset2 + asset3 +  asset4)
+    asset_tag = (asset1 + asset2 + asset3 + asset4)
 
     return asset_tag
 
