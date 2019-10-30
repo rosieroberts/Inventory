@@ -27,10 +27,8 @@ mac_ouis = []
 def connect(host):
     """ Connect to router using .1 address from each ip route from ip_list"""
     print(host)
-    tries = 0
     for _ in range(1):
-        for _ in range(2):
-            tries += 1
+        for attempt in range(2):
             startconn = time()
             try:
                 net_connect = ConnectHandler(device_type='cisco_ios',
@@ -38,19 +36,20 @@ def connect(host):
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
+                print('Attempt to connect', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print(time_elapsed)
+                print('Connection achieved in', time_elapsed)
                 return net_connect
 
             except(NetMikoTimeoutException,
                    NetMikoAuthenticationException,
                    SSHException,
                    OSError,
-                   ValueError):
+                   ValueError,
+                   EOFError):
 
-                print(tries)
-                traceback.print_exc()
+                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan host to see if port 22 is open,
                 # if it is open try to connect again
@@ -72,9 +71,9 @@ def connect(host):
                             break
                     else:
                         print('port 22 is closed for ' + (host))
-                        not_connected.append(host)
-                        return None
-                if tries == 1:
+                        continue
+                print('Attempt to connect', attempt +1)
+                if attempt == 0:
                     print('Exception, trying to connect again ' + (host))
 
         # exhausted all tries to connect, return None and exit
@@ -95,21 +94,22 @@ def getRouterInfo(conn, host):
     club_result = clubID(conn, host)
 
     results = []
+    f_results = []
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
 
-    for attempt in range(1):
+    for _ in range(1):
 
-        for _ in range(1):
+        for attempt2 in range(2):
 
             if conn is not None:
 
                 try:
-
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
-
+                    print('Sending sh arp command to router', attempt2 + 1)
+                    
                     for item in arp_list:
 
                         ip_result = ip_regex.search(item)
@@ -130,11 +130,14 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
+                            asset_tag = assetTagGenerator(ip_result, club_result, mac_result)
+
                             if hostname is None:
                                 continue
 
                             subnet_mac = {'ip': ip_result,
                                           'club': club_result,
+                                          'asset_tag': asset_tag,
                                           'device': deviceType,
                                           'vendor': vendor,
                                           'hostname': hostname['hostnames'],
@@ -171,12 +174,13 @@ def getRouterInfo(conn, host):
                                 results.append(item)
 
                     clubs.append(club_result)
+                    break
 
                 except(OSError):
 
-                    if attempt == 0:
+                    if attempt2 == 0:
                         print('Could not send cmd "sh arp", trying again')
-                        break
+                        continue
 
                     else:
                         print('Could not get arp table ' + (host))
@@ -184,27 +188,24 @@ def getRouterInfo(conn, host):
                         failed_results = {'host': host,
                                           'club': club_result,
                                           'status': 'could not get arp table'}
-                        results.append(failed_results)
-                        continue
-
+                        f_results.append(failed_results)
+                                    
     end2 = time()
     runtime2 = end2 - start2
-    print(runtime2)
-
-    return results
-
-
+    print('Router information was received in', runtime2)
+    return results 
+    
 def writeToFiles(results, header_added):
     """ function to print and add results to .json and .csv files"""
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory10-11.json', 'a+')
+        output = open('inventory10-29.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory10-11.csv', 'a') as csvfile:
+        with open('inventory10-29.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -330,6 +331,7 @@ def clubID(conn, host):
                 try:
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
+                    print('Getting club ID', attempt + 1)
 
                     if club_result is None:
                         club_result = reg_rgx.search(club_info)
@@ -346,6 +348,7 @@ def clubID(conn, host):
 
                         if hostname_club is None:
                             club_result = 'null'
+                    break
 
                 except(OSError):
                     if attempt == 0:
@@ -364,6 +367,7 @@ def clubID(conn, host):
                             print('could not get clubID')
                             club_result = 'null'
 
+        club_result = club_result.lower()
         return club_result
 
 
@@ -395,26 +399,79 @@ def getSiteRouter(ip):
     return(firstHost)
 
 
+def assetTagGenerator(host, club_result, mac):
+    """ Returns a generated asset tag for the host """
+    # initialize assets with base values
+    asset1 = '000'
+    asset2 = 'N'
+    asset3 = 'ABCD'
+    asset4 = '000-000'    
+    
+    # Extract host IP's last two octets to be added to asset4
+    octets = host.split('.')
+    last_octet = octets[-1]
+    third_octet = octets[2]
+
+    asset4 = ('-' + third_octet + '-' + last_octet)
+
+    # Extract host's mac address last 4 characters to be added to asset3
+    mac_third = mac[-5:-3]
+    mac_fourth = mac[-2:]
+
+    asset3 = ('-' + mac_third + mac_fourth)
+
+    club_n_regex = compile(r'([0-9]{3})')
+    reg_n_regex = compile(r'([REG]{3})')
+
+    # Extract club number to be used in asset1 (regional offices)
+    club_id = reg_n_regex.search(club_result)
+
+    if club_id is None:
+        # Extract club number for asset1 (clubs)
+        club_id = club_n_regex.search(club_result)
+
+        if club_id is not None:
+
+            club_id = club_id.group(0)        
+            asset1 = club_id
+
+        else:
+            asset1 = club_result
+    else:
+        club_id = club_id.group(0)
+        asset1 = club_result[3:]
+
+    # Extract first letter of device type for asset2
+    device_type = getDeviceType(host, club_result)
+    asset2 = device_type[0].upper()
+
+    # Generated asset tag is the concatenation of all assets
+    asset_tag = (asset1 + asset2 + asset3 + asset4)
+
+    return asset_tag
+
+
 def main():
     """ main function to run, use get_ip_list for all sites
     or use a specific list of ips"""
-    ip_list = ['10.8.8.0/24', '10.11.227.0/24', '10.11.228.0/24', '10.11.241.0/24', '10.11.252.0/24']
+    # ip_list = ['10.10.51.0/24', '10.11.26.0/24']
     header_added = False
-    # ip_list = get_ip_list()
+    ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = routerConnection(str(getSiteRouter(ip)))
-        results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
-        writeToFiles(results, header_added)
 
         if router_connect is not None:
+            results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
+            writeToFiles(results, header_added)
+
             router_connect.disconnect()
         header_added = True
 
-    print('The following ', len(not_connected), ' hosts were not scanned')
+    print('The following', len(not_connected), 'hosts were not scanned')
     print(not_connected)
 
-    print('The following ', len(clubs), ' clubs were scanned')
+    print('The following', len(clubs), 'clubs were scanned')
     print(clubs)
 
 
