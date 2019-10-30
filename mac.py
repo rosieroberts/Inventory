@@ -161,8 +161,8 @@ def getRouterInfo(conn, host):
                                 else:
                                     not_added.append(subnet_mac)
 
-                            if len(results) != 0 and 
-                                    subnet_mac['mac'] != results[0]['mac']:
+                            if (len(results) != 0 and
+                                    subnet_mac['mac'] != results[0]['mac']):
                                 results.append(subnet_mac)
 
                     # when the first value in sh arp is not 10.x.x.1 items
