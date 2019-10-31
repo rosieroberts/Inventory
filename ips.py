@@ -11,7 +11,7 @@ session = Session(hostname=cfg.snmp['hostname'],
                   community=cfg.snmp['community'],
                   version=2)
 
-# OIDs
+# OIDs needed to get IP/mask information
 OIDs = ['ip.21.1.1',
         'ip.21.1.11',
         'inetCidrRouteType',
@@ -20,8 +20,8 @@ OIDs = ['ip.21.1.1',
 
 
 def get_ips():
-    ''' Get full list of IPs based on OID ip.21.1.11.
-    Extract IP and subnet mask and add to ip_list.'''
+    """ Get full list of IPs based on OID ip.21.1.11.
+    Extract IP and subnet mask and add to ip_list. """
 
     IPlist = []
     final = []
@@ -36,7 +36,7 @@ def get_ips():
     full_ip_list = list('{}/{}'.format(oid_regex.search(item.oid).group(0),
                         item.value) for item in subnet_masks)
 
-    # split values in list to create a nested list with IPs and subnet masks
+    # split values in list to create a list of IPs w/ respective subnet masks
     # convert subnet masks to cidr notation
     # while it is being split and added to list
     # format: ['ip', 'subnet mask(/24)']
@@ -45,9 +45,8 @@ def get_ips():
         item[1] = str(sum(bin(int(x)).count('1') for x in item[1].split('.')))
         IPlist.append(item)
 
-    # regex to search for IPs to include. Club | POS
-    regex_include = re.compile(r'(^10\.([4-9]|[1-8][0-9]|9[0-6])\.)')  # |'
-    #                          r'(^172\.22\.(6[4-9]|[78][0-9]|9[0-5])\.)')
+    # regex to search for IPs to include clubs and regional offices
+    regex_include = re.compile(r'(^10\.([4-9]|[1-8][0-9]|9[0-6])\.)')
 
     for item in IPlist:
         regex_value = regex_include.search(item[0])
@@ -59,8 +58,9 @@ def get_ips():
 
 
 def always_exclude():
-    ''' Get IPs to exclude from warehouse and TSC'''
+    """ Get IPs to exclude from warehouse and TSC """
 
+    # this IP appeared recently, need to figure out what it is for
     exclude_list.append('10.5.252.0')
 
     # Regex to exclude warehouse | TSC
@@ -77,7 +77,7 @@ def always_exclude():
 
 
 def exclude(OID, OID_value):
-    ''' Returns list of excluded IPs from specific OID values from argument'''
+    """ Returns list of excluded IPs from specific OID values from argument """
 
     regex = re.compile(r'(?<=^1\.4\.)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
     routes = session.walk(OID)
@@ -90,29 +90,29 @@ def exclude(OID, OID_value):
 
 
 def get_ip_list():
-    ''' Get final IP list by removing exclude_list from ip_list'''
+    """ Get final IP list by removing exclude_list from ip_list """
 
-    #   get list of all ips from SNMPWalk
+    # get list of all ips from SNMPWalk
     ip_list = get_ips()
 
-    #   get list of always excluded ips
+    # get list of always excluded ips
     always_exclude()
 
-    #   find hosts that are not found via ospf and add them to exclude_list
+    # find hosts that are not found via ospf and add them to exclude_list
     exclude('inetCidrRouteProto', '13')
 
-    #   find hosts that are not remote and add them to exclude_list
+    # find hosts that are not remote and add them to exclude_list
     exclude('inetCidrRouteType', '4')
 
-    #   find hosts that are not up and add them to exclude_list
+    # find hosts that are not up and add them to exclude_list
     exclude('inetCidrRouteStatus', '1')
 
-    #   compare IP list with excluded_list
-    #   and remove excluded items, add to final_list
+    # compare IP list with excluded_list
+    # and remove excluded items, add to final_list
     final_list = [item for item in ip_list if item[0] not in exclude_list]
 
-    #   join ip_list and mask and return final list with usable ips/mask
-    #   format: ['ip/mask']
+    # join ip_list and mask and return final list with usable ips/mask
+    # format: ['ip/mask']
     ips_with_mask = ['/'.join(x) for x in final_list]
 
     # for item in ips_with_mask:
