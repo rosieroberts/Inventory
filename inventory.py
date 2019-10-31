@@ -72,7 +72,7 @@ def connect(host):
                     else:
                         print('port 22 is closed for ' + (host))
                         continue
-                print('Attempt to connect', attempt +1)
+                print('Attempt to connect', attempt + 1)
                 if attempt == 0:
                     print('Exception, trying to connect again ' + (host))
 
@@ -109,7 +109,7 @@ def getRouterInfo(conn, host):
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
                     print('Sending sh arp command to router', attempt2 + 1)
-                    
+
                     for item in arp_list:
 
                         ip_result = ip_regex.search(item)
@@ -120,17 +120,19 @@ def getRouterInfo(conn, host):
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
                             deviceType = getDeviceType(ip_result, club_result)
-                            
+
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
-                            
+
                             mac_result = macAddressFormat(mac_result)
                             vendor = getOuiVendor(mac_result)
 
                             hostname = getHostnames(ip_result)
 
-                            asset_tag = assetTagGenerator(ip_result, club_result, mac_result)
+                            asset_tag = assetTagGenerator(ip_result,
+                                                          club_result,
+                                                          mac_result)
 
                             if hostname is None:
                                 continue
@@ -146,7 +148,7 @@ def getRouterInfo(conn, host):
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
-                            # host IP is 10.x.x.1. 
+                            # host IP is 10.x.x.1.
                             # Subsequently, the rest of the mac values
                             # are compared to the first value.
                             # If the mac address is the same,
@@ -159,7 +161,8 @@ def getRouterInfo(conn, host):
                                 else:
                                     not_added.append(subnet_mac)
 
-                            if len(results) != 0 and subnet_mac['mac'] != results[0]['mac']:
+                            if (len(results) != 0 and
+                                    subnet_mac['mac'] != results[0]['mac']):
                                 results.append(subnet_mac)
 
                     # when the first value in sh arp is not 10.x.x.1 items
@@ -189,12 +192,13 @@ def getRouterInfo(conn, host):
                                           'club': club_result,
                                           'status': 'could not get arp table'}
                         f_results.append(failed_results)
-                                    
+
     end2 = time()
     runtime2 = end2 - start2
     print('Router information was received in', runtime2)
-    return results 
-    
+    return results
+
+
 def writeToFiles(results, header_added):
     """ function to print and add results to .json and .csv files"""
     if len(results) != 0:
@@ -405,8 +409,8 @@ def assetTagGenerator(host, club_result, mac):
     asset1 = '000'
     asset2 = 'N'
     asset3 = 'ABCD'
-    asset4 = '000-000'    
-    
+    asset4 = '000-000'
+
     # Extract host IP's last two octets to be added to asset4
     octets = host.split('.')
     last_octet = octets[-1]
@@ -432,7 +436,7 @@ def assetTagGenerator(host, club_result, mac):
 
         if club_id is not None:
 
-            club_id = club_id.group(0)        
+            club_id = club_id.group(0)
             asset1 = club_id
 
         else:
