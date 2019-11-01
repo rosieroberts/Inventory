@@ -37,9 +37,20 @@ The following information from each router is gathered and is added into a list 
 -IPs, -Mac-Addresses, -Device Types (from `deviceType()`), -Vendors (from `getOuiVendor()`), -Hostnames (from `getHostnames()`), -Asset tags (from `assetTagGenerator()`). 
 `getRouterInfo()` excludes duplicate and irrelevant hosts as the arp table is parsed.
 
-`writeToFiles()` writes output from each location in both .csv json formats.
+`writeToFiles()` writes/appends output from each location in both .csv & .json formats.
 
 `getDeviceType()` Uses company pre-defined network configurations based on IP adresses to determine what kind of devices each host is. Devices can be Routers, Switches, Printers, Computers, Phones, etc.
 
-`getOuiVendor()` Using [netaddr](https://github.com/drkjam/netaddr) each devices OUI, 
+`getOuiVendor()` Using EUI from [netaddr](https://github.com/drkjam/netaddr) each device's OUI is retrieved from iee.org. There are some OUIs that are not found, so they are added in the config file for use in this method.
+
+`macAddressFormat()` Using EUI and mac_unix_expanded from [netaddr](https://github.com/drkjam/netaddr), returns formatted version of a mac address to format: XX:XX:XX:XX:XX:XX.
+
+`clubID()` Using [netmiko](https://github.com/drkjam/netaddr) to create a connection object from `connect()` and sends a 'sh cdp entry \*' command to each router to retrieve the location ID. Regex is then used to extract said ID and returned for use in `getRouterInfo()`.
+
+`getHostnames()` Uses [python-nmap](https://pypi.org/project/python-nmap/) to scan each host and retrieve the hostname and status to be used in `getRouterInfo()`.
+
+`assetTagGenerator()` Returns a generated asset tag for the host based on the location ID, Initial of type of device, Mac-address last 4, and IP last 2 octets.
+
+`main()` Takes each IP address from ips.py to connect, get router's information write to files and disconnect, it loops through all locations and returns a list of locations that were successful and those not successful for troubleshooting. 
+
 
