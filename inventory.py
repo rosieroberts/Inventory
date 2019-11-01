@@ -5,7 +5,6 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from paramiko.ssh_exception import SSHException
-from paramiko import channel
 from ips import get_ip_list
 from ipaddress import ip_network
 from nmap import PortScanner
@@ -25,7 +24,7 @@ mac_ouis = []
 
 
 def connect(host):
-    """ Connect to router using .1 address from each ip route from ip_list"""
+    """ Connect to router using .1 address from each ip router from ip_list"""
     print(host)
     for _ in range(1):
         for attempt in range(2):
