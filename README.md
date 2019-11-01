@@ -13,10 +13,10 @@ is a tool used to get information from all devices connected to each location in
 
 How it works:
 
-_**ips.py:**_
+***ips.py:***
 
 `get_ips():`
-Uses [Session](https://github.com/kamakazikamikaze/easysnmp/blob/master/easysnmp/session.py) from [easysnmp](https://github.com/kamakazikamikaze/easysnmp) to connect to the main router and perform an SNMPWalk. Using specific OIDs, IP and mask information is extracted using regex and addded to a list with values combined in ip/subnet_mask format (CIDR notation).
+Uses [Session](https://github.com/kamakazikamikaze/easysnmp/blob/master/easysnmp/session.py) from [easysnmp](https://github.com/kamakazikamikaze/easysnmp) to connect to the main router and perform an SNMPWalk. Using specific OIDs, IP and mask information is extracted using regex and added to a list with values combined in ip/subnet_mask format (CIDR notation).
 
 `always_exclude():`
 Creates list of excluded IPs that do not need to be included in final IP list in X.X.X.0 format
@@ -28,7 +28,7 @@ Returns list of excluded IPs from specific OID values
 Returns final IP list by removing exclude_list from ip_list in X.X.X.0/mask format
 
 
-_**inventory.py**_
+***inventory.py***
 
 `connect()` Uses ConnectHandler from [netmiko](https://github.com/ktbyers/netmiko) to connect to each location's router via SSH. It attempts to connect twice before it quits and moves on to the next location. Returns a connection object used in other functions.
 
@@ -41,7 +41,7 @@ The following information from each router is gathered and is added into a list 
 
 `getDeviceType()` Uses company pre-defined network configurations based on IP adresses to determine what kind of devices each host is. Devices can be Routers, Switches, Printers, Computers, Phones, etc.
 
-`getOuiVendor()` Using EUI from [netaddr](https://github.com/drkjam/netaddr) each device's OUI is retrieved from iee.org. There are some OUIs that are not found, so they are added in the config file for use in this method.
+`getOuiVendor()` Using EUI from [netaddr](https://github.com/drkjam/netaddr) each device's OUI is retrieved from ieee.org. There are some OUIs that are not found, so they are added in the config file for use in this function.
 
 `macAddressFormat()` Using EUI and mac_unix_expanded from [netaddr](https://github.com/drkjam/netaddr), returns formatted version of a mac address to format: XX:XX:XX:XX:XX:XX.
 
@@ -51,6 +51,6 @@ The following information from each router is gathered and is added into a list 
 
 `assetTagGenerator()` Returns a generated asset tag for the host based on the location ID, Initial of type of device, Mac-address last 4, and IP last 2 octets.
 
-`main()` Takes each IP address from ips.py to connect, get router's information write to files and disconnect, it loops through all locations and returns a list of locations that were successful and those not successful for troubleshooting. 
+`main()` Takes each IP address from ***ips.py*** to connect, get router's information write to files and disconnect, it loops through all locations, writes to files and returns a list of successful and unsuccessful hosts for troubleshooting. 
 
 
