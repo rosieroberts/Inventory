@@ -12,7 +12,7 @@ import config as cfg
 from json import dumps
 from time import time
 from re import compile
-import traceback
+# import traceback
 from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 from csv import DictWriter
@@ -92,7 +92,7 @@ def connect(ip):
 
 
 def getRouterInfo(conn, host):
-    """Sends command to router to retrieve its arp-table, extracting all 
+    """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
     information in a list of dictionaries per location.
 
@@ -104,18 +104,18 @@ def getRouterInfo(conn, host):
       List of devices with device information in dictionary format.
 
       Example output per device:
-      {'ip': 'x.x.x.x', 
-       'club': '', 
-       'asset_tag': '000P-ABCD-000-000', 
-       'device': 'Phone', 
-       'vendor': 'Cisco', 
-       'hostname': 'name@name.com', 
-       'mac': 'XX:XX:XX:XX:XX:XX', 
+      {'ip': 'x.x.x.x',
+       'club': '',
+       'asset_tag': '000P-ABCD-000-000',
+       'device': 'Phone',
+       'vendor': 'Cisco',
+       'hostname': 'name@name.com',
+       'mac': 'XX:XX:XX:XX:XX:XX',
        'status': 'up'}
 
     Raises:
       Does not raise an error. If router information cannot be retrieved,
-      a dictionary containing the host, club and status is appended to a 
+      a dictionary containing the host, club and status is appended to a
       list of failed results for investigation.
     """
     start2 = time()
@@ -228,7 +228,7 @@ def getRouterInfo(conn, host):
 
 
 def writeToFiles(results, header_added):
-    """ function to print and add results to .json and .csv files
+    """Function to print and add results to .json and .csv files
 
     Args:
       results - list returned from getRouterInfo() for each location
@@ -257,7 +257,7 @@ def writeToFiles(results, header_added):
 
 
 def getDeviceType(host, club_result):
-    """ Returns the device type based on ip address
+    """Returns the device type based on ip address
 
     Args:
       host - device IP
@@ -329,7 +329,7 @@ def getOuiVendor(mac):
       A string of the associated vendor name
 
     Raises:
-      No error is raised. If there is no vendor found, 
+      No error is raised. If there is no vendor found,
       None is returned.
     """
     oui = macOUI(mac)
@@ -382,7 +382,7 @@ def macOUI(mac):
 
 def macAddressFormat(mac):
     """Return formatted version of mac address
-    
+
     Args:
       mac - device mac-address
 
@@ -402,7 +402,7 @@ def macAddressFormat(mac):
 def clubID(conn, host):
     """Sends command to router to retrieve location ID information.
     if not found, attempts to get location ID using getHostNames()
-    
+
     Args:
       conn - Connection object
       host - Device IP
@@ -470,7 +470,7 @@ def clubID(conn, host):
 
 def getHostnames(ip):
     """Scan router for hostname using python-nmap
-    
+
     Args:
       ip - router IP
 
@@ -524,7 +524,7 @@ def getSiteRouter(ip):
 
 def assetTagGenerator(host, club_result, mac):
     """Returns a generated asset tag for the host
-    
+
     Args:
       host - device IP
       club_result - Location ID from clubID()
@@ -590,7 +590,7 @@ def assetTagGenerator(host, club_result, mac):
 def main():
     """main function to run script, using get_ip_list from ips.py
     or using a specific list of ips
-    
+
     Args:
       None
 
