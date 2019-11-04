@@ -60,8 +60,8 @@ def get_ips():
 def always_exclude():
     """ Get IPs to exclude from warehouse and TSC """
 
-    # this IP appeared recently, need to figure out what it is for
-    exclude_list.append('10.5.252.0')
+    # clubs with fortinet
+    exclude_list.extend(exclude_list_add)
 
     # Regex to exclude warehouse | TSC
     regex = re.compile(r'(^10\.11\.163\.)|(^10\.11\.20[0-7]\.)')

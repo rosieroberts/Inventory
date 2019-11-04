@@ -81,11 +81,6 @@ def connect(host):
         return None
 
 
-def routerConnection(host):
-    router_connect = connect(host)
-    return router_connect
-
-
 def getRouterInfo(conn, host):
     """ Return ip, location, hostname, mac address and status for
     all devices in a site and append to a json file"""
@@ -462,7 +457,7 @@ def main():
     ip_list = get_ip_list()
 
     for ip in ip_list:
-        router_connect = routerConnection(str(getSiteRouter(ip)))
+        router_connect = connect(str(getSiteRouter(ip)))
 
         if router_connect is not None:
             results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
