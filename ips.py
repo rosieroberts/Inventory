@@ -61,7 +61,7 @@ def always_exclude():
     """ Get IPs to exclude from warehouse and TSC """
 
     # clubs with fortinet
-    exclude_list.extend(exclude_list_add)
+    exclude_list.extend(cfg.exclude_list_add)
 
     # Regex to exclude warehouse | TSC
     regex = re.compile(r'(^10\.11\.163\.)|(^10\.11\.20[0-7]\.)')
