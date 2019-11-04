@@ -52,6 +52,6 @@ The following information from each router is gathered and is added into a list 
 
 `assetTagGenerator()` Returns a generated asset tag for the host based on the location ID, Initial of type of device, Mac-address last 4, and IP last 2 octets.
 
-`main()` Takes each IP address from ***ips.py*** to connect, get router's information write to files and disconnect, it loops through all locations, writes to files and returns a list of successful and unsuccessful hosts for troubleshooting. 
+`main()` Takes each IP address from ***ips.py*** to connect, get router's information write to files and disconnect, it loops through all locations, writes to files and returns a list of successful and unsuccessful hosts for troubleshooting.
 
 
