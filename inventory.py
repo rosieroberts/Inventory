@@ -23,15 +23,25 @@ clubs = []
 mac_ouis = []
 
 
-def connect(host):
-    """ Connect to router using .1 address from each ip router from ip_list"""
-    print(host)
+def connect(ip):
+    """Connects to router using .1 address from each ip router from ip_list.
+
+    Args:
+      ip - Router IP in x.x.x.1.
+
+    Returns:
+      Netmiko connection object.
+
+    Raises:
+      Does not raise an error. If connection is unsuccessful, None is returned.
+    """
+    print(ip)
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
             try:
                 net_connect = ConnectHandler(device_type='cisco_ios',
-                                             host=host,
+                                             host=ip,
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
@@ -50,40 +60,64 @@ def connect(host):
 
                 # traceback.print_exc()
                 # if connection fails and an Exception is raised,
-                # scan host to see if port 22 is open,
+                # scan ip to see if port 22 is open,
                 # if it is open try to connect again
                 # if it is closed, return None and exit
                 nmap_args = 'p22'
                 scanner = PortScanner()
-                scanner.scan(hosts=host, arguments=nmap_args)
+                scanner.scan(hosts=ip, arguments=nmap_args)
 
                 for ip in scanner.all_hosts():
 
                     if scanner[ip].has_tcp(22):
 
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
-                            print('port 22 is showing closed for ' + (host))
-                            not_connected.append(host)
+                            print('port 22 is showing closed for ' + (ip))
+                            not_connected.append(ip)
                             return None
                         else:
                             print('Port 22 is open ')
                             break
                     else:
-                        print('port 22 is closed for ' + (host))
+                        print('port 22 is closed for ' + (ip))
                         continue
                 print('Attempt to connect', attempt + 1)
                 if attempt == 0:
-                    print('Exception, trying to connect again ' + (host))
+                    print('Exception, trying to connect again ' + (ip))
 
         # exhausted all tries to connect, return None and exit
-        print('Connection to the following device is not possible: ' + (host))
-        not_connected.append(host)
+        print('Connection to the following device is not possible: ' + (ip))
+        not_connected.append(ip)
         return None
 
 
 def getRouterInfo(conn, host):
-    """ Return ip, location, hostname, mac address and status for
-    all devices in a site and append to a json file"""
+    """Sends command to router to retrieve its arp-table, extracting all 
+    devices' mac-addresses and combines this with additional device
+    information in a list of dictionaries per location.
+
+    Args:
+      conn - Connection object
+      host - device IP
+
+    Returns:
+      List of devices with device information in dictionary format.
+
+      Example output per device:
+      {'ip': 'x.x.x.x', 
+       'club': '', 
+       'asset_tag': '000P-ABCD-000-000', 
+       'device': 'Phone', 
+       'vendor': 'Cisco', 
+       'hostname': 'name@name.com', 
+       'mac': 'XX:XX:XX:XX:XX:XX', 
+       'status': 'up'}
+
+    Raises:
+      Does not raise an error. If router information cannot be retrieved,
+      a dictionary containing the host, club and status is appended to a 
+      list of failed results for investigation.
+    """
     start2 = time()
     club_result = clubID(conn, host)
 
@@ -194,16 +228,28 @@ def getRouterInfo(conn, host):
 
 
 def writeToFiles(results, header_added):
-    """ function to print and add results to .json and .csv files"""
+    """ function to print and add results to .json and .csv files
+
+    Args:
+      results - list returned from getRouterInfo() for each location
+      header_added - boolean value used to avoid multiple headers in csv file
+
+    Returns:
+      Does not return anything. Function writes to files.
+
+    Raises:
+      Does not raise an error. File is created when function is called and
+      if file already exists, results list is appended to end of existing file
+    """
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory10-29.json', 'a+')
+        output = open('inventory11-05.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory10-29.csv', 'a') as csvfile:
+        with open('inventory11-05.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -211,7 +257,19 @@ def writeToFiles(results, header_added):
 
 
 def getDeviceType(host, club_result):
-    """ Returns the device type based on ip address"""
+    """ Returns the device type based on ip address
+
+    Args:
+      host - device IP
+      club_result - location ID
+
+    Returns:
+      Device Type based on IP address
+
+    Raises:
+      Does not raise an error. If a device type is not found,
+      'null' is returned.
+    """
     device_type = 'null'
 
     octets = host.split('.')
@@ -262,7 +320,18 @@ def getDeviceType(host, club_result):
 
 
 def getOuiVendor(mac):
-    """ Returns vendor for each device based on mac address """
+    """Returns vendor for each device based on mac address
+
+    Args:
+      mac - device mac-address
+
+    Returns:
+      A string of the associated vendor name
+
+    Raises:
+      No error is raised. If there is no vendor found, 
+      None is returned.
+    """
     oui = macOUI(mac)
 
     try:
@@ -294,7 +363,17 @@ def getOuiVendor(mac):
 
 
 def macOUI(mac):
-    """ Returns OUI from mac address passed in argument"""
+    """Returns OUI from mac address passed in argument
+
+    Args:
+      mac - device mac-address
+
+    Returns:
+      OUI for mac-address
+
+    Raises:
+      No error is raised.
+    """
     # get first three octets for oui
     oui = mac[:8]
 
@@ -302,9 +381,17 @@ def macOUI(mac):
 
 
 def macAddressFormat(mac):
-    """ Return formatted version of mac address
-    to identify device to format: XX:XX:XX:XX:XX:XX """
+    """Return formatted version of mac address
+    
+    Args:
+      mac - device mac-address
 
+    Returns:
+      Formatted mac-address in format: XX:XX:XX:XX:XX:XX
+
+    Raises:
+      No error is raised.
+    """
     formatted_mac = EUI(str(mac))
     formatted_mac.dialect = mac_unix_expanded
     formatted_mac = (str(formatted_mac).upper())
@@ -313,8 +400,20 @@ def macAddressFormat(mac):
 
 
 def clubID(conn, host):
-    """ Return clubID for router in argument"""
+    """Sends command to router to retrieve location ID information.
+    if not found, attempts to get location ID using getHostNames()
+    
+    Args:
+      conn - Connection object
+      host - Device IP
 
+    Returns:
+      club_result - location ID
+
+    Raises:
+      Does not raise an error. If router information cannot be retrieved,
+      'null' is returned.
+    """
     club_rgx = compile(r'(?i)(Club[\d]{3})')
     reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
 
@@ -370,7 +469,22 @@ def clubID(conn, host):
 
 
 def getHostnames(ip):
-    """ Scan local network for all hosts"""
+    """Scan router for hostname using python-nmap
+    
+    Args:
+      ip - router IP
+
+    Returns:
+      host - a dictionary containing hostname and status retrieved from scan
+
+      {'ip': ip,
+       'hostname': hostname,
+       'status' : status}
+
+    Raises:
+      Does not raise an error. If a host is not found, an empty string
+      is returned ''.
+    """
     hosts = str(ip)
     nmap_args = '-sn'
     scanner = PortScanner()
@@ -391,14 +505,38 @@ def getHostnames(ip):
 
 #  Function to return only a site router IP which ends in '.1'.
 def getSiteRouter(ip):
-    """ Returns router IP when called"""
+    """Returns router IP when called
+
+    Args:
+      ip - ip from ips.py. Looped in main()
+
+    Returns:
+      firstHost - first host from given subnet ending in x.x.x.1,
+      this is the router ip.
+
+    Raises:
+      Does not raise an error.
+    """
     siteHosts = ip_network(ip)
     firstHost = next(siteHosts.hosts())
     return(firstHost)
 
 
 def assetTagGenerator(host, club_result, mac):
-    """ Returns a generated asset tag for the host """
+    """Returns a generated asset tag for the host
+    
+    Args:
+      host - device IP
+      club_result - Location ID from clubID()
+      mac - device mac-address
+
+    Returns:
+      asset_tag - generated asset tag
+
+    Raises:
+      Does not raise an error. If the asset tag does not contain all
+      needed information, it will contain base values defined.
+    """
     # initialize assets with base values
     asset1 = '000'
     asset2 = 'N'
@@ -450,8 +588,18 @@ def assetTagGenerator(host, club_result, mac):
 
 
 def main():
-    """ main function to run, use get_ip_list for all sites
-    or use a specific list of ips"""
+    """main function to run script, using get_ip_list from ips.py
+    or using a specific list of ips
+    
+    Args:
+      None
+
+    Returns:
+      None
+
+    Raises:
+      Does not raise an error.
+    """
     # ip_list = ['10.10.51.0/24', '10.11.26.0/24']
     header_added = False
     ip_list = get_ip_list()
