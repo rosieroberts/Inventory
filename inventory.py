@@ -190,7 +190,7 @@ def getRouterInfo(conn, host):
                                     not_added.append(subnet_mac)
 
                             if (len(results) != 0 and
-                                    subnet_mac['mac'] != results[0]['mac']):
+                                    subnet_mac['Mac Address'] != results[0]['Mac Address']):
                                 results.append(subnet_mac)
 
                     # when the first value in sh arp is not 10.x.x.1 items
@@ -201,7 +201,7 @@ def getRouterInfo(conn, host):
 
                     if not_added != 0:
                         for item in not_added:
-                            if item['mac'] != results[0]['mac']:
+                            if item['Mac Address'] != results[0]['Mac Address']:
                                 results.append(item)
 
                     clubs.append(club_result)
@@ -216,9 +216,9 @@ def getRouterInfo(conn, host):
                     else:
                         print('Could not get arp table ' + (host))
                         not_connected.append(host)
-                        failed_results = {'host': host,
-                                          'club': club_result,
-                                          'status': 'could not get arp table'}
+                        failed_results = {'Host': host,
+                                          'Location': club_result,
+                                          'Status': 'could not get arp table'}
                         f_results.append(failed_results)
 
     end2 = time()
@@ -244,12 +244,12 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory11-05.json', 'a+')
+        output = open('inventory11-06.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory11-05.csv', 'a') as csvfile:
+        with open('inventory11-06.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -307,6 +307,10 @@ def getDeviceType(host, club_result):
         # ISP provider for club 963. Not usual instance
         if host == cfg.club963:
             device_type = 'Router (ISP Provider)'
+
+        # Printers not within usual IP location
+        if host in cfg.club189:
+            device_type = 'Printer'
 
     if club_result[:3].lower() == 'reg':
 
@@ -600,9 +604,9 @@ def main():
     Raises:
       Does not raise an error.
     """
-    # ip_list = ['10.10.51.0/24', '10.11.26.0/24']
+    ip_list = ['10.11.39.0/24', '10.6.30.0/24', '10.8.9.0/24', '10.8.11.0/24', '10.10.7.0/24', '10.10.18.0/24']
     header_added = False
-    ip_list = get_ip_list()
+    # ip_list = get_ip_list()
 
     for ip in ip_list:
         router_connect = connect(str(getSiteRouter(ip)))
