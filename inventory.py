@@ -104,14 +104,14 @@ def getRouterInfo(conn, host):
       List of devices with device information in dictionary format.
 
       Example output per device:
-      {'ip': 'x.x.x.x',
-       'club': '',
-       'asset_tag': '000P-ABCD-000-000',
-       'device': 'Phone',
-       'vendor': 'Cisco',
-       'hostname': 'name@name.com',
-       'mac': 'XX:XX:XX:XX:XX:XX',
-       'status': 'up'}
+      {'IP': 'x.x.x.x',
+       'Location': '',
+       'Asset Tag': '000P-ABCD-000-000',
+       'Category': 'Phone',
+       'Manufacturer': 'Cisco',
+       'Hostname': 'name@name.com',
+       'Mac Address': 'XX:XX:XX:XX:XX:XX',
+       'Status': 'up'}
 
     Raises:
       Does not raise an error. If router information cannot be retrieved,
@@ -165,14 +165,14 @@ def getRouterInfo(conn, host):
                             if hostname is None:
                                 continue
 
-                            subnet_mac = {'ip': ip_result,
-                                          'club': club_result,
-                                          'asset_tag': asset_tag,
-                                          'device': deviceType,
-                                          'vendor': vendor,
-                                          'hostname': hostname['hostnames'],
-                                          'mac': mac_result,
-                                          'status': hostname['status']}
+                            subnet_mac = {'IP': ip_result,
+                                          'Location': club_result,
+                                          'Asset Tag': asset_tag,
+                                          'Category': deviceType,
+                                          'Manufacturer': vendor,
+                                          'Hostname': hostname['hostnames'],
+                                          'Mac Address': mac_result,
+                                          'Status': hostname['status']}
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
