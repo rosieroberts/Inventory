@@ -147,6 +147,7 @@ def getRouterInfo(conn, host):
 
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
+                            mac_result = macAddressFormat(mac_result)
 
                             vendor = getOuiVendor(mac_result)
                             deviceType = cfg.getDeviceType(ip_result,
@@ -156,8 +157,6 @@ def getRouterInfo(conn, host):
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
-
-                            mac_result = macAddressFormat(mac_result)
                             
                             hostname = getHostnames(ip_result)
 
@@ -281,6 +280,7 @@ def getOuiVendor(mac):
     try:
         mac_oui = EUI(mac).oui
         vendor = mac_oui.registration().org
+
         return vendor
 
     # Some of the OUIs are not included in the IEEE.org txt used in netaddr.
@@ -358,8 +358,8 @@ def clubID(conn, host):
         Does not raise an error. If router information cannot be retrieved,
         'null' is returned.
     """
-    club_rgx = compile(r'(?i)(Club[\d]{3})')
-    reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
+    club_rgx = compile(cfg.club_rgx)
+    reg_rgx = compile(cfg.reg_rgx)
 
     club_result = '--'
 
