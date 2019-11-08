@@ -147,22 +147,26 @@ def getRouterInfo(conn, host):
 
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
-                            deviceType = getDeviceType(ip_result, club_result)
+
+                            vendor = getOuiVendor(mac_result)
+                            deviceType = cfg.getDeviceType(ip_result,
+                                                           club_result,
+                                                           vendor)
 
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
 
                             mac_result = macAddressFormat(mac_result)
-                            vendor = getOuiVendor(mac_result)
-
+                            
                             hostname = getHostnames(ip_result)
 
-                            model_name = cfg.modelName()
+                            model_name = cfg.modelName(deviceType, vendor)
 
                             asset_tag = assetTagGenerator(ip_result,
                                                           club_result,
-                                                          mac_result)
+                                                          mac_result,
+                                                          vendor)
 
                             if hostname is None:
                                 continue
@@ -257,76 +261,6 @@ def writeToFiles(results, header_added):
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
-
-
-def getDeviceType(host, club_result):
-    """Returns the device type based on ip address
-
-    Args:
-        host - device IP
-        club_result - location ID
-
-    Returns:
-        Device Type based on IP address
-
-    Raises:
-        Does not raise an error. If a device type is not found,
-        'null' is returned.
-    """
-    device_type = 'null'
-
-    octets = host.split('.')
-    last_octet = int(octets[-1])
-    first_octet = int(octets[0])
-    second_octet = int(octets[1])
-    third_octet = int(octets[2])
-
-    if club_result is 'null':
-        octets_list = [str(first_octet), str(second_octet), str(third_octet)]
-        octets = str('.'.join(octets_list))
-
-        if octets in cfg.regHosts:
-            club_result = 'reg'
-
-        if octets not in cfg.regHosts:
-
-            if first_octet == 172 and second_octet == 23:
-                club_result = 'reg'
-            else:
-                club_result = 'club'
-
-    if club_result[:4].lower() == 'club':
-
-        if first_octet == 10:
-            device_type = cfg.clubDeviceType(last_octet)
-
-        if first_octet == 172 and second_octet == 24:
-            device_type = 'Phone'
-
-        #  IP not within usual configuration
-        if host == cfg.club910:
-            device_type = cfg.clubDeviceType(last_octet)
-            
-        if host == cfg.club383:
-            device_type = 'DVR'
-
-        # ISP provider for club 963. Not usual instance
-        if host == cfg.club963:
-            device_type = 'Router (ISP Provider)'
-
-        # Printers not within usual IP location
-        if host in cfg.club189:
-            device_type = 'Printer'
-
-    if club_result[:3].lower() == 'reg':
-
-        if first_octet == 10:
-            device_type = cfg.regionDeviceType(last_octet)
-
-        if first_octet == 172 and second_octet == 23:
-            device_type = 'Phone'
-
-    return device_type
 
 
 def getOuiVendor(mac):
@@ -532,7 +466,7 @@ def getSiteRouter(ip):
     return(firstHost)
 
 
-def assetTagGenerator(host, club_result, mac):
+def assetTagGenerator(host, club_result, mac, vendor):
     """Returns a generated asset tag for the host
 
     Args:
@@ -588,7 +522,7 @@ def assetTagGenerator(host, club_result, mac):
         asset1 = club_result[3:]
 
     # Extract first letter of device type for asset2
-    device_type = getDeviceType(host, club_result)
+    device_type = cfg.getDeviceType(host, club_result, vendor)
     asset2 = device_type[0].upper()
 
     # Generated asset tag is the concatenation of all assets
