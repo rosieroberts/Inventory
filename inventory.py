@@ -27,13 +27,13 @@ def connect(ip):
     """Connects to router using .1 address from each ip router from ip_list.
 
     Args:
-      ip - Router IP in x.x.x.1.
+        ip - Router IP in x.x.x.1.
 
     Returns:
-      Netmiko connection object.
+        Netmiko connection object.
 
     Raises:
-      Does not raise an error. If connection is unsuccessful, None is returned.
+        Does not raise an error. If connection is unsuccessful, None is returned.
     """
     print(ip)
     for _ in range(1):
@@ -97,26 +97,26 @@ def getRouterInfo(conn, host):
     information in a list of dictionaries per location.
 
     Args:
-      conn - Connection object
-      host - device IP
+        conn - Connection object
+        host - device IP
 
     Returns:
-      List of devices with device information in dictionary format.
+        List of devices with device information in dictionary format.
 
-      Example output per device:
-      {'IP': 'x.x.x.x',
-       'Location': '',
-       'Asset Tag': '000P-ABCD-000-000',
-       'Category': 'Phone',
-       'Manufacturer': 'Cisco',
-       'Hostname': 'name@name.com',
-       'Mac Address': 'XX:XX:XX:XX:XX:XX',
-       'Status': 'up'}
+        Example output per device:
+        {'IP': 'x.x.x.x',
+         'Location': '',
+         'Asset Tag': '000P-ABCD-000-000',
+         'Category': 'Phone',
+         'Manufacturer': 'Cisco',
+        'Hostname': 'name@name.com',
+         'Mac Address': 'XX:XX:XX:XX:XX:XX',
+         'Status': 'up'}
 
     Raises:
-      Does not raise an error. If router information cannot be retrieved,
-      a dictionary containing the host, club and status is appended to a
-      list of failed results for investigation.
+        Does not raise an error. If router information cannot be retrieved,
+        a dictionary containing the host, club and status is appended to a
+        list of failed results for investigation.
     """
     start2 = time()
     club_result = clubID(conn, host)
@@ -158,6 +158,8 @@ def getRouterInfo(conn, host):
 
                             hostname = getHostnames(ip_result)
 
+                            model_name = cfg.modelName()
+
                             asset_tag = assetTagGenerator(ip_result,
                                                           club_result,
                                                           mac_result)
@@ -170,6 +172,7 @@ def getRouterInfo(conn, host):
                                           'Asset Tag': asset_tag,
                                           'Category': deviceType,
                                           'Manufacturer': vendor,
+                                          'Model Name': model_name,
                                           'Hostname': hostname['hostnames'],
                                           'Mac Address': mac_result,
                                           'Status': hostname['status']}
@@ -231,15 +234,15 @@ def writeToFiles(results, header_added):
     """Function to print and add results to .json and .csv files
 
     Args:
-      results - list returned from getRouterInfo() for each location
-      header_added - boolean value used to avoid multiple headers in csv file
+        results - list returned from getRouterInfo() for each location
+        header_added - boolean value used to avoid multiple headers in csv file
 
     Returns:
-      Does not return anything. Function writes to files.
+        Does not return anything. Function writes to files.
 
     Raises:
-      Does not raise an error. File is created when function is called and
-      if file already exists, results list is appended to end of existing file
+        Does not raise an error. File is created when function is called and
+        if file already exists, results list is appended to end of existing file
     """
     if len(results) != 0:
         for item in results:
@@ -260,15 +263,15 @@ def getDeviceType(host, club_result):
     """Returns the device type based on ip address
 
     Args:
-      host - device IP
-      club_result - location ID
+        host - device IP
+        club_result - location ID
 
     Returns:
-      Device Type based on IP address
+        Device Type based on IP address
 
     Raises:
-      Does not raise an error. If a device type is not found,
-      'null' is returned.
+        Does not raise an error. If a device type is not found,
+        'null' is returned.
     """
     device_type = 'null'
 
@@ -303,6 +306,9 @@ def getDeviceType(host, club_result):
         #  IP not within usual configuration
         if host == cfg.club910:
             device_type = cfg.clubDeviceType(last_octet)
+            
+        if host == cfg.club383:
+            device_type = 'DVR'
 
         # ISP provider for club 963. Not usual instance
         if host == cfg.club963:
@@ -327,14 +333,14 @@ def getOuiVendor(mac):
     """Returns vendor for each device based on mac address
 
     Args:
-      mac - device mac-address
+        mac - device mac-address
 
     Returns:
-      A string of the associated vendor name
+        A string of the associated vendor name
 
     Raises:
-      No error is raised. If there is no vendor found,
-      None is returned.
+        No error is raised. If there is no vendor found,
+        None is returned.
     """
     oui = macOUI(mac)
 
@@ -350,7 +356,7 @@ def getOuiVendor(mac):
     except(NotRegisteredError):
         vendor = None
 
-        if oui in cfg.cisco:
+        if oui in cfg.cisco:            
             vendor = 'Cisco Systems, Inc'
         if oui in cfg.dell:
             vendor = 'Dell Inc.'
@@ -370,13 +376,13 @@ def macOUI(mac):
     """Returns OUI from mac address passed in argument
 
     Args:
-      mac - device mac-address
+        mac - device mac-address
 
     Returns:
-      OUI for mac-address
+        OUI for mac-address
 
     Raises:
-      No error is raised.
+        No error is raised.
     """
     # get first three octets for oui
     oui = mac[:8]
@@ -388,13 +394,13 @@ def macAddressFormat(mac):
     """Return formatted version of mac address
 
     Args:
-      mac - device mac-address
+        mac - device mac-address
 
     Returns:
-      Formatted mac-address in format: XX:XX:XX:XX:XX:XX
+        Formatted mac-address in format: XX:XX:XX:XX:XX:XX
 
     Raises:
-      No error is raised.
+        No error is raised.
     """
     formatted_mac = EUI(str(mac))
     formatted_mac.dialect = mac_unix_expanded
@@ -408,15 +414,15 @@ def clubID(conn, host):
     if not found, attempts to get location ID using getHostNames()
 
     Args:
-      conn - Connection object
-      host - Device IP
+        conn - Connection object
+        host - Device IP
 
     Returns:
-      club_result - location ID
+        club_result - location ID
 
     Raises:
-      Does not raise an error. If router information cannot be retrieved,
-      'null' is returned.
+        Does not raise an error. If router information cannot be retrieved,
+        'null' is returned.
     """
     club_rgx = compile(r'(?i)(Club[\d]{3})')
     reg_rgx = compile(r'(REG-)(10)[1-4](-)(ADD|POR|IRV|ENG|HOU)')
@@ -476,18 +482,18 @@ def getHostnames(ip):
     """Scan router for hostname using python-nmap
 
     Args:
-      ip - router IP
+        ip - router IP
 
     Returns:
-      host - a dictionary containing hostname and status retrieved from scan
+        host - a dictionary containing hostname and status retrieved from scan
 
-      {'ip': ip,
-       'hostname': hostname,
-       'status' : status}
+        {'IP': ip,
+         'Hostname': hostname,
+         'Status' : status}
 
     Raises:
-      Does not raise an error. If a host is not found, an empty string
-      is returned ''.
+        Does not raise an error. If a host is not found, an empty string
+        is returned ''.
     """
     hosts = str(ip)
     nmap_args = '-sn'
@@ -512,14 +518,14 @@ def getSiteRouter(ip):
     """Returns router IP when called
 
     Args:
-      ip - ip from ips.py. Looped in main()
+        ip - ip from ips.py. Looped in main()
 
     Returns:
-      firstHost - first host from given subnet ending in x.x.x.1,
-      this is the router ip.
+        firstHost - first host from given subnet ending in x.x.x.1,
+        this is the router ip.
 
     Raises:
-      Does not raise an error.
+        Does not raise an error.
     """
     siteHosts = ip_network(ip)
     firstHost = next(siteHosts.hosts())
@@ -530,16 +536,16 @@ def assetTagGenerator(host, club_result, mac):
     """Returns a generated asset tag for the host
 
     Args:
-      host - device IP
-      club_result - Location ID from clubID()
-      mac - device mac-address
+        host - device IP
+        club_result - Location ID from clubID()
+        mac - device mac-address
 
     Returns:
-      asset_tag - generated asset tag
+        asset_tag - generated asset tag
 
     Raises:
-      Does not raise an error. If the asset tag does not contain all
-      needed information, it will contain base values defined.
+        Does not raise an error. If the asset tag does not contain all
+        needed information, it will contain base values defined.
     """
     # initialize assets with base values
     asset1 = '000'
@@ -596,13 +602,13 @@ def main():
     or using a specific list of ips
 
     Args:
-      None
+        None
 
     Returns:
-      None
+        None
 
     Raises:
-      Does not raise an error.
+        Does not raise an error.
     """
     ip_list = ['10.11.39.0/24', '10.6.30.0/24', '10.8.9.0/24', '10.8.11.0/24', '10.10.7.0/24', '10.10.18.0/24']
     header_added = False
