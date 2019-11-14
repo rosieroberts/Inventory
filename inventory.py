@@ -49,7 +49,7 @@ def connect(ip):
                 print('Attempting to connect... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print('Connection achieved in', int(time_elapsed))
+                print('Connection achieved in {}'.format(int(time_elapsed)))
                 return net_connect
 
             except(NetMikoTimeoutException,
