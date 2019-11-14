@@ -46,7 +46,7 @@ def connect(ip):
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
-                print('Attempt to connect', attempt + 1)
+                print('Attempting to connect... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print('Connection achieved in', time_elapsed)
@@ -82,7 +82,7 @@ def connect(ip):
                     else:
                         print('port 22 is closed for ' + (ip))
                         continue
-                print('Attempt to connect', attempt + 1)
+                print('Attempt to connect... attempt', attempt + 1)
                 if attempt == 0:
                     print('Exception, trying to connect again ' + (ip))
 
@@ -137,7 +137,7 @@ def getRouterInfo(conn, host):
                 try:
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
-                    print('Sending sh arp command to router', attempt2 + 1)
+                    print('Sending command to router... attempt', attempt2 + 1)
 
                     for item in arp_list:
 
@@ -251,12 +251,14 @@ def writeToFiles(results, header_added):
     if len(results) != 0:
         for item in results:
             print(item)
-        output = open('inventory11-06.json', 'a+')
+        print('Writing club results to .json file')
+        output = open('scan11-06.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        with open('inventory11-06.csv', 'a') as csvfile:
+        print('Writing club results to .csv file')
+        with open('scan11-06.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -373,7 +375,7 @@ def clubID(conn, host):
                 try:
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
-                    print('Getting club ID', attempt + 1)
+                    print('Getting club ID... attempt', attempt + 1)
 
                     if club_result is None:
                         club_result = reg_rgx.search(club_info)
@@ -398,7 +400,7 @@ def clubID(conn, host):
                         continue
 
                     if attempt == 1:
-                        print('getting clubID from nmap hostname')
+                        print('Getting clubID from nmap hostname')
                         hostname = getHostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
@@ -545,9 +547,9 @@ def main():
     Raises:
         Does not raise an error.
     """
-    ip_list = ['10.11.39.0/24', '10.6.30.0/24', '10.8.9.0/24', '10.8.11.0/24', '10.10.7.0/24', '10.10.18.0/24']
+    # ip_list = ['10.11.39.0/24', '10.6.30.0/24', '10.8.9.0/24', '10.8.11.0/24', '10.10.7.0/24', '10.10.18.0/24']
     header_added = False
-    # ip_list = get_ip_list()
+    ip_list = get_ip_list()
 
     print(cfg.intro1)
     print(cfg.intro2)
@@ -568,10 +570,10 @@ def main():
         print('Club Scan Runtime: {} '.format(clb_runtime))
         header_added = True
 
-    print('The following', len(not_connected), 'hosts were not scanned')
+    print('The following {} hosts were not scanned'.format(len(not_connected)))
     print(not_connected)
 
-    print('The following', len(clubs), 'clubs were scanned')
+    print('The following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
 
 
