@@ -49,7 +49,7 @@ def connect(ip):
                 print('Attempting to connect... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print('Connection achieved in {}'.format(int(time_elapsed)))
+                print('Connection achieved in {} seconds'.format(int(time_elapsed)))
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -248,11 +248,13 @@ def writeToFiles(results, header_added):
         Does not raise an error. File is created when function is called and
         if file already exists, results list is appended to end of existing file
     """
-    print('Writing club results to files...')
+
     if len(results) != 0:
         for item in results:
             print(item)
 
+    print('Writing club results to files...')
+    
         output = open('scan11-06.json', 'a+')
         output.write(dumps(results))
         output.close()
