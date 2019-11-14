@@ -253,8 +253,8 @@ def writeToFiles(results, header_added):
         for item in results:
             print(item)
 
-    print('Writing club results to files...')
-    
+        print('Writing club results to files...')
+
         output = open('scan11-06.json', 'a+')
         output.write(dumps(results))
         output.close()
