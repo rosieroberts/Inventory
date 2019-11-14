@@ -36,7 +36,7 @@ def connect(ip):
     Raises:
         Does not raise an error. If connection is unsuccessful, None is returned.
     """
-    print('\n\n\nScanning IP {}\n'.format(ip))
+    print('\n\nScanning IP {}\n'.format(ip))
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
@@ -49,7 +49,7 @@ def connect(ip):
                 print('Attempting to connect... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print('Connection achieved in', time_elapsed)
+                print('Connection achieved in', int(time_elapsed))
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -248,16 +248,17 @@ def writeToFiles(results, header_added):
         Does not raise an error. File is created when function is called and
         if file already exists, results list is appended to end of existing file
     """
+    print('Writing club results to files...')
     if len(results) != 0:
         for item in results:
             print(item)
-        print('Writing club results to .json file')
+
         output = open('scan11-06.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
-        print('Writing club results to .csv file')
+
         with open('scan11-06.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
