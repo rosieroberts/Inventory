@@ -11,6 +11,7 @@ from nmap import PortScanner
 import config as cfg
 from json import dumps
 from time import time
+from datetime import timedelta
 from re import compile
 # import traceback
 from netaddr import EUI, mac_unix_expanded
@@ -35,7 +36,7 @@ def connect(ip):
     Raises:
         Does not raise an error. If connection is unsuccessful, None is returned.
     """
-    print(ip)
+    print('\n\n\nScanning IP {}\n'.format(ip))
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
@@ -548,7 +549,11 @@ def main():
     header_added = False
     # ip_list = get_ip_list()
 
+    print(cfg.intro1)
+    print(cfg.intro2)
+
     for ip in ip_list:
+        clb_runtime_str = time()
         router_connect = connect(str(getSiteRouter(ip)))
 
         if router_connect is not None:
@@ -556,6 +561,11 @@ def main():
             writeToFiles(results, header_added)
 
             router_connect.disconnect()
+
+        clb_runtime_end = time()
+        clb_runtime = clb_runtime_end - clb_runtime_str
+        clb_runtime = str(timedelta(seconds = int(clb_runtime)))
+        print('Club Scan Runtime: {} '.format(clb_runtime))
         header_added = True
 
     print('The following', len(not_connected), 'hosts were not scanned')
@@ -569,4 +579,5 @@ main()
 
 end = time()
 runtime = end - start
-print(runtime)
+runtime = str(timedelta(seconds = int(runtime)))
+print('Script Runtime: {} '.format(runtime))
