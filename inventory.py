@@ -36,7 +36,7 @@ def connect(ip):
     Raises:
         Does not raise an error. If connection is unsuccessful, None is returned.
     """
-    print('\n\nScanning IP {}\n'.format(ip))
+    print('\n\nScanning IP {}'.format(ip))
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
@@ -46,7 +46,7 @@ def connect(ip):
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
-                print('Attempting to connect... attempt', attempt + 1)
+                print('\nAttempting to connect... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print('Connection achieved in {} seconds'.format(int(time_elapsed)))
@@ -230,7 +230,7 @@ def getRouterInfo(conn, host):
 
     end2 = time()
     runtime2 = end2 - start2
-    print('Router information was received in', runtime2)
+    print('Club devices information was received in', runtime2)
     return results
 
 
@@ -253,15 +253,15 @@ def writeToFiles(results, header_added):
         for item in results:
             print(item)
 
-        print('Writing club results to files...')
+        print('\nWriting club results to files...')
 
-        output = open('scan11-06.json', 'a+')
+        output = open('scan11-15.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
 
-        with open('scan11-06.csv', 'a') as csvfile:
+        with open('scan11-15.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -279,7 +279,7 @@ def getOuiVendor(mac):
 
     Raises:
         No error is raised. If there is no vendor found,
-        None is returned.
+        'null' is returned.
     """
     oui = macOUI(mac)
 
@@ -294,7 +294,7 @@ def getOuiVendor(mac):
     # from WireShark. The vendor list is hardcoded because it is rather small.
 
     except(NotRegisteredError):
-        vendor = None
+        vendor = 'null'
 
         if oui in cfg.cisco:            
             vendor = 'Cisco Systems, Inc'
@@ -550,9 +550,9 @@ def main():
     Raises:
         Does not raise an error.
     """
-    # ip_list = ['10.11.39.0/24', '10.6.30.0/24', '10.8.9.0/24', '10.8.11.0/24', '10.10.7.0/24', '10.10.18.0/24']
+    ip_list = ['10.16.15.0/24', '10.10.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
     header_added = False
-    ip_list = get_ip_list()
+    # ip_list = get_ip_list()
 
     print(cfg.intro1)
     print(cfg.intro2)
@@ -570,13 +570,13 @@ def main():
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds = int(clb_runtime)))
-        print('Club Scan Runtime: {} '.format(clb_runtime))
+        print('\nClub Scan Runtime: {} '.format(clb_runtime))
         header_added = True
 
-    print('The following {} hosts were not scanned'.format(len(not_connected)))
+    print('\nThe following {} hosts were not scanned'.format(len(not_connected)))
     print(not_connected)
 
-    print('The following {} clubs were scanned'.format(len(clubs)))
+    print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
 
 
@@ -585,4 +585,4 @@ main()
 end = time()
 runtime = end - start
 runtime = str(timedelta(seconds = int(runtime)))
-print('Script Runtime: {} '.format(runtime))
+print('\nScript Runtime: {} '.format(runtime))
