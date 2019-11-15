@@ -253,7 +253,7 @@ def writeToFiles(results, header_added):
         for item in results:
             print(item)
 
-        print('\nWriting club results to files...')
+        print('\nWriting {} results to files...'.format(results[0]['Location']))
 
         output = open('scan11-15.json', 'a+')
         output.write(dumps(results))
@@ -570,7 +570,7 @@ def main():
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds = int(clb_runtime)))
-        print('\nClub Scan Runtime: {} '.format(clb_runtime))
+        print('\n{} Scan Runtime: {} '.format(results[0]['Location'], clb_runtime))
         header_added = True
 
     print('\nThe following {} hosts were not scanned'.format(len(not_connected)))
