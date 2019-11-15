@@ -46,7 +46,7 @@ def connect(ip):
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
-                print('\nAttempting to connect... attempt', attempt + 1)
+                print('\nConnecting... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print('Connection achieved in {} seconds'.format(int(time_elapsed)))
@@ -82,12 +82,12 @@ def connect(ip):
                     else:
                         print('port 22 is closed for ' + (ip))
                         continue
-                print('Attempt to connect... attempt', attempt + 1)
+                print('Connecting... attempt', attempt + 1)
                 if attempt == 0:
-                    print('Exception, trying to connect again ' + (ip))
+                    print('Error, Trying to connect to {} again '.format(ip))
 
         # exhausted all tries to connect, return None and exit
-        print('Connection to the following device is not possible: ' + (ip))
+        print('Connection to {} is not possible: '.format(ip))
         not_connected.append(ip)
         return None
 
@@ -570,8 +570,11 @@ def main():
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds = int(clb_runtime)))
-        print('\n{} Scan Runtime: {} '.format(results[0]['Location'], clb_runtime))
         header_added = True
+        try:
+            print('\n{} Scan Runtime: {} '.format(results[0]['Location'], clb_runtime))
+        except:
+            print('\nClub Scan Runtime: {} '.format(clb_runtime))
 
     print('\nThe following {} hosts were not scanned'.format(len(not_connected)))
     print(not_connected)
