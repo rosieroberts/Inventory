@@ -306,6 +306,8 @@ def getOuiVendor(mac):
             vendor = 'LcfcHefe LCFC(HeFei) Electronics Technology co., ltd'
         if oui in cfg.meraki:
             vendor = 'CiscoMer Cisco Meraki'
+        if oui in cfg.winstron:
+            vendor = 'Wistron Infocomm (Zhongshan) Corporation'
         if oui in cfg.null:
             vendor = 'Not Defined'
 
