@@ -576,7 +576,10 @@ def main():
         clb_runtime = str(timedelta(seconds = int(clb_runtime)))
         header_added = True
         try:
-            print('\n{} Scan Runtime: {} '.format(results[0]['Location'], clb_runtime))
+            if router_connect is not None:
+                print('\n{} Scan Runtime: {} '.format(results[0]['Location'], clb_runtime))
+            else:
+                print('\nClub Scan Runtime: {} '.format(clb_runtime))
         except:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
 

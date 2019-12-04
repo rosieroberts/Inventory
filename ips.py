@@ -23,10 +23,10 @@ def get_ips():
     """ Get full list of IPs based on OID ip.21.1.11.
     Extract IP and subnet mask and add to ip_list. """
 
-    IPlist = []
-    final = []
+    split_list = []
+    ip_list = []
 
-    # for subnet mask to extract IPs and subnet masks and add to ip_list
+    # for subnet mask to extract IPs and subnet masks and add to ful_ip_list
     subnet_masks = session.walk('ip.21.1.11')
 
     # regex to get ip address from oid value
@@ -43,18 +43,18 @@ def get_ips():
     for item in full_ip_list:
         item = item.split('/')
         item[1] = str(sum(bin(int(x)).count('1') for x in item[1].split('.')))
-        IPlist.append(item)
+        split_list.append(item)
 
     # regex to search for IPs to include clubs and regional offices
     regex_include = re.compile(r'(^10\.([4-9]|[1-8][0-9]|9[0-6])\.)')
 
-    for item in IPlist:
+    for item in split_list:
         regex_value = regex_include.search(item[0])
 
         if regex_value:
-            final.append(item)
+            ip_list.append(item)
 
-    return(final)
+    return(ip_list)
 
 
 def always_exclude():
