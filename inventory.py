@@ -541,7 +541,7 @@ def assetTagGenerator(host, club_result, mac, vendor):
     return asset_tag
 
 
-def main():
+def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
     or using a specific list of ips
 
@@ -554,10 +554,9 @@ def main():
     Raises:
         Does not raise an error.
     """
-    ip_list = ['10.16.15.0/24', '10.10.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+    
     header_added = False
-    # ip_list = get_ip_list()
-
+    
     print(cfg.intro1)
     print(cfg.intro2)
 
@@ -590,7 +589,9 @@ def main():
     print(clubs)
 
 
-main()
+ip_list = ['10.16.15.0/24', '10.10.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+# ip_list = get_ip_list()
+main(ip_list)
 
 end = time()
 runtime = end - start
