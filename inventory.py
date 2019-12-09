@@ -172,7 +172,7 @@ def getRouterInfo(conn, host):
                             if hostname is None:
                                 continue
 
-                            subnet_mac = {'ID': getClubNumber(club_result)
+                            subnet_mac = {'ID': getClubNumber(club_result),
                                           'IP': ip_result,
                                           'Location': club_result,
                                           'Asset Tag': asset_tag,
@@ -202,7 +202,7 @@ def getRouterInfo(conn, host):
                                     subnet_mac['Mac Address'] != results[0]['Mac Address']):
                                 results.append(subnet_mac)
                             
-                            results[-1]['ID'] = getClubNumber(club_result) + str(len(results) += 1)
+                            results[-1]['ID'] = str(getClubNumber(club_result)) + str(len(results) += 1)
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
