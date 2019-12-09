@@ -171,7 +171,8 @@ def getRouterInfo(conn, host):
                             if hostname is None:
                                 continue
 
-                            subnet_mac = {'IP': ip_result,
+                            subnet_mac = {'ID': 
+                                          'IP': ip_result,
                                           'Location': club_result,
                                           'Asset Tag': asset_tag,
                                           'Category': deviceType,
@@ -475,8 +476,43 @@ def getSiteRouter(ip):
     firstHost = next(siteHosts.hosts())
     return(firstHost)
 
+def getClubNumber(club_result):
+    """Returns a generated ID for each club asset
 
-def assetTagGenerator(host, club_result, mac, vendor):
+    Args:
+        club_result - Location ID from clubID()
+
+    Returns:
+        club_number = numeric value for each club
+
+    Raises:
+        Does not raise an error if club number is not found, 
+        it will return '000'
+    """
+    club_number = 'null'
+
+    club_n_regex = compile(r'([0-9]{3})')
+    reg_n_regex = compile(r'([REG]{3})')
+
+    # Extract club number for regional offices
+    club_id = reg_n_regex.search(club_result)
+    
+    # if regional office pattern not found
+    if club_id is None:
+        # Extract club number for clubs
+        club_id = club_n_regex.search(club_result)
+        # If club pattern is found
+        if club_id is not None:
+            club_id = club_id.group(0)
+            club_number = club_id
+
+    else:
+        # If regional Office pattern found, Club Number = 000
+        club_number = '000'
+        return club_number
+
+
+def assetTagGenerator(host, club_number, club_result, mac, vendor):
     """Returns a generated asset tag for the host
 
     Args:
@@ -492,7 +528,7 @@ def assetTagGenerator(host, club_result, mac, vendor):
         needed information, it will contain base values defined.
     """
     # initialize assets with base values
-    asset1 = '000'
+    asset1 = club_number
     asset2 = 'N'
     asset3 = 'ABCD'
     asset4 = '000-000'
@@ -510,26 +546,22 @@ def assetTagGenerator(host, club_result, mac, vendor):
 
     asset3 = ('-' + mac_third + mac_fourth)
 
-    club_n_regex = compile(r'([0-9]{3})')
+    #club_n_regex = compile(r'([0-9]{3})')
     reg_n_regex = compile(r'([REG]{3})')
 
-    # Extract club number to be used in asset1 (regional offices)
-    club_id = reg_n_regex.search(club_result)
+    
+    if club_number is not '000':
+        # club_number is the return from getClubNumber()
+        asset1 = club_number
 
-    if club_id is None:
-        # Extract club number for asset1 (clubs)
-        club_id = club_n_regex.search(club_result)
-
+    else:
+        # Extract club number to be used in asset1 (regional offices)
+        club_id = reg_n_regex.search(club_result)
         if club_id is not None:
-
             club_id = club_id.group(0)
-            asset1 = club_id
-
+            asset1 = club_result[3:]
         else:
             asset1 = club_result
-    else:
-        club_id = club_id.group(0)
-        asset1 = club_result[3:]
 
     # Extract first letter of device type for asset2
     device_type = cfg.getDeviceType(host, club_result, vendor)
@@ -589,7 +621,7 @@ def main(ip_list):
     print(clubs)
 
 
-ip_list = ['10.16.15.0/24', '10.10.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+ip_list = ['10.8.17.0/24', '10.16.11.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
 # ip_list = get_ip_list()
 main(ip_list)
 
