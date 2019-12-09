@@ -164,6 +164,7 @@ def getRouterInfo(conn, host):
                             model_name = cfg.modelName(deviceType, vendor)
 
                             asset_tag = assetTagGenerator(ip_result,
+                                                          str(getClubNumber(club_result)),  
                                                           club_result,
                                                           mac_result,
                                                           vendor)
@@ -171,7 +172,7 @@ def getRouterInfo(conn, host):
                             if hostname is None:
                                 continue
 
-                            subnet_mac = {'ID': 
+                            subnet_mac = {'ID': getClubNumber(club_result)
                                           'IP': ip_result,
                                           'Location': club_result,
                                           'Asset Tag': asset_tag,
@@ -200,6 +201,8 @@ def getRouterInfo(conn, host):
                             if (len(results) != 0 and
                                     subnet_mac['Mac Address'] != results[0]['Mac Address']):
                                 results.append(subnet_mac)
+                            
+                            results[-1]['ID'] = getClubNumber(club_result) + str(len(results) += 1)
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -256,13 +259,13 @@ def writeToFiles(results, header_added):
 
         print('\nWriting {} results to files...'.format(results[0]['Location']))
 
-        output = open('scan11-15.json', 'a+')
+        output = open('scan12-9.json', 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
 
-        with open('scan11-15.csv', 'a') as csvfile:
+        with open('scan12-9.csv', 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -509,7 +512,8 @@ def getClubNumber(club_result):
     else:
         # If regional Office pattern found, Club Number = 000
         club_number = '000'
-        return club_number
+
+    return club_number
 
 
 def assetTagGenerator(host, club_number, club_result, mac, vendor):
@@ -573,6 +577,24 @@ def assetTagGenerator(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
+"""def IDGenerator(club_number, ):
+Returns a ID for the host
+
+    Args:
+        host - device IP
+        club_result - Location ID from clubID()
+        mac - device mac-address
+
+    Returns:
+        ID - generated ID
+
+    Raises:
+        Does not raise an error. If the ID does not contain all
+        needed information, it will return base values defined.
+    
+    pass"""
+    
+
 def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
     or using a specific list of ips
@@ -621,7 +643,7 @@ def main(ip_list):
     print(clubs)
 
 
-ip_list = ['10.8.17.0/24', '10.16.11.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+ip_list = ['10.6.3.0/24', '10.10.12.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
 # ip_list = get_ip_list()
 main(ip_list)
 
