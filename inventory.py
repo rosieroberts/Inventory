@@ -311,8 +311,7 @@ def get_oui_vendor(mac):
     oui_str = mac_oui(mac)
 
     try:
-        mac_address = EUI(mac)
-        oui = mac_address.oui
+        oui = EUI(mac).oui
         vendor = oui.registration().org
 
         return vendor
@@ -339,7 +338,7 @@ def get_oui_vendor(mac):
         if oui_str in cfg.null:
             vendor = 'Not Defined'
 
-        mac_ouis.append(oui)
+        mac_ouis.append(oui_str)
 
         return vendor
 
