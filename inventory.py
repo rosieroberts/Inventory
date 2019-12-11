@@ -124,8 +124,9 @@ def get_router_info(conn, host):
     start2 = time()
     club_result = club_id(conn, host)
 
-    results = []
-    f_results = []
+    results = []  # main inventory results
+    m_results = []  # master results for master_list.py
+    f_results = []  # list of failed results
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
@@ -205,6 +206,7 @@ def get_router_info(conn, host):
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
+                                    m_results.append(host_info2)
                                 else:
                                     not_added.append(host_info)
 
@@ -212,9 +214,12 @@ def get_router_info(conn, host):
                                     host_info['Mac Address'] !=
                                     results[0]['Mac Address']):
                                 results.append(host_info)
+                                m_results.append(host_info2)
 
                             results[-1]['ID'] = (str(club_num(club_result)) +
                                                  str(len(results)))
+                            m_results[-1]['ID'] = (str(club_num(club_result)) +
+                                                   str(len(results)))
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -242,12 +247,12 @@ def get_router_info(conn, host):
                         failed_results = {'Host': host,
                                           'Location': club_result,
                                           'Status': 'could not get arp table'}
-                        f_results.append(failed_results)
+                        f_results.append(failed_results)  # for debugging
 
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
-    return results
+    return results, m_results
 
 
 def write_to_files(results, header_added, host):
@@ -308,7 +313,7 @@ def get_oui_vendor(mac):
     try:
         mac_address = EUI(mac)
         oui = mac_address.oui
-        vendor = oui.records['org'] # vendor = oui.registration().org
+        vendor = oui.registration().org
 
         return vendor
 
@@ -595,25 +600,22 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-def diff(club_number, results): pass
+def diff(m_results):
+    """Returns a ID for the host
 
+        Args:
+            host - device IP
+            club_result - Location ID from club_id()
+            mac - device mac-address
 
-"""
-Returns a ID for the host
+        Returns:
+            ID - generated ID
 
-    Args:
-        host - device IP
-        club_result - Location ID from club_id()
-        mac - device mac-address
-
-    Returns:
-        ID - generated ID
-
-    Raises:
-        Does not raise an error. If the ID does not contain all
-        needed information, it will return base values defined.
-"""
-
+        Raises:
+            Does not raise an error. If the ID does not contain all
+            needed information, it will return base values defined.
+    """
+    print(m_results) 
 
 def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
