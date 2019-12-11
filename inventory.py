@@ -34,7 +34,8 @@ def connect(ip):
         Netmiko connection object.
 
     Raises:
-        Does not raise an error. If connection is unsuccessful, None is returned.
+        Does not raise an error. If connection is unsuccessful,
+        None is returned.
     """
     print('\n\nScanning IP {}'.format(ip))
     for _ in range(1):
@@ -49,7 +50,8 @@ def connect(ip):
                 print('\nConnecting... attempt', attempt + 1)
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print('Connection achieved in {} seconds'.format(int(time_elapsed)))
+                print('Connection achieved in {} seconds'
+                      .format(int(time_elapsed)))
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -92,7 +94,7 @@ def connect(ip):
         return None
 
 
-def getRouterInfo(conn, host):
+def get_router_info(conn, host):
     """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
     information in a list of dictionaries per location.
@@ -120,7 +122,7 @@ def getRouterInfo(conn, host):
         list of failed results for investigation.
     """
     start2 = time()
-    club_result = clubID(conn, host)
+    club_result = club_id(conn, host)
 
     results = []
     f_results = []
@@ -148,40 +150,48 @@ def getRouterInfo(conn, host):
 
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
-                            mac_result = macAddressFormat(mac_result)
+                            mac_result = mac_address_format(mac_result)
 
-                            vendor = getOuiVendor(mac_result)
-                            deviceType = cfg.getDeviceType(ip_result,
-                                                           club_result,
-                                                           vendor)
+                            vendor = get_oui_vendor(mac_result)
+                            device_type = cfg.get_device_type(ip_result,
+                                                              club_result,
+                                                              vendor)
 
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
 
-                            hostname = getHostnames(ip_result)
+                            hostname = get_hostnames(ip_result)
 
-                            model_name = cfg.modelName(deviceType, vendor)
+                            model_name = cfg.model_name(device_type, vendor)
 
-                            asset_tag = assetTagGenerator(ip_result,
-                                                          str(getClubNumber(club_result)),
-                                                          club_result,
-                                                          mac_result,
-                                                          vendor)
+                            club_number = str(club_num(club_result))
+
+                            asset_tag = asset_tag_gen(ip_result,
+                                                      club_number,
+                                                      club_result,
+                                                      mac_result,
+                                                      vendor)
 
                             if hostname is None:
                                 continue
 
-                            subnet_mac = {'ID': getClubNumber(club_result),
+                            # for main results
+                            host_info = {'ID': club_num(club_result),
+                                         'IP': ip_result,
+                                         'Location': club_result,
+                                         'Asset Tag': asset_tag,
+                                         'Category': device_type,
+                                         'Manufacturer': vendor,
+                                         'Model Name': model_name,
+                                         'Hostname': hostname['hostnames'],
+                                         'Mac Address': mac_result,
+                                         'Status': hostname['status']}
+
+                            # for master list comparison
+                            host_info2 = {'ID': club_num(club_result),
                                           'IP': ip_result,
-                                          'Location': club_result,
-                                          'Asset Tag': asset_tag,
-                                          'Category': deviceType,
-                                          'Manufacturer': vendor,
-                                          'Model Name': model_name,
-                                          'Hostname': hostname['hostnames'],
-                                          'Mac Address': mac_result,
-                                          'Status': hostname['status']}
+                                          'Mac Address': mac_result}
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
@@ -194,15 +204,17 @@ def getRouterInfo(conn, host):
 
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
-                                    results.append(subnet_mac)
+                                    results.append(host_info)
                                 else:
-                                    not_added.append(subnet_mac)
+                                    not_added.append(host_info)
 
                             if (len(results) != 0 and
-                                    subnet_mac['Mac Address'] != results[0]['Mac Address']):
-                                results.append(subnet_mac)
+                                    host_info['Mac Address'] !=
+                                    results[0]['Mac Address']):
+                                results.append(host_info)
 
-                            results[-1]['ID'] = str(getClubNumber(club_result)) + str(len(results))
+                            results[-1]['ID'] = (str(club_num(club_result)) +
+                                                 str(len(results)))
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -211,9 +223,9 @@ def getRouterInfo(conn, host):
                     # duplicate values
 
                     if not_added != 0:
-                        for item in not_added:
-                            if item['Mac Address'] != results[0]['Mac Address']:
-                                results.append(item)
+                        for itm in not_added:
+                            if itm['Mac Address'] != results[0]['Mac Address']:
+                                results.append(itm)
 
                     clubs.append(club_result)
                     break
@@ -238,11 +250,11 @@ def getRouterInfo(conn, host):
     return results
 
 
-def writeToFiles(results, header_added, host):
+def write_to_files(results, header_added, host):
     """Function to print and add results to .json and .csv files
 
     Args:
-        results - list returned from getRouterInfo() for each location
+        results - list returned from get_router_info() for each location
         header_added - boolean value used to avoid multiple headers in csv file
 
     Returns:
@@ -250,14 +262,16 @@ def writeToFiles(results, header_added, host):
 
     Raises:
         Does not raise an error. File is created when function is called and
-        if file already exists, results list is appended to end of existing file
+        if file already exists, results list is appended to
+        end of existing file.
     """
 
     if len(results) != 0:
         for item in results:
             print(item)
 
-        print('\nWriting {} results to files...'.format(results[0]['Location']))
+        print('\nWriting {} results to files...'
+              .format(results[0]['Location']))
 
         output = open('scan12-9.json', 'a+')
         output.write(dumps(results))
@@ -275,7 +289,7 @@ def writeToFiles(results, header_added, host):
         not_connected.append(host)
 
 
-def getOuiVendor(mac):
+def get_oui_vendor(mac):
     """Returns vendor for each device based on mac address
 
     Args:
@@ -288,11 +302,13 @@ def getOuiVendor(mac):
         No error is raised. If there is no vendor found,
         'null' is returned.
     """
-    oui = macOUI(mac)
+
+    oui_str = mac_oui(mac)
 
     try:
-        mac_oui = EUI(mac).oui
-        vendor = mac_oui.registration().org
+        mac_address = EUI(mac)
+        oui = mac_address.oui
+        vendor = oui.records['org'] # vendor = oui.registration().org
 
         return vendor
 
@@ -303,19 +319,19 @@ def getOuiVendor(mac):
     except(NotRegisteredError):
         vendor = 'null'
 
-        if oui in cfg.cisco:
+        if oui_str in cfg.cisco:
             vendor = 'Cisco Systems, Inc'
-        if oui in cfg.dell:
+        if oui_str in cfg.dell:
             vendor = 'Dell Inc.'
-        if oui in cfg.asustek:
+        if oui_str in cfg.asustek:
             vendor = 'AsustekC ASUSTek COMPUTER INC.'
-        if oui in cfg.HeFei:
+        if oui_str in cfg.HeFei:
             vendor = 'LcfcHefe LCFC(HeFei) Electronics Technology co., ltd'
-        if oui in cfg.meraki:
+        if oui_str in cfg.meraki:
             vendor = 'CiscoMer Cisco Meraki'
-        if oui in cfg.winstron:
+        if oui_str in cfg.winstron:
             vendor = 'Wistron Infocomm (Zhongshan) Corporation'
-        if oui in cfg.null:
+        if oui_str in cfg.null:
             vendor = 'Not Defined'
 
         mac_ouis.append(oui)
@@ -323,7 +339,7 @@ def getOuiVendor(mac):
         return vendor
 
 
-def macOUI(mac):
+def mac_oui(mac):
     """Returns OUI from mac address passed in argument
 
     Args:
@@ -341,7 +357,7 @@ def macOUI(mac):
     return oui
 
 
-def macAddressFormat(mac):
+def mac_address_format(mac):
     """Return formatted version of mac address
 
     Args:
@@ -360,9 +376,9 @@ def macAddressFormat(mac):
     return formatted_mac
 
 
-def clubID(conn, host):
+def club_id(conn, host):
     """Sends command to router to retrieve location ID information.
-    if not found, attempts to get location ID using getHostNames()
+    if not found, attempts to get location ID using get_hostnames()
 
     Args:
         conn - Connection object
@@ -398,7 +414,7 @@ def clubID(conn, host):
                         club_result = club_result.group(0)
 
                     if club_result is None:
-                        hostname = getHostnames(host)
+                        hostname = get_hostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
                         if hostname_club is not None:
@@ -414,22 +430,22 @@ def clubID(conn, host):
                         continue
 
                     if attempt == 1:
-                        print('Getting clubID from nmap hostname')
-                        hostname = getHostnames(host)
+                        print('Getting club_id from nmap hostname')
+                        hostname = get_hostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
 
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
 
                         if hostname_club is None:
-                            print('could not get clubID')
+                            print('could not get club_id')
                             club_result = 'null'
 
         club_result = club_result.lower()
         return club_result
 
 
-def getHostnames(ip):
+def get_hostnames(ip):
     """Scan router for hostname using python-nmap
 
     Args:
@@ -465,28 +481,29 @@ def getHostnames(ip):
 
 
 #  Function to return only a site router IP which ends in '.1'.
-def getSiteRouter(ip):
+def get_site_router(ip):
     """Returns router IP when called
 
     Args:
         ip - ip from ips.py. Looped in main()
 
     Returns:
-        firstHost - first host from given subnet ending in x.x.x.1,
+        first_host - first host from given subnet ending in x.x.x.1,
         this is the router ip.
 
     Raises:
         Does not raise an error.
     """
-    siteHosts = ip_network(ip)
-    firstHost = next(siteHosts.hosts())
-    return(firstHost)
+    site_hosts = ip_network(ip)
+    first_host = next(site_hosts.hosts())
+    return(first_host)
 
-def getClubNumber(club_result):
+
+def club_num(club_result):
     """Returns a generated ID for each club asset
 
     Args:
-        club_result - Location ID from clubID()
+        club_result - Location ID from club_id()
 
     Returns:
         club_number = numeric value for each club
@@ -518,12 +535,12 @@ def getClubNumber(club_result):
     return club_number
 
 
-def assetTagGenerator(host, club_number, club_result, mac, vendor):
+def asset_tag_gen(host, club_number, club_result, mac, vendor):
     """Returns a generated asset tag for the host
 
     Args:
         host - device IP
-        club_result - Location ID from clubID()
+        club_result - Location ID from club_id()
         mac - device mac-address
 
     Returns:
@@ -552,12 +569,11 @@ def assetTagGenerator(host, club_number, club_result, mac, vendor):
 
     asset3 = ('-' + mac_third + mac_fourth)
 
-    #club_n_regex = compile(r'([0-9]{3})')
+    # club_n_regex = compile(r'([0-9]{3})')
     reg_n_regex = compile(r'([REG]{3})')
 
-    
-    if club_number is not '000':
-        # club_number is the return from getClubNumber()
+    if club_number != '000':
+        # club_number is the return from club_num()
         asset1 = club_number
 
     else:
@@ -570,7 +586,7 @@ def assetTagGenerator(host, club_number, club_result, mac, vendor):
             asset1 = club_result
 
     # Extract first letter of device type for asset2
-    device_type = cfg.getDeviceType(host, club_result, vendor)
+    device_type = cfg.get_device_type(host, club_result, vendor)
     asset2 = device_type[0].upper()
 
     # Generated asset tag is the concatenation of all assets
@@ -579,13 +595,15 @@ def assetTagGenerator(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-def Diff(club_number, results): pass
+def diff(club_number, results): pass
+
+
 """
 Returns a ID for the host
 
     Args:
         host - device IP
-        club_result - Location ID from clubID()
+        club_result - Location ID from club_id()
         mac - device mac-address
 
     Returns:
@@ -618,11 +636,11 @@ def main(ip_list):
 
     for ip in ip_list:
         clb_runtime_str = time()
-        router_connect = connect(str(getSiteRouter(ip)))
+        router_connect = connect(str(get_site_router(ip)))
 
         if router_connect is not None:
-            results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
-            writeToFiles(results, header_added, str(getSiteRouter(ip)))
+            results = get_router_info(router_connect, str(get_site_router(ip)))
+            write_to_files(results, header_added, str(get_site_router(ip)))
 
             router_connect.disconnect()
 
@@ -632,24 +650,27 @@ def main(ip_list):
         header_added = True
         try:
             if router_connect is not None:
-                print('\n{} Scan Runtime: {} '.format(results[0]['Location'], clb_runtime))
+                print('\n{} Scan Runtime: {} '
+                      .format(results[0]['Location'], clb_runtime))
             else:
                 print('\nClub Scan Runtime: {} '.format(clb_runtime))
         except:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
 
-    print('\nThe following {} hosts were not scanned'.format(len(not_connected)))
+    print('\nThe following {} hosts were not scanned'
+          .format(len(not_connected)))
     print(not_connected)
 
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
 
 
-ip_list = ['10.6.3.0/24', '10.10.12.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
-# ip_list = get_ip_list()
+ip_list = get_ip_list()
+ip_list = ['10.6.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+
 main(ip_list)
 
 end = time()
 runtime = end - start
-runtime = str(timedelta(seconds = int(runtime)))
+runtime = str(timedelta(seconds=int(runtime)))
 print('\nScript Runtime: {} '.format(runtime))
