@@ -158,13 +158,13 @@ def getRouterInfo(conn, host):
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
-                            
+
                             hostname = getHostnames(ip_result)
 
                             model_name = cfg.modelName(deviceType, vendor)
 
                             asset_tag = assetTagGenerator(ip_result,
-                                                          str(getClubNumber(club_result)),  
+                                                          str(getClubNumber(club_result)),
                                                           club_result,
                                                           mac_result,
                                                           vendor)
@@ -201,8 +201,8 @@ def getRouterInfo(conn, host):
                             if (len(results) != 0 and
                                     subnet_mac['Mac Address'] != results[0]['Mac Address']):
                                 results.append(subnet_mac)
-                            
-                            results[-1]['ID'] = str(getClubNumber(club_result)) + str(len(results) += 1)
+
+                            results[-1]['ID'] = str(getClubNumber(club_result)) + str(len(results))
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -238,7 +238,7 @@ def getRouterInfo(conn, host):
     return results
 
 
-def writeToFiles(results, header_added):
+def writeToFiles(results, header_added, host):
     """Function to print and add results to .json and .csv files
 
     Args:
@@ -270,6 +270,9 @@ def writeToFiles(results, header_added):
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
+    else:
+        print('No results received from router')
+        not_connected.append(host)
 
 
 def getOuiVendor(mac):
@@ -300,7 +303,7 @@ def getOuiVendor(mac):
     except(NotRegisteredError):
         vendor = 'null'
 
-        if oui in cfg.cisco:            
+        if oui in cfg.cisco:
             vendor = 'Cisco Systems, Inc'
         if oui in cfg.dell:
             vendor = 'Dell Inc.'
@@ -489,7 +492,7 @@ def getClubNumber(club_result):
         club_number = numeric value for each club
 
     Raises:
-        Does not raise an error if club number is not found, 
+        Does not raise an error if club number is not found,
         it will return '000'
     """
     club_number = 'null'
@@ -499,7 +502,7 @@ def getClubNumber(club_result):
 
     # Extract club number for regional offices
     club_id = reg_n_regex.search(club_result)
-    
+
     # if regional office pattern not found
     if club_id is None:
         # Extract club number for clubs
@@ -508,7 +511,6 @@ def getClubNumber(club_result):
         if club_id is not None:
             club_id = club_id.group(0)
             club_number = club_id
-
     else:
         # If regional Office pattern found, Club Number = 000
         club_number = '000'
@@ -577,7 +579,8 @@ def assetTagGenerator(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-"""def IDGenerator(club_number, ):
+def Diff(club_number, results): pass
+"""
 Returns a ID for the host
 
     Args:
@@ -591,9 +594,8 @@ Returns a ID for the host
     Raises:
         Does not raise an error. If the ID does not contain all
         needed information, it will return base values defined.
-    
-    pass"""
-    
+"""
+
 
 def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
@@ -608,9 +610,9 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
-    
+
     header_added = False
-    
+
     print(cfg.intro1)
     print(cfg.intro2)
 
@@ -620,13 +622,13 @@ def main(ip_list):
 
         if router_connect is not None:
             results = getRouterInfo(router_connect, str(getSiteRouter(ip)))
-            writeToFiles(results, header_added)
+            writeToFiles(results, header_added, str(getSiteRouter(ip)))
 
             router_connect.disconnect()
 
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
-        clb_runtime = str(timedelta(seconds = int(clb_runtime)))
+        clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
         try:
             if router_connect is not None:
