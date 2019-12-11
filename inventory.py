@@ -22,6 +22,7 @@ start = time()
 not_connected = []
 clubs = []
 mac_ouis = []
+mstr_list = []
 
 
 def connect(ip):
@@ -125,7 +126,6 @@ def get_router_info(conn, host):
     club_result = club_id(conn, host)
 
     results = []  # main inventory results
-    m_results = []  # master results for master_list.py
     f_results = []  # list of failed results
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
@@ -206,7 +206,7 @@ def get_router_info(conn, host):
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
-                                    m_results.append(host_info2)
+                                    mstr_list.append(host_info2)
                                 else:
                                     not_added.append(host_info)
 
@@ -214,11 +214,11 @@ def get_router_info(conn, host):
                                     host_info['Mac Address'] !=
                                     results[0]['Mac Address']):
                                 results.append(host_info)
-                                m_results.append(host_info2)
+                                mstr_list.append(host_info2)
 
                             results[-1]['ID'] = (str(club_num(club_result)) +
                                                  str(len(results)))
-                            m_results[-1]['ID'] = (str(club_num(club_result)) +
+                            mstr_list[-1]['ID'] = (str(club_num(club_result)) +
                                                    str(len(results)))
 
                     # when the first value in sh arp is not 10.x.x.1 items
@@ -252,7 +252,7 @@ def get_router_info(conn, host):
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
-    return results, m_results
+    return results
 
 
 def write_to_files(results, header_added, host):
@@ -615,7 +615,8 @@ def diff(m_results):
             Does not raise an error. If the ID does not contain all
             needed information, it will return base values defined.
     """
-    print(m_results) 
+    print(m_results)
+
 
 def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
