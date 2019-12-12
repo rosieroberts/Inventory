@@ -76,13 +76,13 @@ def always_exclude():
     return(exclude_list)
 
 
-def exclude(OID, OID_value):
+def exclude(oid, oid_value):
     """ Returns list of excluded IPs from specific OID values from argument """
 
     regex = re.compile(r'(?<=^1\.4\.)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
-    routes = session.walk(OID)
+    routes = session.walk(oid)
     for item in routes:
-        if item.value != (OID_value):
+        if item.value != (oid_value):
             ip_value = regex.search(item.oid_index)
             if ip_value:
                 exclude_list.append(ip_value.group(0))

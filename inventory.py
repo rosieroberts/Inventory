@@ -215,7 +215,7 @@ def get_router_info(conn, host):
                                     results[0]['Mac Address']):
                                 results.append(host_info)
                                 mstr_list.append(host_info2)
-
+                            print(str(club_num(club_result)))
                             results[-1]['ID'] = (str(club_num(club_result)) +
                                                  str(len(results)))
                             mstr_list[-1]['ID'] = (str(club_num(club_result)) +
@@ -518,8 +518,8 @@ def club_num(club_result):
     """
     club_number = 'null'
 
-    club_n_regex = compile(r'([0-9]{3})')
-    reg_n_regex = compile(r'([REG]{3})')
+    club_n_regex = compile(r'((?<=club)[\d]{3})')
+    reg_n_regex = compile(r'((?<=reg-)[\d]{3})')
 
     # Extract club number for regional offices
     club_id = reg_n_regex.search(club_result)
@@ -534,6 +534,7 @@ def club_num(club_result):
             club_number = club_id
     else:
         # If regional Office pattern found, Club Number = 000
+        print('else, 000')
         club_number = '000'
 
     return club_number
@@ -573,8 +574,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
     asset3 = ('-' + mac_third + mac_fourth)
 
-    # club_n_regex = compile(r'([0-9]{3})')
-    reg_n_regex = compile(r'([REG]{3})')
+    reg_n_regex = compile(r'([\d]{3})')
 
     if club_number != '000':
         # club_number is the return from club_num()
@@ -585,9 +585,9 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
         club_id = reg_n_regex.search(club_result)
         if club_id is not None:
             club_id = club_id.group(0)
-            asset1 = club_result[3:]
+            asset1 = club_id
         else:
-            asset1 = club_result
+            asset1 = club_number
 
     # Extract first letter of device type for asset2
     device_type = cfg.get_device_type(host, club_result, vendor)
@@ -599,7 +599,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-def diff(m_results):
+def diff():
     """Returns a ID for the host
 
         Args:
@@ -614,7 +614,8 @@ def diff(m_results):
             Does not raise an error. If the ID does not contain all
             needed information, it will return base values defined.
     """
-    print(m_results)
+    for item in mstr_list:
+        print(item)
 
 
 def main(ip_list):
@@ -665,6 +666,8 @@ def main(ip_list):
 
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
+
+    diff()
 
 
 ip_list = get_ip_list()
