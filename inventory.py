@@ -533,9 +533,9 @@ def club_num(club_result):
             club_id = club_id.group(0)
             club_number = club_id
     else:
-        # If regional Office pattern found, Club Number = 000
-        print('else, 000')
-        club_number = '000'
+        # If regional Office pattern found, Club Number = regional_num (config)
+        club_number = cfg.regional_num[club_result]
+        print(club_number)
 
     return club_number
 
@@ -573,21 +573,20 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     mac_fourth = mac[-2:]
 
     asset3 = ('-' + mac_third + mac_fourth)
+    loc_num_rgx = compile(r'([\d]{3})')
 
-    reg_n_regex = compile(r'([\d]{3})')
-
-    if club_number != '000':
+    if club_number != 'null':
         # club_number is the return from club_num()
         asset1 = club_number
 
     else:
-        # Extract club number to be used in asset1 (regional offices)
-        club_id = reg_n_regex.search(club_result)
+        # Extract location number
+        club_id = loc_num_rgx.search(club_result)
         if club_id is not None:
             club_id = club_id.group(0)
             asset1 = club_id
         else:
-            asset1 = club_number
+            asset1 = '000'
 
     # Extract first letter of device type for asset2
     device_type = cfg.get_device_type(host, club_result, vendor)
