@@ -11,7 +11,7 @@ from nmap import PortScanner
 import config as cfg
 from json import dumps
 from time import time
-from datetime import timedelta
+from datetime import timedelta, date
 from re import compile
 # import traceback
 from netaddr import EUI, mac_unix_expanded
@@ -23,6 +23,8 @@ not_connected = []
 clubs = []
 mac_ouis = []
 mstr_list = []
+
+today = date.today()
 
 
 def connect(ip):
@@ -215,7 +217,7 @@ def get_router_info(conn, host):
                                     results[0]['Mac Address']):
                                 results.append(host_info)
                                 mstr_list.append(host_info2)
-                            print(str(club_num(club_result)))
+
                             results[-1]['ID'] = (str(club_num(club_result)) +
                                                  str(len(results)))
                             mstr_list[-1]['ID'] = (str(club_num(club_result)) +
@@ -278,13 +280,13 @@ def write_to_files(results, header_added, host):
         print('\nWriting {} results to files...'
               .format(results[0]['Location']))
 
-        output = open('scan12-9.json', 'a+')
+        output = open('full_scan{}.json'.format(today.strftime('%m-%d')), 'a+')
         output.write(dumps(results))
         output.close()
 
         keys = results[0].keys()
 
-        with open('scan12-9.csv', 'a') as csvfile:
+        with open('full_scan{}.csv'.format(today.strftime('%m-%d')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -535,7 +537,6 @@ def club_num(club_result):
     else:
         # If regional Office pattern found, Club Number = regional_num (config)
         club_number = cfg.regional_num[club_result]
-        print(club_number)
 
     return club_number
 
