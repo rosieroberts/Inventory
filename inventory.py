@@ -9,7 +9,7 @@ from ips import get_ip_list
 from ipaddress import ip_network
 from nmap import PortScanner
 import config as cfg
-from json import dumps
+from json import dumps, load
 from time import time
 from datetime import timedelta, date
 from re import compile
@@ -22,7 +22,6 @@ start = time()
 not_connected = []
 clubs = []
 mac_ouis = []
-mstr_list = []
 
 today = date.today()
 
@@ -145,7 +144,8 @@ def get_router_info(conn, host):
                     print('Sending command to router... attempt', attempt2 + 1)
 
                     for item in arp_list:
-
+                        counter = 0
+                        failed_id = []
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
 
@@ -168,7 +168,7 @@ def get_router_info(conn, host):
 
                             model_name = cfg.model_name(device_type, vendor)
 
-                            club_number = str(club_num(club_result))
+                            club_number = club_num(club_result)
 
                             asset_tag = asset_tag_gen(ip_result,
                                                       club_number,
@@ -180,7 +180,7 @@ def get_router_info(conn, host):
                                 continue
 
                             # for main results
-                            host_info = {'ID': club_num(club_result),
+                            host_info = {'ID': club_number,
                                          'IP': ip_result,
                                          'Location': club_result,
                                          'Asset Tag': asset_tag,
@@ -190,11 +190,6 @@ def get_router_info(conn, host):
                                          'Hostname': hostname['hostnames'],
                                          'Mac Address': mac_result,
                                          'Status': hostname['status']}
-
-                            # for master list comparison
-                            host_info2 = {'ID': club_num(club_result),
-                                          'IP': ip_result,
-                                          'Mac Address': mac_result}
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
@@ -208,7 +203,7 @@ def get_router_info(conn, host):
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
-                                    mstr_list.append(host_info2)
+
                                 else:
                                     not_added.append(host_info)
 
@@ -216,12 +211,33 @@ def get_router_info(conn, host):
                                     host_info['Mac Address'] !=
                                     results[0]['Mac Address']):
                                 results.append(host_info)
-                                mstr_list.append(host_info2)
 
                             results[-1]['ID'] = (str(club_num(club_result)) +
                                                  str(len(results)))
-                            mstr_list[-1]['ID'] = (str(club_num(club_result)) +
-                                                   str(len(results)))
+
+                            try:
+                                output = open('/baselines/baseline_scan{}.json'
+                                              .format(results[0]['Location']))
+                                baseline = load(output)
+                                print(baseline)
+
+                                if results[-1]['ID'] in baseline['ID'].values():
+                                    index = baseline.get('ID', results[-1]['ID'])
+                                    if results[-1]['IP'] == baseline[index]['IP']:
+                                        if results[-1]['Mac Address'] == baseline[index]['Mac Address']:
+                                            print(results[-1]['ID'])
+                                        else:
+                                            failed_id = failed_id.append(results[-1]['ID'])
+                                    else:
+                                        counter += 1
+                                        results[-1]['ID'] = club_number + str(len(results) + 1 + counter)
+
+                                output.close()
+
+                            except FileNotFoundError:
+                                pass
+
+                    print(failed_id)
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -280,17 +296,31 @@ def write_to_files(results, header_added, host):
         print('\nWriting {} results to files...'
               .format(results[0]['Location']))
 
-        output = open('full_scan{}.json'.format(today.strftime('%m-%d')), 'a+')
-        output.write(dumps(results))
-        output.close()
+        club_output = open('full_scan{}.json'
+                           .format(today.strftime('%m-%d')), 'a+')
+        club_output.write(dumps(results))
+        club_output.close()
 
         keys = results[0].keys()
 
-        with open('full_scan{}.csv'.format(today.strftime('%m-%d')), 'a') as csvfile:
+        try:
+            club_base_file = open('/baselines/baseline_scan{}.json'
+                                  .format(results[0]['Location']))
+            club_base_file.close()
+
+        except FileNotFoundError:
+            cl_base = open('/baselines/baseline_scan{}.json'
+                           .format(results[0]['Location']), 'a+')
+            cl_base.write(dumps(results))
+            cl_base.close()
+
+        with open('full_scan{}.csv'
+                  .format(today.strftime('%m-%d')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
+
     else:
         print('No results received from router')
         not_connected.append(host)
@@ -599,7 +629,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-def diff():
+def diff(results):
     """Returns a ID for the host
 
         Args:
@@ -614,8 +644,15 @@ def diff():
             Does not raise an error. If the ID does not contain all
             needed information, it will return base values defined.
     """
-    for item in mstr_list:
-        print(item)
+    try:
+        output = open('baseline_scan.json')
+        baseline = load(output)
+        print(baseline)
+        output.close()
+    except FileNotFoundError:
+        output = open('baseline_scan.json', 'a+')
+        output.write(dumps(results))
+        output.close()
 
 
 def main(ip_list):
@@ -667,7 +704,7 @@ def main(ip_list):
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
 
-    diff()
+    diff(results)
 
 
 ip_list = get_ip_list()
