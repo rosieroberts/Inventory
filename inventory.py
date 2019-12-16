@@ -272,9 +272,10 @@ def id_compare_update(results, club_number, counter):
 
     # open baseline json to compare to prior scans
     try:
-        output = open('/baselines/baseline_scan.json')
+        output = open(str(Path(__file__).parent) + '/baselines/baseline_scan_{}.json'
+                      .format(results[0]['Location']))
         baseline = load(output)
-        print(baseline)
+        print('baseline&&&&&', baseline)
         output.close()
 
         # last results updated_id = club_number + length of results
