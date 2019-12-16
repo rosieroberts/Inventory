@@ -17,6 +17,8 @@ from re import compile
 from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 from csv import DictWriter
+from pathlib import Path
+
 
 start = time()
 not_connected = []
@@ -145,7 +147,6 @@ def get_router_info(conn, host):
 
                     for item in arp_list:
                         counter = 0
-                        failed_id = []
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
 
@@ -212,33 +213,11 @@ def get_router_info(conn, host):
                                     results[0]['Mac Address']):
                                 results.append(host_info)
 
-                            results[-1]['ID'] = (str(club_num(club_result)) +
-                                                 str(len(results)))
+                    updated_id = id_compare_update(results,
+                                                   club_number,
+                                                   counter)
 
-                            try:
-                                output = open('/baselines/baseline_scan{}.json'
-                                              .format(results[0]['Location']))
-                                baseline = load(output)
-                                print(baseline)
-
-                                if results[-1]['ID'] in baseline['ID'].values():
-                                    index = baseline.get('ID', results[-1]['ID'])
-                                    if results[-1]['IP'] == baseline[index]['IP']:
-                                        if results[-1]['Mac Address'] == baseline[index]['Mac Address']:
-                                            print(results[-1]['ID'])
-                                        else:
-                                            failed_id = failed_id.append(results[-1]['ID'])
-                                    else:
-                                        counter += 1
-                                        results[-1]['ID'] = club_number + str(len(results) + 1 + counter)
-
-                                output.close()
-
-                            except FileNotFoundError:
-                                pass
-
-                    print(failed_id)
-
+                    results[-1]['ID'] = updated_id
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
                     # Then, not_added items mac's are compared to router
@@ -273,6 +252,76 @@ def get_router_info(conn, host):
     return results
 
 
+def id_compare_update(results, club_number, counter):
+    """Returns a ID for the host
+
+        Args:
+            host - device IP
+            club_result - Location ID from club_id()
+            mac - device mac-address
+
+        Returns:
+            ID - generated ID
+
+        Raises:
+            Does not raise an error. If the ID does not contain all
+            needed information, it will return base values defined.
+    """
+    last_results = results[-1]
+    additional_ids = []
+
+    # open baseline json to compare to prior scans
+    try:
+        output = open('/baselines/baseline_scan.json')
+        baseline = load(output)
+        print(baseline)
+        output.close()
+
+        # last results updated_id = club_number + length of results
+        result_id = (str(club_number) + str(len(results)))
+
+        # dictionary item in baseline that has result_id
+        dict_item = next((item for item in baseline if item['ID'] == result_id), None)
+
+        # if last_result is not equal to baseline dict item
+        if last_results != dict_item:
+
+            if last_results['ID'] == dict_item['ID'] and \
+               last_results['Mac Address'] == dict_item['Mac Address']:
+                dict_item = last_results
+                output = open('/baselines/baseline_scan.json', 'w')
+                output.write(dumps(dict_item))
+
+            # if last results mac address is not the same in dict_item
+            if last_results['ID'] == dict_item['ID'] and \
+               last_results['Mac Address'] != dict_item['Mac Address']:
+                counter += 1
+                result_id = club_number + str(len(baseline) + 1 + counter)
+                additional_ids.append(result_id)
+                output2 = open('/baselines/baseline_scan.json', 'a+')
+                output2.write(dumps(last_results))
+                output2.close()
+
+            if last_results['ID'] != dict_item['ID'] and \
+               last_results['Mac Address'] == dict_item['Mac Address']:
+                dict_item = last_results
+                output = open('/baselines/baseline_scan.json', 'w')
+                output.write(dumps(dict_item))
+
+            else:
+                counter += 1
+                result_id = club_number + str(len(baseline) + 1 + counter)
+                additional_ids.append(result_id)
+                output2 = open('/baselines/baseline_scan.json', 'a+')
+                output2.write(dumps(last_results))
+                output2.close()
+
+    except FileNotFoundError:
+        result_id = (str(club_number) + str(len(results)))
+
+    return result_id
+
+
 def write_to_files(results, header_added, host):
     """Function to print and add results to .json and .csv files
 
@@ -304,13 +353,13 @@ def write_to_files(results, header_added, host):
         keys = results[0].keys()
 
         try:
-            club_base_file = open('/baselines/baseline_scan{}.json'
+            club_base_file = open(str(Path(__file__).parent) + '/baselines/baseline_scan_{}.json'
                                   .format(results[0]['Location']))
             club_base_file.close()
 
         except FileNotFoundError:
-            cl_base = open('/baselines/baseline_scan{}.json'
-                           .format(results[0]['Location']), 'a+')
+            cl_base = open(str(Path(__file__).parent) + '/baselines/baseline_scan_{}.json'
+                           .format(results[0]['Location']), 'w')
             cl_base.write(dumps(results))
             cl_base.close()
 
