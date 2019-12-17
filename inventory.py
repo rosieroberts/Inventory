@@ -24,6 +24,7 @@ start = time()
 not_connected = []
 clubs = []
 mac_ouis = []
+additional_ids = []
 
 today = date.today()
 
@@ -207,17 +208,22 @@ def get_router_info(conn, host):
 
                                 else:
                                     not_added.append(host_info)
+                                    continue
 
-                            if (len(results) != 0 and
-                                    host_info['Mac Address'] !=
-                                    results[0]['Mac Address']):
-                                results.append(host_info)
+                            else:
+                                if (host_info['Mac Address'] !=
+                                        results[0]['Mac Address']):
+                                    results.append(host_info)
 
-                    updated_id = id_compare_update(results,
-                                                   club_number,
-                                                   counter)
+                                else:
+                                    continue
 
-                    results[-1]['ID'] = updated_id
+                            updated_id = id_compare_update(results,
+                                                           club_number,
+                                                           counter)
+
+                            results[-1]['ID'] = updated_id
+
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
                     # Then, not_added items mac's are compared to router
@@ -268,53 +274,50 @@ def id_compare_update(results, club_number, counter):
             needed information, it will return base values defined.
     """
     last_results = results[-1]
-    additional_ids = []
 
     # open baseline json to compare to prior scans
     try:
-        output = open(str(Path(__file__).parent) + '/baselines/baseline_scan_{}.json'
+        output = open(str(Path(__file__).parent) +
+                      '/baselines/baseline_scan_{}.json'
                       .format(results[0]['Location']))
         baseline = load(output)
-        print('baseline&&&&&', baseline)
         output.close()
 
         # last results updated_id = club_number + length of results
         result_id = (str(club_number) + str(len(results)))
 
-        # dictionary item in baseline that has result_id
-        dict_item = next((item for item in baseline if item['ID'] == result_id), None)
+        # returns dictionary item if ['ID'] matches result_id, None otherwise
+        dict_item = next((item for item in baseline if item['ID'] ==
+                          result_id), None)
 
-        # if last_result is not equal to baseline dict item
-        if last_results != dict_item:
+        # if ID match is found in baseline
+        if dict_item is not None:
 
-            if last_results['ID'] == dict_item['ID'] and \
-               last_results['Mac Address'] == dict_item['Mac Address']:
-                dict_item = last_results
-                output = open('/baselines/baseline_scan.json', 'w')
-                output.write(dumps(dict_item))
-
-            # if last results mac address is not the same in dict_item
-            if last_results['ID'] == dict_item['ID'] and \
-               last_results['Mac Address'] != dict_item['Mac Address']:
-                counter += 1
+            # if result_id mac address is not the same in dict_item
+            # add additional entry with another ID
+            if last_results['Mac Address'] != dict_item['Mac Address']:
                 result_id = club_number + str(len(baseline) + 1 + counter)
                 additional_ids.append(result_id)
-                output2 = open('/baselines/baseline_scan.json', 'a+')
-                output2.write(dumps(last_results))
+                output2 = open(str(Path(__file__).parent) +
+                               '/baselines/baseline_scan_{}.json'
+                               .format(results[0]['Location']), 'a+')
+                results[-1]['ID'] = result_id
+                output2.write(dumps(results[-1]))
+                counter += 1
                 output2.close()
 
-            if last_results['ID'] != dict_item['ID'] and \
-               last_results['Mac Address'] == dict_item['Mac Address']:
-                dict_item = last_results
-                output = open('/baselines/baseline_scan.json', 'w')
-                output.write(dumps(dict_item))
-
-            else:
-                counter += 1
-                result_id = club_number + str(len(baseline) + 1 + counter)
-                additional_ids.append(result_id)
-                output2 = open('/baselines/baseline_scan.json', 'a+')
-                output2.write(dumps(last_results))
+        else:
+            dict_item = next((itm for itm in baseline if itm['Mac Address'] ==
+                              results[-1]['Mac Address']), None)
+            # if ID is not the same and mac address is found in baseline
+            if dict_item is not None:
+                # update baseline with new id
+                results[-1]['ID'] = result_id
+                dict_item = results[-1]
+                output2 = open(str(Path(__file__).parent) +
+                               '/baselines/baseline_scan_{}.json'
+                               .format(results[0]['Location']), 'w')
+                output2.write(dumps(dict_item))
                 output2.close()
 
     except FileNotFoundError:
@@ -354,13 +357,15 @@ def write_to_files(results, header_added, host):
         keys = results[0].keys()
 
         try:
-            club_base_file = open(str(Path(__file__).parent) + '/baselines/baseline_scan_{}.json'
+            club_base_file = open(str(Path(__file__).parent) +
+                                  '/baselines/baseline_scan_{}.json'
                                   .format(results[0]['Location']))
             club_base_file.close()
 
         except FileNotFoundError:
-            cl_base = open(str(Path(__file__).parent) + '/baselines/baseline_scan_{}.json'
-                           .format(results[0]['Location']), 'w')
+            cl_base = open(str(Path(__file__).parent) +
+                           '/baselines/baseline_scan_{}.json'
+                           .format(results[0]['Location']), 'w+')
             cl_base.write(dumps(results))
             cl_base.close()
 
@@ -679,32 +684,6 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-def diff(results):
-    """Returns a ID for the host
-
-        Args:
-            host - device IP
-            club_result - Location ID from club_id()
-            mac - device mac-address
-
-        Returns:
-            ID - generated ID
-
-        Raises:
-            Does not raise an error. If the ID does not contain all
-            needed information, it will return base values defined.
-    """
-    try:
-        output = open('baseline_scan.json')
-        baseline = load(output)
-        print(baseline)
-        output.close()
-    except FileNotFoundError:
-        output = open('baseline_scan.json', 'a+')
-        output.write(dumps(results))
-        output.close()
-
-
 def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
     or using a specific list of ips
@@ -753,8 +732,6 @@ def main(ip_list):
 
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
-
-    diff(results)
 
 
 ip_list = get_ip_list()
