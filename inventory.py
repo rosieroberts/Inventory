@@ -128,7 +128,7 @@ def get_router_info(conn, host):
     """
     start2 = time()
     club_result = club_id(conn, host)
-
+    upd_baseline = False
     results = []  # main inventory results
     f_results = []  # list of failed results
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
@@ -223,6 +223,7 @@ def get_router_info(conn, host):
                                                            counter)
 
                             results[-1]['ID'] = updated_id
+                            print(upd_baseline)
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -259,19 +260,19 @@ def get_router_info(conn, host):
 
 
 def id_compare_update(results, club_number, counter):
-    """Returns a ID for the host
+    """Returns a ID for each host
 
         Args:
-            host - device IP
-            club_result - Location ID from club_id()
-            mac - device mac-address
+            results = list of results
+            club_number = numerical value for club
+            counter = to increment IDs
 
         Returns:
             ID - generated ID
 
         Raises:
             Does not raise an error. If the ID does not contain all
-            needed information, it will return base values defined.
+            needed information, it will return base values for result_id.
     """
     last_results = results[-1]
 
@@ -287,38 +288,44 @@ def id_compare_update(results, club_number, counter):
         result_id = (str(club_number) + str(len(results)))
 
         # returns dictionary item if ['ID'] matches result_id, None otherwise
-        dict_item = next((item for item in baseline if item['ID'] ==
-                          result_id), None)
+        dict_item_id = next((item for item in baseline if item['ID'] ==
+                             result_id), None)
 
-        # if ID match is found in baseline
-        if dict_item is not None:
+        dict_item_mac = next((itm for itm in baseline if itm['Mac Address'] ==
+                              results[-1]['Mac Address']), None)
 
-            # if result_id mac address is not the same in dict_item
-            # add additional entry with another ID
-            if last_results['Mac Address'] != dict_item['Mac Address']:
+        # if ID is found in baseline
+        if dict_item_id is not None:
+
+            # if mac address does not match mac address in baseline
+            if last_results['Mac Address'] != dict_item_id['Mac Address']:
+
+                # if mac address is not found
+                if dict_item_mac is None:
+                    # create a new id
+                    result_id = club_number + str(len(baseline) + 1 + counter)
+                    additional_ids.append(result_id)
+                    counter += 1
+                    get_router_info.upd_baseline = True
+
+                # if mac address is found with a different ID
+                else:
+                    # update result_id with old baseline ID
+                    result_id = dict_item_mac['ID']
+
+        # if ID is not found
+        else:
+            # if mac address is found in other items
+            if dict_item_mac is not None:
+                # revert to previous ID number
+                result_id = dict_item_mac['ID']
+
+            else:
+                # if ID is not found and Mac Address is not found, add new ID
                 result_id = club_number + str(len(baseline) + 1 + counter)
                 additional_ids.append(result_id)
-                output2 = open(str(Path(__file__).parent) +
-                               '/baselines/baseline_scan_{}.json'
-                               .format(results[0]['Location']), 'a+')
-                results[-1]['ID'] = result_id
-                output2.write(dumps(results[-1]))
                 counter += 1
-                output2.close()
-
-        else:
-            dict_item = next((itm for itm in baseline if itm['Mac Address'] ==
-                              results[-1]['Mac Address']), None)
-            # if ID is not the same and mac address is found in baseline
-            if dict_item is not None:
-                # update baseline with new id
-                results[-1]['ID'] = result_id
-                dict_item = results[-1]
-                output2 = open(str(Path(__file__).parent) +
-                               '/baselines/baseline_scan_{}.json'
-                               .format(results[0]['Location']), 'w')
-                output2.write(dumps(dict_item))
-                output2.close()
+                get_router_info.upd_baseline = True
 
     except FileNotFoundError:
         result_id = (str(club_number) + str(len(results)))
@@ -349,7 +356,8 @@ def write_to_files(results, header_added, host):
         print('\nWriting {} results to files...'
               .format(results[0]['Location']))
 
-        club_output = open('full_scan{}.json'
+        club_output = open(str(Path(__file__).parent) +
+                           '/full_scans/full_scan{}.json'
                            .format(today.strftime('%m-%d')), 'a+')
         club_output.write(dumps(results))
         club_output.close()
@@ -369,7 +377,8 @@ def write_to_files(results, header_added, host):
             cl_base.write(dumps(results))
             cl_base.close()
 
-        with open('full_scan{}.csv'
+        with open(str(Path(__file__).parent) +
+                  '/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
@@ -379,6 +388,19 @@ def write_to_files(results, header_added, host):
     else:
         print('No results received from router')
         not_connected.append(host)
+
+
+def update_baseline(results):
+    output2 = open(str(Path(__file__).parent) +
+                   '/baselines/baseline_scan_{}.json'
+                   .format(results[0]['Location']), 'a+')
+    output2.close()
+
+    output2 = open(str(Path(__file__).parent) +
+                   '/baselines/baseline_scan_{}.json'
+                   .format(results[0]['Location']), 'w')
+    output2.write(dumps(results))
+    output2.close()
 
 
 def get_oui_vendor(mac):
