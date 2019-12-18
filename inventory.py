@@ -223,7 +223,11 @@ def get_router_info(conn, host):
                                                            counter)
 
                             results[-1]['ID'] = updated_id
-                            print(upd_baseline)
+
+                            result_id = (str(club_number) + str(len(results)))
+
+                            if updated_id != result_id:
+                                upd_baseline = True
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -237,6 +241,9 @@ def get_router_info(conn, host):
                                 results.append(itm)
 
                     clubs.append(club_result)
+
+                    update_baseline(upd_baseline, results)
+
                     break
 
                 except(OSError):
@@ -275,6 +282,7 @@ def id_compare_update(results, club_number, counter):
             needed information, it will return base values for result_id.
     """
     last_results = results[-1]
+    baseline_ids = []
 
     # open baseline json to compare to prior scans
     try:
@@ -284,6 +292,9 @@ def id_compare_update(results, club_number, counter):
         baseline = load(output)
         output.close()
 
+        baseline_ids = [int(item['ID']) for item in baseline]
+        baseline_ids_max = max(baseline_ids)
+
         # last results updated_id = club_number + length of results
         result_id = (str(club_number) + str(len(results)))
 
@@ -291,6 +302,8 @@ def id_compare_update(results, club_number, counter):
         dict_item_id = next((item for item in baseline if item['ID'] ==
                              result_id), None)
 
+        # returns dictionary item if ['Mac Address] matches mac in last result
+        # returns none if the mac address is not found in last result
         dict_item_mac = next((itm for itm in baseline if itm['Mac Address'] ==
                               results[-1]['Mac Address']), None)
 
@@ -304,9 +317,15 @@ def id_compare_update(results, club_number, counter):
                 if dict_item_mac is None:
                     # create a new id
                     result_id = club_number + str(len(baseline) + 1 + counter)
-                    additional_ids.append(result_id)
                     counter += 1
-                    get_router_info.upd_baseline = True
+
+                    # make sure id created is not in baseline
+                    while int(result_id) <= baseline_ids_max:
+                        result_id = (club_number +
+                                     str(len(baseline) + 1 + counter))
+                        counter += 1
+
+                    additional_ids.append(result_id)
 
                 # if mac address is found with a different ID
                 else:
@@ -323,14 +342,44 @@ def id_compare_update(results, club_number, counter):
             else:
                 # if ID is not found and Mac Address is not found, add new ID
                 result_id = club_number + str(len(baseline) + 1 + counter)
-                additional_ids.append(result_id)
                 counter += 1
-                get_router_info.upd_baseline = True
+
+                # make sure id created is not in baseline
+                while int(result_id) <= baseline_ids_max:
+                    result_id = club_number + str(len(baseline) + 1 + counter)
+                    counter += 1
+
+                additional_ids.append(result_id)
 
     except FileNotFoundError:
         result_id = (str(club_number) + str(len(results)))
 
     return result_id
+
+
+def update_baseline(upd_baseline, results):
+
+    try:
+        output = open(str(Path(__file__).parent) +
+                      '/baselines/baseline_scan_{}.json'
+                      .format(results[0]['Location']))
+        baseline = load(output)
+        output.close()
+        if upd_baseline is True:
+            # find differences between the two lists, dump a new baseline
+            # and return the difference
+            # to add with API
+            print(upd_baseline)
+
+        if len(results) != len(baseline):
+            # to check if there were new items added to results
+            # if it is not the same, find the differences and add
+            # it to the new baseline and return the difference
+            # to add to API
+            print(len(results), len(baseline))
+
+    except FileNotFoundError:
+        pass
 
 
 def write_to_files(results, header_added, host):
@@ -388,19 +437,6 @@ def write_to_files(results, header_added, host):
     else:
         print('No results received from router')
         not_connected.append(host)
-
-
-def update_baseline(results):
-    output2 = open(str(Path(__file__).parent) +
-                   '/baselines/baseline_scan_{}.json'
-                   .format(results[0]['Location']), 'a+')
-    output2.close()
-
-    output2 = open(str(Path(__file__).parent) +
-                   '/baselines/baseline_scan_{}.json'
-                   .format(results[0]['Location']), 'w')
-    output2.write(dumps(results))
-    output2.close()
 
 
 def get_oui_vendor(mac):
@@ -758,6 +794,7 @@ def main(ip_list):
 
 ip_list = get_ip_list()
 ip_list = ['10.6.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+ip_list = ['10.6.3.0/24']
 
 main(ip_list)
 
