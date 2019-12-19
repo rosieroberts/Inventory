@@ -134,6 +134,7 @@ def get_router_info(conn, host):
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
+    counter = 0
 
     for _ in range(1):
 
@@ -147,7 +148,6 @@ def get_router_info(conn, host):
                     print('Sending command to router... attempt', attempt2 + 1)
 
                     for item in arp_list:
-                        counter = 0
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
 
@@ -223,11 +223,11 @@ def get_router_info(conn, host):
                                                            counter)
 
                             results[-1]['ID'] = updated_id
-
                             result_id = (str(club_number) + str(len(results)))
 
                             if updated_id != result_id:
                                 upd_baseline = True
+                                counter += 1
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -317,13 +317,11 @@ def id_compare_update(results, club_number, counter):
                 if dict_item_mac is None:
                     # create a new id
                     result_id = club_number + str(len(baseline) + 1 + counter)
-                    counter += 1
 
                     # make sure id created is not in baseline
                     while int(result_id) <= baseline_ids_max:
                         result_id = (club_number +
                                      str(len(baseline) + 1 + counter))
-                        counter += 1
 
                     additional_ids.append(result_id)
 
@@ -342,12 +340,10 @@ def id_compare_update(results, club_number, counter):
             else:
                 # if ID is not found and Mac Address is not found, add new ID
                 result_id = club_number + str(len(baseline) + 1 + counter)
-                counter += 1
 
                 # make sure id created is not in baseline
                 while int(result_id) <= baseline_ids_max:
                     result_id = club_number + str(len(baseline) + 1 + counter)
-                    counter += 1
 
                 additional_ids.append(result_id)
 
@@ -358,18 +354,32 @@ def id_compare_update(results, club_number, counter):
 
 
 def update_baseline(upd_baseline, results):
+    """ Function to update baseline if inventory has changed between scans
 
+    Args:
+
+    Returns:
+
+    Raises:
+
+    """
+    diff = []
     try:
         output = open(str(Path(__file__).parent) +
                       '/baselines/baseline_scan_{}.json'
                       .format(results[0]['Location']))
         baseline = load(output)
         output.close()
+
         if upd_baseline is True:
             # find differences between the two lists, dump a new baseline
             # and return the difference
             # to add with API
-            print(upd_baseline)
+            diff = filter(lambda item: item not in baseline, results) + \
+                   filter(lambda item: item not in results, baseline)
+
+            for item in diff:
+                print(item)
 
         if len(results) != len(baseline):
             # to check if there were new items added to results
