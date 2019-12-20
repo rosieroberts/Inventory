@@ -242,7 +242,7 @@ def get_router_info(conn, host):
 
                     clubs.append(club_result)
 
-                    update_baseline(upd_baseline, results)
+                    diff(upd_baseline, results)
 
                     break
 
@@ -353,7 +353,7 @@ def id_compare_update(results, club_number, counter):
     return result_id
 
 
-def update_baseline(upd_baseline, results):
+def diff(upd_baseline, results):
     """ Function to update baseline if inventory has changed between scans
 
     Args:
@@ -375,7 +375,7 @@ def update_baseline(upd_baseline, results):
             # find differences between the two lists, dump a new baseline
             # and return the difference
             # to add with API
-            diff = filter(lambda item: item not in baseline, results) + \
+            diff = filter(lambda item: item not in baseline, results)
                    filter(lambda item: item not in results, baseline)
 
             for item in diff:
