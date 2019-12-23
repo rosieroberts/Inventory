@@ -376,7 +376,7 @@ def diff(upd_baseline, results):
             # and return the difference
             # to add with API
             diff = filter(lambda item: item not in baseline, results)
-                   filter(lambda item: item not in results, baseline)
+            diff2 = filter(lambda item: item not in results, baseline)
 
             for item in diff:
                 print(item)
