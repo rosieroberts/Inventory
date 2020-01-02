@@ -317,7 +317,7 @@ def id_compare_update(results, club_number, counter):
                 if dict_item_mac is None:
                     # create a new id
                     result_id = club_number + str(len(baseline) + 1 + counter)
-
+                    print('id found but mac doesnt match')
                     # make sure id created is not in baseline
                     while int(result_id) <= baseline_ids_max:
                         result_id = (club_number +
@@ -340,7 +340,7 @@ def id_compare_update(results, club_number, counter):
             else:
                 # if ID is not found and Mac Address is not found, add new ID
                 result_id = club_number + str(len(baseline) + 1 + counter)
-
+                print('id not found, mac doesnt match')
                 # make sure id created is not in baseline
                 while int(result_id) <= baseline_ids_max:
                     result_id = club_number + str(len(baseline) + 1 + counter)
@@ -355,7 +355,6 @@ def id_compare_update(results, club_number, counter):
 
 def diff(upd_baseline, results):
     """ Function to update baseline if inventory has changed between scans
-
     Args:
 
     Returns:
@@ -364,6 +363,7 @@ def diff(upd_baseline, results):
 
     """
     diff = []
+    diff2 = []
     try:
         output = open(str(Path(__file__).parent) +
                       '/baselines/baseline_scan_{}.json'
@@ -379,6 +379,11 @@ def diff(upd_baseline, results):
             diff2 = filter(lambda item: item not in results, baseline)
 
             for item in diff:
+                print('items not in baseline')
+                print(item)
+
+            for item in diff2:
+                print('items not in results')
                 print(item)
 
         if len(results) != len(baseline):
