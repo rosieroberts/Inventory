@@ -18,7 +18,7 @@ from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 from csv import DictWriter
 from pathlib import Path
-from os import makedirs, path
+from os import makedirs, path, remove, listdir
 
 start = time()
 not_connected = []
