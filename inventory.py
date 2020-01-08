@@ -18,7 +18,7 @@ from netaddr import EUI, mac_unix_expanded
 from netaddr.core import NotRegisteredError
 from csv import DictWriter
 from pathlib import Path
-
+from os import makedirs, path
 
 start = time()
 not_connected = []
@@ -267,7 +267,9 @@ def get_router_info(conn, host):
 
 
 def id_compare_update(results, club_number, counter):
-    """Returns a ID for each host
+    """Returns a ID for each host.
+    This function returns a generated ID after it compares it to ID's
+    on baseline, to avoid duplicate IDs.
 
         Args:
             results = list of results
@@ -292,10 +294,12 @@ def id_compare_update(results, club_number, counter):
         baseline = load(output)
         output.close()
 
+        # add all baseline IDs to list
         baseline_ids = [int(item['ID']) for item in baseline]
+        # get highest ID in list
         baseline_ids_max = max(baseline_ids)
 
-        # last results updated_id = club_number + length of results
+        # last results updated_id = 'club_number' + 'length of results'
         result_id = (str(club_number) + str(len(results)))
 
         # returns dictionary item if ['ID'] matches result_id, None otherwise
@@ -310,27 +314,26 @@ def id_compare_update(results, club_number, counter):
         # if ID is found in baseline
         if dict_item_id is not None:
 
-            # if mac address does not match mac address in baseline
+            # if mac address does not match mac address in item found
             if last_results['Mac Address'] != dict_item_id['Mac Address']:
 
-                # if mac address is not found
+                # if mac address is not found anywhere else in baseline
                 if dict_item_mac is None:
                     # create a new id
                     result_id = club_number + str(len(baseline) + 1 + counter)
                     print('id found but mac doesnt match')
                     # make sure id created is not in baseline
                     while int(result_id) <= baseline_ids_max:
-                        result_id = (club_number +
-                                     str(len(baseline) + 1 + counter))
+                        result_id = result_id + 1
 
                     additional_ids.append(result_id)
 
-                # if mac address is found with a different ID
+                # if mac address is found with a different ID in baseline
                 else:
                     # update result_id with old baseline ID
                     result_id = dict_item_mac['ID']
 
-        # if ID is not found
+        # if ID is not found in baseline
         else:
             # if mac address is found in other items
             if dict_item_mac is not None:
@@ -343,7 +346,7 @@ def id_compare_update(results, club_number, counter):
                 print('id not found, mac doesnt match')
                 # make sure id created is not in baseline
                 while int(result_id) <= baseline_ids_max:
-                    result_id = club_number + str(len(baseline) + 1 + counter)
+                    result_id = result_id + 1
 
                 additional_ids.append(result_id)
 
@@ -355,7 +358,10 @@ def id_compare_update(results, club_number, counter):
 
 def diff(upd_baseline, results):
     """ Function to update baseline if inventory has changed between scans
+
     Args:
+        upd_baseline - boolean value, true if baseline should be updated
+        results -
 
     Returns:
 
@@ -371,20 +377,25 @@ def diff(upd_baseline, results):
         baseline = load(output)
         output.close()
 
-        if upd_baseline is True:
-            # find differences between the two lists, dump a new baseline
-            # and return the difference
-            # to add with API
-            diff = filter(lambda item: item not in baseline, results)
-            diff2 = filter(lambda item: item not in results, baseline)
+        # if upd_baseline is True:
+        # find differences between the two lists, dump a new baseline
+        # and return the difference
+        # to add with API
 
-            for item in diff:
-                print('items not in baseline')
-                print(item)
+        diff = filter(lambda item: item not in baseline, results)
+        diff2 = filter(lambda item: item not in results, baseline)
 
-            for item in diff2:
-                print('items not in results')
-                print(item)
+        print(results[0])
+        print(list(diff))
+        print(list(diff2))
+
+        for item in list(diff):
+            print('items not in baseline')
+            print(item)
+
+        for item in list(diff2):
+            print('items not in results')
+            print(item)
 
         if len(results) != len(baseline):
             # to check if there were new items added to results
@@ -392,7 +403,6 @@ def diff(upd_baseline, results):
             # it to the new baseline and return the difference
             # to add to API
             print(len(results), len(baseline))
-
     except FileNotFoundError:
         pass
 
@@ -420,6 +430,7 @@ def write_to_files(results, header_added, host):
         print('\nWriting {} results to files...'
               .format(results[0]['Location']))
 
+        # writing full scan to .json
         club_output = open(str(Path(__file__).parent) +
                            '/full_scans/full_scan{}.json'
                            .format(today.strftime('%m-%d')), 'a+')
@@ -428,19 +439,31 @@ def write_to_files(results, header_added, host):
 
         keys = results[0].keys()
 
-        try:
-            club_base_file = open(str(Path(__file__).parent) +
-                                  '/baselines/baseline_scan_{}.json'
-                                  .format(results[0]['Location']))
-            club_base_file.close()
+        # make directory that will contain individual scans by club
 
-        except FileNotFoundError:
-            cl_base = open(str(Path(__file__).parent) +
-                           '/baselines/baseline_scan_{}.json'
-                           .format(results[0]['Location']), 'w+')
-            cl_base.write(dumps(results))
-            cl_base.close()
+        mydir = path.join('baselines/{}'.format(results[0]['Location']))
+        mydir_obj = Path(mydir)
+        mydir_obj.mkdir(parents=True, exist_ok=True)
 
+        club_base_file = open(str(Path(__file__).parent) + '/' +
+                              mydir + '/{}_{}.json'
+                              .format(results[0]['Location'], today.strftime("%Y-%m-%d")), 'w+')
+
+        # dump .json file for each club in directory
+        club_base_file.write(dumps(results))
+        club_base_file.close()
+
+        # delete oldest file in directory if count is more than 5 files
+        dir_club_files = listdir(mydir)
+        print(dir_club_files)
+        print('amount of files in folder', len(dir_club_files))
+        # full_path = [('baselines/bsln_{}/{}'.format(results[0]['Location']), item) for item in dir_club_files]
+        # if len(dir_club_files) >= 6:
+         #   oldest_file = min(dir_club_files, key=path.getctime)
+
+          #  remove(oldest_file)
+
+        # create .csv file with full scan
         with open(str(Path(__file__).parent) +
                   '/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d')), 'a') as csvfile:
