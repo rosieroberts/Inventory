@@ -1,33 +1,74 @@
 #!/usr/bin/env python3
 
+from os import path, listdir
+from ipaddress import ip_network
+from json import dumps, load
+from csv import DictWriter
+from pathlib import Path
+from time import time
+from re import compile
+from datetime import timedelta, date
+# import traceback
+
+from nmap import PortScanner
+from paramiko.ssh_exception import SSHException
 from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-from paramiko.ssh_exception import SSHException
+
 from ips import get_ip_list
-from ipaddress import ip_network
-from nmap import PortScanner
 import config as cfg
-from json import dumps, load
-from time import time
-from datetime import timedelta, date
-from re import compile
-# import traceback
-from netaddr import EUI, mac_unix_expanded
-from netaddr.core import NotRegisteredError
-from csv import DictWriter
-from pathlib import Path
-from os import path, listdir
 
 
 start = time()
+today = date.today()
 not_connected = []
 clubs = []
-mac_ouis = []
 additional_ids = []
 
-today = date.today()
+
+def main(ip_list):
+    """main function to run script, using get_ip_list from ips.py
+    or using a specific list of ips
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Raises:
+        Does not raise an error.
+    """
+
+    header_added = False
+
+    print(cfg.intro1)
+    print(cfg.intro2)
+
+    for ip in ip_list:
+        clb_runtime_str = time()
+        router_connect = connect(str(get_site_router(ip)))
+        if router_connect is not None:
+            results = get_router_info(router_connect, str(get_site_router(ip)))
+            write_to_files(results, header_added, str(get_site_router(ip)))
+            diff(results)
+            router_connect.disconnect()
+        clb_runtime_end = time()
+        clb_runtime = clb_runtime_end - clb_runtime_str
+        clb_runtime = str(timedelta(seconds=int(clb_runtime)))
+        header_added = True
+        if router_connect is not None:
+            print('\n{} Scan Runtime: {} '
+                  .format(results[0]['Location'], clb_runtime))
+        else:
+            print('\nClub Scan Runtime: {} '.format(clb_runtime))
+    print('\nThe following {} hosts were not scanned'
+          .format(len(not_connected)))
+    print(not_connected)
+    print('\nThe following {} clubs were scanned'.format(len(clubs)))
+    print(clubs)
 
 
 def connect(ip):
@@ -77,9 +118,7 @@ def connect(ip):
                 scanner.scan(hosts=ip, arguments=nmap_args)
 
                 for ip in scanner.all_hosts():
-
                     if scanner[ip].has_tcp(22):
-
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             print('port 22 is showing closed for ' + (ip))
                             not_connected.append(ip)
@@ -93,7 +132,6 @@ def connect(ip):
                 print('Connecting... attempt', attempt + 1)
                 if attempt == 0:
                     print('Error, Trying to connect to {} again '.format(ip))
-
         # exhausted all tries to connect, return None and exit
         print('Connection to {} is not possible: '.format(ip))
         not_connected.append(ip)
@@ -137,60 +175,55 @@ def get_router_info(conn, host):
     counter = 0
 
     for _ in range(1):
-
         for attempt2 in range(2):
-
             if conn is not None:
-
                 try:
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
                     print('Sending command to router... attempt', attempt2 + 1)
-
                     for item in arp_list:
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
-
                         if ip_result is not None and mac_result is not None:
-
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
-                            mac_result = mac_address_format(mac_result)
-
-                            vendor = get_oui_vendor(mac_result)
-                            device_type = cfg.get_device_type(ip_result,
-                                                              club_result,
-                                                              vendor)
-
+                            mac_result = cfg.mac_address_format(mac_result)
+                            vendor = cfg.get_oui_vendor(mac_result)
+                            device_type = cfg.get_device_type(
+                                ip_result,
+                                club_result,
+                                vendor
+                            )
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
-
                             hostname = get_hostnames(ip_result)
-
                             model_name = cfg.model_name(device_type, vendor)
-
                             club_number = club_num(club_result)
-
-                            asset_tag = asset_tag_gen(ip_result,
-                                                      club_number,
-                                                      club_result,
-                                                      mac_result,
-                                                      vendor)
+                            asset_tag = asset_tag_gen(
+                                ip_result,
+                                club_number,
+                                club_result,
+                                mac_result,
+                                vendor
+                            )
 
                             if hostname is None:
                                 continue
+
                             # for main results
-                            host_info = {'ID': club_number,
-                                         'IP': ip_result,
-                                         'Location': club_result,
-                                         'Asset Tag': asset_tag,
-                                         'Category': device_type,
-                                         'Manufacturer': vendor,
-                                         'Model Name': model_name,
-                                         'Hostname': hostname['hostnames'],
-                                         'Mac Address': mac_result,
-                                         'Status': hostname['status']}
+                            host_info = {
+                                'ID': club_number,
+                                'IP': ip_result,
+                                'Location': club_result,
+                                'Asset Tag': asset_tag,
+                                'Category': device_type,
+                                'Manufacturer': vendor,
+                                'Model Name': model_name,
+                                'Hostname': hostname['hostnames'],
+                                'Mac Address': mac_result,
+                                'Status': hostname['status']
+                            }
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
@@ -206,16 +239,17 @@ def get_router_info(conn, host):
                                 else:
                                     not_added.append(host_info)
                                     continue
-
                             else:
                                 if (host_info['Mac Address'] !=
                                         results[0]['Mac Address']):
                                     results.append(host_info)
                                 else:
                                     continue
-                            updated_id = id_compare_update(results,
-                                                           club_number,
-                                                           counter)
+                            updated_id = id_compare_update(
+                                results,
+                                club_number,
+                                counter
+                            )
                             results[-1]['ID'] = updated_id
 
                     # when the first value in sh arp is not 10.x.x.1 items
@@ -229,9 +263,7 @@ def get_router_info(conn, host):
                             if itm['Mac Address'] != results[0]['Mac Address']:
                                 results.append(itm)
                                 print('good so far14')
-
                     clubs.append(club_result)
-
                     print('Results complete')
                     break
 
@@ -239,7 +271,6 @@ def get_router_info(conn, host):
                     if attempt2 == 0:
                         print('Could not send cmd "sh arp", trying again')
                         continue
-
                     else:
                         print('Could not get arp table ' + (host))
                         not_connected.append(host)
@@ -252,283 +283,6 @@ def get_router_info(conn, host):
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
     return results
-
-
-def load_baseline(results):
-
-    club = results[0]['Location']
-
-    try:
-        club_bsln_path = './baselines/{}'.format(club)
-        # get list of all files in club baseline directory
-        list_dir = listdir(club_bsln_path)
-
-        if len(list_dir) > 1:
-            # sort list to find latest
-            sorted_list_dir = sorted(list_dir)
-            last_baseline = sorted_list_dir[-1]
-
-            # if scan is perfomed more than once in a day, make sure baseline
-            # still the prior scan performed in an earlier date
-            if today.strftime("%Y-%m-%d") in last_baseline:
-                if len(list_dir) >= 2:
-                    last_baseline = sorted_list_dir[-2]
-
-                else:
-                    return None
-
-            # full path of baseline to use for difference
-            baseline_path = path.join(club_bsln_path, str(last_baseline))
-
-        else:
-            baseline_path = path.join(club_bsln_path, str(list_dir[0]))
-
-        output = open(baseline_path)
-        baseline = load(output)
-        output.close()
-
-        return baseline
-
-    except FileNotFoundError:
-        return None
-
-
-def id_compare_update(results, club_number, counter):
-    """Returns a ID for each host.
-    This function returns a generated ID after it compares it to ID's
-    on baseline, to avoid duplicate IDs.
-
-        Args:
-            results = list of results
-            club_number = numerical value for club
-            counter = to increment IDs
-
-        Returns:
-            ID - generated ID
-
-        Raises:
-            Does not raise an error. If the ID does not contain all
-            needed information, it will return base values for result_id.
-    """
-    last_results = results[-1]
-    baseline_ids = []
-
-    # open baseline json to compare to prior scans
-    baseline = load_baseline(results)
-
-    # last results updated_id = 'club_number' + 'length of results'
-    result_id = (str(club_number) + str(len(results)))
-
-    if baseline is None:
-        return result_id
-
-    # add all baseline IDs to list
-    baseline_ids = [int(item['ID']) for item in baseline]
-
-    # get highest ID in list
-    baseline_ids_max = max(baseline_ids)
-
-    # returns dictionary item if ['ID'] matches result_id, None otherwise
-    dict_item_id = next((item for item in baseline if item['ID'] ==
-                         result_id), None)
-
-    # returns dictionary item if ['Mac Address] matches mac in last result
-    # returns none if the mac address is not found in last result
-    dict_item_mac = next((itm for itm in baseline if itm['Mac Address'] ==
-                          results[-1]['Mac Address']), None)
-
-    # if ID is found in baseline
-    if dict_item_id is not None:
-
-        # if mac address does not match mac address in item found
-        if last_results['Mac Address'] != dict_item_id['Mac Address']:
-
-            # if mac address is not found anywhere else in baseline
-            if dict_item_mac is None:
-
-                # create a new id
-                result_id = club_number + str(len(baseline) + 1 + counter)
-                print('id found but mac doesnt match')
-                # make sure id created is not in baseline
-                while int(result_id) <= baseline_ids_max:
-                    result_id = result_id + 1
-
-                additional_ids.append(result_id)
-
-            # if mac address is found with a different ID in baseline
-            else:
-
-                # update result_id with old baseline ID
-                result_id = dict_item_mac['ID']
-
-    # if ID is not found in baseline
-    else:
-
-        # if mac address is found in other items
-        if dict_item_mac is not None:
-
-            # revert to previous ID number
-            result_id = dict_item_mac['ID']
-
-        else:
-
-            # if ID is not found and Mac Address is not found, add new ID
-            result_id = club_number + str(len(baseline) + 1 + counter)
-            print('id not found, mac doesnt match')
-            # make sure id created is not in baseline
-            while int(result_id) <= baseline_ids_max:
-                result_id = result_id + 1
-
-            additional_ids.append(result_id)
-
-    return result_id
-
-
-def diff(results):
-    """ Function to update baseline if inventory has changed between scans
-
-    Args:
-        results -
-
-    Returns:
-
-    Raises:
-
-    """
-    diff = []
-    diff2 = []
-    club = results[0]['Location']
-
-    baseline_update = []
-    baseline_remove = []
-    baseline_add = []
-    baseline_review = []
-
-    baseline = load_baseline(results)
-
-    if baseline is None:
-        print('No prior baseline found')
-        return None
-
-    print('Loading prior baseline')
-
-    # make directory that will contain all deltas by date
-    mydir = path.join('./delta')
-    mydir_obj = Path(mydir)
-    mydir_obj.mkdir(parents=True, exist_ok=True)
-
-    # create file for individual delta scans
-    diff_file = open(mydir + '/{}.json'
-                     .format(today.strftime("%Y-%m-%d")), 'a+')
-
-    # file to write status of differences as they happen
-    status_file = open('scan_status_{}'
-                       .format(today.strftime('%Y-%m-%d')), 'a+')
-
-    status_file.write(club.upper())
-
-    # find differences between the two lists, dump a new baseline
-    # and return the difference
-    # to update baseline
-
-    diff = filter(lambda item: item not in baseline, results)
-    diff2 = filter(lambda item: item not in results, baseline)
-
-    all_diff = list(diff)
-    all_diff.extend(item for item in diff2 if item not in all_diff)
-    print(all_diff)
-
-    # dump all deltas not in baseline in .json file for each club in directory
-    diff_file.write(dumps(list(all_diff)))
-    diff_file.close()
-
-    if len(all_diff) == 0:
-        status_file.write('\nNo changes since prior scan for {} '.format(club))
-        print('No changes since prior scan for {} '.format(club))
-
-    # get item FROM RESULTS that cannot be found in baseline and compare each
-    # key to respective item in baseline one by one
-    if diff is not None:
-        # for each item different in baseline
-        for diff_item in diff:
-            print('diff 1')
-            # returns dict item if ID found in baseline,
-            # returns None if not found
-            baseline_item_id = next((item for item in baseline if item['ID'] ==
-                                     diff_item['ID']), None)
-            # returns dict item if mac address is found in baseline
-            baseline_item_mac = next((item for item in baseline if
-                                      item['Mac Address'] ==
-                                      diff_item['Mac Address']), None)
-
-            # if diff item matches baseline ID, Mac, Location, changes
-            # do not need review and inventory can be updated
-            if baseline_item_id is not None and baseline_item_mac is not None:
-                if (baseline_item_id['ID'] == baseline_item_mac['ID'] and
-                        diff_item['Location'] == baseline_item_id['Location']
-                        and baseline_item_id['ID'] == diff_item['ID'] and
-                        baseline_item_mac['Mac Address'] ==
-                        diff_item['Mac Address']):
-                    # Changes do not need review. Add item for baseline update
-                    print('Changes do not need review')
-                    status_file.write('Device with ID {} and Mac Address {}'
-                                      'updated\n'
-                                      .format(diff_item['ID'],
-                                              diff_item['Mac Address']))
-                    baseline_update.append(diff_item)
-                    print('diff 2')
-
-            # if ID and Mac are not found in baseline
-            # new item to be added to baseline
-            elif baseline_item_id is None and baseline_item_mac is None:
-                print('new item to be added to baseline')
-                status_file.write('New device with ID {} and Mac Address {}'
-                                  'added\n'
-                                  .format(diff_item['ID'],
-                                          diff_item['Mac Address']))
-                baseline_add.append(diff_item)
-                print('diff 3')
-
-            # ID found with different Mac Address
-            elif baseline_item_id is not None and baseline_item_mac is None:
-                if baseline_item_id['Mac Address'] != diff_item['Mac Address']:
-                    status_file.write('Device with ID {} and Mac Address {} '
-                                      'has different Mac Address {} '
-                                      'in baseline, needs review\n'
-                                      .format(diff_item['ID'],
-                                              diff_item['Mac Address'],
-                                              baseline_item_id['Mac Address']))
-                baseline_review.append(diff_item)
-
-                print('diff 4')
-            # Mac Address found with different ID
-            elif baseline_item_id is None and baseline_item_mac is not None:
-                if baseline_item_mac['ID'] != diff_item['ID']:
-                    status_file.write('New device with ID {} '
-                                      'and Mac Address {} '
-                                      'has different ID {} in baseline, '
-                                      'Needs review\n'
-                                      .format(diff_item['ID'],
-                                              diff_item['Mac Address'],
-                                              baseline_item_mac['ID']))
-
-                baseline_review.append(diff_item)
-
-    if len(all_diff) != 0:
-        print('Baseline_review', baseline_review)
-        print('Baseline_add', baseline_add)
-        print('Baseline_update', baseline_update)
-        print('Baseline_remove', baseline_remove)
-
-    if results[0]['Hostname'] != '':
-        if results[0]['Location'] not in results[0]['Hostname']:
-            status_file.write('\nLocation {} does not match Hostname {}'
-                              .format(results[0]['Location'],
-                                      results[0]['Hostname']))
-            print('location {} does not match hostname ------ {} '
-                  .format(results[0]['Location'], results[0]['Hostname']))
-
-    return all_diff
 
 
 def write_to_files(results, header_added, host):
@@ -550,31 +304,25 @@ def write_to_files(results, header_added, host):
     if len(results) != 0:
         for item in results:
             print(item)
-
         print('\nWriting {} results to files...'
               .format(results[0]['Location']))
-
         # writing full scan to .json
-        club_output = open('./full_scans/full_scan{}.json'
-                           .format(today.strftime('%Y-%m-%d')), 'a+')
+        club_output = open(
+            './full_scans/full_scan{}.json'.format(
+                today.strftime('%Y-%m-%d')), 'a+')
         club_output.write(dumps(results))
         club_output.close()
-
         keys = results[0].keys()
-
         # make directory that will contain individual scans by club
         mydir = path.join('./baselines/{}'.format(results[0]['Location']))
         mydir_obj = Path(mydir)
         mydir_obj.mkdir(parents=True, exist_ok=True)
-
-        club_base_file = open(mydir + '/{}_{}.json'
-                              .format(results[0]['Location'],
-                                      today.strftime("%Y-%m-%d")), 'w+')
-
+        club_base_file = open(
+            mydir + '/{}_{}.json'.format(results[0]['Location'],
+                                         today.strftime("%Y-%m-%d")), 'w+')
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results))
         club_base_file.close()
-
         # create .csv file with full scan
         with open('./full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d')), 'a') as csvfile:
@@ -582,96 +330,263 @@ def write_to_files(results, header_added, host):
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
-
     else:
         print('No results received from router')
         not_connected.append(host)
 
 
-def get_oui_vendor(mac):
-    """Returns vendor for each device based on mac address
+def diff(results):
+    """ Function to get differences between current and prior scans
+    once differences are found, differences are written in delta files
+    by date of scan.
+    Function also returns a list of all deltas.
 
     Args:
-        mac - device mac-address
+        results - current scan device information by location
 
     Returns:
-        A string of the associated vendor name
+        all_diff - all differences between scans,
+                   to include additions, removals and updated information
 
     Raises:
-        No error is raised. If there is no vendor found,
-        'null' is returned.
-    """
+        does not raise an error, if there is no scan to compare to,
+        or there is a problem getting difference,
+        function returns None
 
-    oui_str = mac_oui(mac)
+    """
+    diff = []
+    diff2 = []
+    club = results[0]['Location']
+    baseline_update = []
+    baseline_remove = []
+    baseline_add = []
+    baseline_review = []
+    baseline = load_baseline(results)
+
+    if baseline is None:
+        print('No prior baseline found')
+        return None
+    print('Loading prior baseline')
+    # make directory that will contain all deltas by date
+    mydir = path.join('./delta')
+    mydir_obj = Path(mydir)
+    mydir_obj.mkdir(parents=True, exist_ok=True)
+    # create file for individual delta scans
+    diff_file = open(mydir + '/{}.json'
+                     .format(today.strftime("%Y-%m-%d")), 'a+')
+    # file to write status of differences as they happen
+    status_file = open('scan_status_{}'
+                       .format(today.strftime('%Y-%m-%d')), 'a+')
+    status_file.write(club.upper())
+    # find differences between the two lists, dump a new baseline
+    # and return the difference
+    # to update baseline
+    diff = filter(lambda item: item not in baseline, results)
+    diff2 = filter(lambda item: item not in results, baseline)
+    # add all differences in one list
+    all_diff = list(diff)
+    all_diff.extend(item for item in diff2 if item not in all_diff)
+    print(all_diff)
+    # dump all deltas not in baseline in .json file for each club in directory
+    diff_file.write(dumps(list(all_diff)))
+    diff_file.close()
+    # if there are no differences add message to status file
+    if len(all_diff) == 0:
+        status_file.write('\nNo changes since prior scan for {} '.format(club))
+        print('No changes since prior scan for {} '.format(club))
+    # get item FROM RESULTS that cannot be found in baseline and compare each
+    # key to respective item in baseline one by one
+    if diff is not None:
+        # for each item different in baseline
+        for diff_item in diff:
+            print('diff 1')
+            # returns dict item if ID found in baseline,
+            # returns None if not found
+            baseline_item_id = next((item for item in baseline if item['ID'] ==
+                                     diff_item['ID']), None)
+            # returns dict item if mac address is found in baseline
+            baseline_item_mac = next((item for item in baseline if
+                                      item['Mac Address'] ==
+                                      diff_item['Mac Address']), None)
+            # if diff item matches baseline ID, Mac, Location, changes
+            # do not need review and inventory can be updated
+            if baseline_item_id is not None and baseline_item_mac is not None:
+                if (baseline_item_id['ID'] == baseline_item_mac['ID'] and
+                        diff_item['Location'] == baseline_item_id['Location']
+                        and baseline_item_id['ID'] == diff_item['ID'] and
+                        baseline_item_mac['Mac Address'] ==
+                        diff_item['Mac Address']):
+                    # Changes do not need review. Add item for baseline update
+                    print('Changes do not need review')
+                    status_file.write('Device with ID {} and Mac Address {}'
+                                      'updated\n'
+                                      .format(diff_item['ID'],
+                                              diff_item['Mac Address']))
+                    baseline_update.append(diff_item)
+                    print('diff 2')
+            # if ID and Mac are not found in baseline
+            # new item to be added to baseline
+            elif baseline_item_id is None and baseline_item_mac is None:
+                print('new item to be added to baseline')
+                status_file.write('New device with ID {} and Mac Address {}'
+                                  'added\n'
+                                  .format(diff_item['ID'],
+                                          diff_item['Mac Address']))
+                baseline_add.append(diff_item)
+                print('diff 3')
+            # ID found with different Mac Address
+            elif baseline_item_id is not None and baseline_item_mac is None:
+                if baseline_item_id['Mac Address'] != diff_item['Mac Address']:
+                    status_file.write('Device with ID {} and Mac Address {} '
+                                      'has different Mac Address {} '
+                                      'in baseline, needs review\n'
+                                      .format(diff_item['ID'],
+                                              diff_item['Mac Address'],
+                                              baseline_item_id['Mac Address']))
+                baseline_review.append(diff_item)
+                print('diff 4')
+            # Mac Address found with different ID
+            elif baseline_item_id is None and baseline_item_mac is not None:
+                if baseline_item_mac['ID'] != diff_item['ID']:
+                    status_file.write('New device with ID {} '
+                                      'and Mac Address {} '
+                                      'has different ID {} in baseline, '
+                                      'Needs review\n'
+                                      .format(diff_item['ID'],
+                                              diff_item['Mac Address'],
+                                              baseline_item_mac['ID']))
+                baseline_review.append(diff_item)
+    if len(all_diff) != 0:
+        print('Baseline_review', baseline_review)
+        print('Baseline_add', baseline_add)
+        print('Baseline_update', baseline_update)
+        print('Baseline_remove', baseline_remove)
+    if results[0]['Hostname'] != '':
+        if results[0]['Location'] not in results[0]['Hostname']:
+            status_file.write('\nLocation {} does not match Hostname {}'
+                              .format(results[0]['Location'],
+                                      results[0]['Hostname']))
+            print('location {} does not match hostname ------ {} '
+                  .format(results[0]['Location'], results[0]['Hostname']))
+
+    return all_diff
+
+
+def id_compare_update(results, club_number, counter):
+    """Returns a ID for each host.
+    This function returns a generated ID after it compares it to ID's
+    on baseline, to avoid duplicate IDs.
+
+        Args:
+            results = list of results
+            club_number = numerical value for club
+            counter = to increment IDs
+
+        Returns:
+            ID - generated ID
+
+        Raises:
+            Does not raise an error. If the ID does not contain all
+            needed information, it will return base values for result_id.
+    """
+    last_results = results[-1]
+    baseline_ids = []
+    # open baseline json to compare to prior scans
+    baseline = load_baseline(results)
+    # last results updated_id = 'club_number' + 'length of results'
+    result_id = (str(club_number) + str(len(results)))
+    if baseline is None:
+        return result_id
+    # add all baseline IDs to list
+    baseline_ids = [int(item['ID']) for item in baseline]
+    # get highest ID in list
+    baseline_ids_max = max(baseline_ids)
+    # returns dictionary item if ['ID'] matches result_id, None otherwise
+    dict_item_id = next((item for item in baseline if item['ID'] ==
+                         result_id), None)
+    # returns dictionary item if ['Mac Address] matches mac in last result
+    # returns none if the mac address is not found in last result
+    dict_item_mac = next((itm for itm in baseline if itm['Mac Address'] ==
+                          results[-1]['Mac Address']), None)
+    # if ID is found in baseline
+    if dict_item_id is not None:
+        # if mac address does not match mac address in item found
+        if last_results['Mac Address'] != dict_item_id['Mac Address']:
+            # if mac address is not found anywhere else in baseline
+            if dict_item_mac is None:
+                # create a new id
+                result_id = club_number + str(len(baseline) + 1 + counter)
+                print('id found but mac doesnt match')
+                # make sure id created is not in baseline
+                while int(result_id) <= baseline_ids_max:
+                    result_id = result_id + 1
+                additional_ids.append(result_id)
+            # if mac address is found with a different ID in baseline
+            else:
+                # update result_id with old baseline ID
+                result_id = dict_item_mac['ID']
+
+    # if ID is not found in baseline
+    else:
+        # if mac address is found in other items
+        if dict_item_mac is not None:
+            # revert to previous ID number
+            result_id = dict_item_mac['ID']
+        else:
+            # if ID is not found and Mac Address is not found, add new ID
+            result_id = club_number + str(len(baseline) + 1 + counter)
+            print('id not found, mac doesnt match')
+            # make sure id created is not in baseline
+            while int(result_id) <= baseline_ids_max:
+                result_id = result_id + 1
+            additional_ids.append(result_id)
+
+    return result_id
+
+
+def load_baseline(results):
+    """Opens and loads prior scan as baseline for use in diff()
+    and id_compare_update()
+
+        Args:
+            results = list of results
+
+        Returns:
+            baseline - list of dictionary items from baseline in prior scans
+
+        Raises:
+            Does not raise an error. If there is no baseline, returns None
+    """
+    club = results[0]['Location']
 
     try:
-        oui = EUI(mac).oui
-        vendor = oui.registration().org
+        club_bsln_path = './baselines/{}'.format(club)
+        # get list of all files in club baseline directory
+        list_dir = listdir(club_bsln_path)
+        if len(list_dir) > 1:
+            # sort list to find latest
+            sorted_list_dir = sorted(list_dir)
+            last_baseline = sorted_list_dir[-1]
+            # if scan is perfomed more than once in a day, make sure baseline
+            # still the prior scan performed in an earlier date
+            if today.strftime("%Y-%m-%d") in last_baseline:
+                if len(list_dir) >= 2:
+                    last_baseline = sorted_list_dir[-2]
+                else:
+                    return None
+            # full path of baseline to use for difference
+            baseline_path = path.join(club_bsln_path, str(last_baseline))
+        else:
+            baseline_path = path.join(club_bsln_path, str(list_dir[0]))
 
-        return vendor
+        output = open(baseline_path)
+        baseline = load(output)
+        output.close()
 
-    # Some of the OUIs are not included in the IEEE.org txt used in netaddr.
-    # Those OUIs not included are added in config.py and are gatherered
-    # from WireShark. The vendor list is hardcoded because it is rather small.
+        return baseline
 
-    except(NotRegisteredError):
-        vendor = 'null'
-
-        if oui_str in cfg.cisco:
-            vendor = 'Cisco Systems, Inc'
-        if oui_str in cfg.dell:
-            vendor = 'Dell Inc.'
-        if oui_str in cfg.asustek:
-            vendor = 'AsustekC ASUSTek COMPUTER INC.'
-        if oui_str in cfg.HeFei:
-            vendor = 'LcfcHefe LCFC(HeFei) Electronics Technology co., ltd'
-        if oui_str in cfg.meraki:
-            vendor = 'CiscoMer Cisco Meraki'
-        if oui_str in cfg.winstron:
-            vendor = 'Wistron Infocomm (Zhongshan) Corporation'
-        if oui_str in cfg.null:
-            vendor = 'Not Defined'
-
-        mac_ouis.append(oui_str)
-
-        return vendor
-
-
-def mac_oui(mac):
-    """Returns OUI from mac address passed in argument
-
-    Args:
-        mac - device mac-address
-
-    Returns:
-        OUI for mac-address
-
-    Raises:
-        No error is raised.
-    """
-    # get first three octets for oui
-    oui = mac[:8]
-
-    return oui
-
-
-def mac_address_format(mac):
-    """Return formatted version of mac address
-
-    Args:
-        mac - device mac-address
-
-    Returns:
-        Formatted mac-address in format: XX:XX:XX:XX:XX:XX
-
-    Raises:
-        No error is raised.
-    """
-    formatted_mac = EUI(str(mac))
-    formatted_mac.dialect = mac_unix_expanded
-    formatted_mac = (str(formatted_mac).upper())
-
-    return formatted_mac
+    except FileNotFoundError:
+        return None
 
 
 def club_id(conn, host):
@@ -692,32 +607,22 @@ def club_id(conn, host):
     club_rgx = compile(cfg.club_rgx)
     reg_rgx = compile(cfg.reg_rgx)
 
-    club_result = '--'
-
     for _ in range(1):
-
         for attempt in range(2):
-
             if conn is not None:
-
                 try:
                     club_info = conn.send_command('sh cdp entry *')
                     club_result = club_rgx.search(club_info)
                     print('Getting club ID... attempt', attempt + 1)
-
                     if club_result is None:
                         club_result = reg_rgx.search(club_info)
-
                     if club_result is not None:
                         club_result = club_result.group(0)
-
                     if club_result is None:
                         hostname = get_hostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
-
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
-
                         if hostname_club is None:
                             club_result = 'null'
                     break
@@ -726,15 +631,12 @@ def club_id(conn, host):
                     if attempt == 0:
                         print('Could not send command, cdp. Trying again')
                         continue
-
                     if attempt == 1:
                         print('Getting club_id from nmap hostname')
                         hostname = get_hostnames(host)
                         hostname_club = club_rgx.search(hostname['hostnames'])
-
                         if hostname_club is not None:
                             club_result = hostname_club.group(0)
-
                         if hostname_club is None:
                             print('could not get club_id')
                             club_result = 'null'
@@ -766,15 +668,11 @@ def get_hostnames(ip):
     scanner.scan(hosts=hosts, arguments=nmap_args)
 
     for ip in scanner.all_hosts():
-
         host = {'ip': ip}
-
         if 'hostnames' in scanner[ip]:
             host['hostnames'] = scanner[ip].hostname()
-
         if 'status' in scanner[ip]:
             host['status'] = scanner[ip]['status']['state']
-
         return host
 
 
@@ -808,16 +706,13 @@ def club_num(club_result):
 
     Raises:
         Does not raise an error if club number is not found,
-        it will return '000'
+        it will return 'null'
     """
     club_number = 'null'
-
     club_n_regex = compile(r'((?<=club)[\d]{3})')
     reg_n_regex = compile(r'((?<=reg-)[\d]{3})')
-
     # Extract club number for regional offices
     club_id = reg_n_regex.search(club_result)
-
     # if regional office pattern not found
     if club_id is None:
         # Extract club number for clubs
@@ -852,14 +747,12 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     # Extract host's mac address last 4 characters to be added to asset3
     mac_third = mac[-5:-3]
     mac_fourth = mac[-2:]
-
     asset3 = ('-' + mac_third + mac_fourth)
     loc_num_rgx = compile(r'([\d]{3})')
 
     if club_number != 'null':
         # club_number is the return from club_num()
         asset1 = club_number
-
     else:
         # Extract location number
         club_id = loc_num_rgx.search(club_result)
@@ -872,59 +765,10 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     # Extract first letter of device type for asset2
     device_type = cfg.get_device_type(host, club_result, vendor)
     asset2 = device_type[0].upper()
-
     # Generated asset tag is the concatenation of all assets
     asset_tag = (asset1 + asset2 + asset3)
 
     return asset_tag
-
-
-def main(ip_list):
-    """main function to run script, using get_ip_list from ips.py
-    or using a specific list of ips
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    Raises:
-        Does not raise an error.
-    """
-
-    header_added = False
-
-    print(cfg.intro1)
-    print(cfg.intro2)
-
-    for ip in ip_list:
-        clb_runtime_str = time()
-        router_connect = connect(str(get_site_router(ip)))
-
-        if router_connect is not None:
-            results = get_router_info(router_connect, str(get_site_router(ip)))
-            write_to_files(results, header_added, str(get_site_router(ip)))
-            diff(results)
-            router_connect.disconnect()
-
-        clb_runtime_end = time()
-        clb_runtime = clb_runtime_end - clb_runtime_str
-        clb_runtime = str(timedelta(seconds=int(clb_runtime)))
-        header_added = True
-
-        if router_connect is not None:
-            print('\n{} Scan Runtime: {} '
-                  .format(results[0]['Location'], clb_runtime))
-        else:
-            print('\nClub Scan Runtime: {} '.format(clb_runtime))
-
-    print('\nThe following {} hosts were not scanned'
-          .format(len(not_connected)))
-    print(not_connected)
-
-    print('\nThe following {} clubs were scanned'.format(len(clubs)))
-    print(clubs)
 
 
 ip_list = get_ip_list()
