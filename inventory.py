@@ -851,18 +851,6 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
         Does not raise an error. If the asset tag does not contain all
         needed information, it will contain base values defined.
     """
-    # initialize assets with base values
-    asset1 = club_number
-    asset2 = 'N'
-    asset3 = 'ABCD'
-    asset4 = '000-000'
-
-    # Extract host IP's last two octets to be added to asset4
-    octets = host.split('.')
-    last_octet = octets[-1]
-    third_octet = octets[2]
-
-    asset4 = ('-' + third_octet + '-' + last_octet)
 
     # Extract host's mac address last 4 characters to be added to asset3
     mac_third = mac[-5:-3]
@@ -889,7 +877,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     asset2 = device_type[0].upper()
 
     # Generated asset tag is the concatenation of all assets
-    asset_tag = (asset1 + asset2 + asset3 + asset4)
+    asset_tag = (asset1 + asset2 + asset3)
 
     return asset_tag
 
@@ -927,13 +915,11 @@ def main(ip_list):
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
-        try:
-            if router_connect is not None:
-                print('\n{} Scan Runtime: {} '
-                      .format(results[0]['Location'], clb_runtime))
-            else:
-                print('\nClub Scan Runtime: {} '.format(clb_runtime))
-        except:
+
+        if router_connect is not None:
+            print('\n{} Scan Runtime: {} '
+                  .format(results[0]['Location'], clb_runtime))
+        else:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
 
     print('\nThe following {} hosts were not scanned'
