@@ -514,9 +514,6 @@ def diff(results):
 
                 baseline_review.append(diff_item)
 
-            else:
-                status_file.write('Something is wrong here')
-
     if len(all_diff) != 0:
         print('Baseline_review', baseline_review)
         print('Baseline_add', baseline_add)
@@ -931,8 +928,6 @@ def main(ip_list):
 
 
 ip_list = get_ip_list()
-ip_list = ['10.6.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
-# ip_list = ['10.96.0.0/24']
 
 main(ip_list)
 
