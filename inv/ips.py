@@ -7,7 +7,7 @@ import config as cfg
 exclude_list = []
 
 # Core router
-session = Session(hostname=cfg.snmp['hostname'],
+session = Session(hostname=cfg.snmp2['hostname'],
                   community=cfg.snmp['community'],
                   version=2)
 
