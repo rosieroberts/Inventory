@@ -1,8 +1,8 @@
 from re import compile
 import random
-from Inventory.inv import config as cnf
-from Inventory.inv import ips
-from Inventory.inv import inventory
+from Inventory import config as cnf
+from Inventory import ips
+from Inventory import inventory
 
 # tests for ips.py
 # tests for length of get_ips() to make sure ips are retrieved from snmpwalk
