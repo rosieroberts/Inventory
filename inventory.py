@@ -172,7 +172,6 @@ def get_router_info(conn, host):
     mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
-    counter = 0
 
     for _ in range(1):
         for attempt2 in range(2):
@@ -199,6 +198,7 @@ def get_router_info(conn, host):
                             first_octet = int(octets[0])
                             hostname = get_hostnames(ip_result)
                             model_name = cfg.model_name(device_type, vendor)
+                            model_number = cfg.models.get(model_name)
                             club_number = club_num(club_result)
                             asset_tag = asset_tag_gen(
                                 ip_result,
@@ -220,6 +220,7 @@ def get_router_info(conn, host):
                                 'Category': device_type,
                                 'Manufacturer': vendor,
                                 'Model Name': model_name,
+                                'Model Number': model_number,
                                 'Hostname': hostname['hostnames'],
                                 'Mac Address': mac_result,
                                 'Status': hostname['status']
@@ -247,8 +248,7 @@ def get_router_info(conn, host):
                                     continue
                             updated_id = id_compare_update(
                                 results,
-                                club_number,
-                                counter
+                                club_number
                             )
                             results[-1]['ID'] = updated_id
 
@@ -262,7 +262,6 @@ def get_router_info(conn, host):
                         for itm in not_added:
                             if itm['Mac Address'] != results[0]['Mac Address']:
                                 results.append(itm)
-                                print('good so far14')
                     clubs.append(club_result)
                     print('Results complete...')
                     for item in results:
@@ -308,7 +307,6 @@ def write_to_files(results, header_added, host):
     full_scan_dir_obj = Path(full_scan_dir)
     full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
 
-    print(len(results))
     if len(results) != 0:
         print('\nWriting {} results to files...'
               .format(results[0]['Location']))
@@ -385,7 +383,8 @@ def diff(results):
     # create file to write status of differences as they happen
     status_file = open('scan_status_{}'
                        .format(today.strftime('%Y-%m-%d')), 'a+')
-    status_file.write(club.upper())
+    if club is not None:
+        status_file.write(club.upper())
     # diff - list of new items not already in baseline
     diff = list(filter(lambda item: item not in baseline, results))
     # diff2 - list of items in baseline no longer in results (removed)
@@ -405,12 +404,13 @@ def diff(results):
         diff_file.close()
     # if there are no differences add message to status file and return None
     if len(diff) == 0 and len(diff2) == 0:
-        status_file.write('\nNo changes since prior scan for {}\n'.format(club))
+        status_file.write('\nNo changes since prior scan for {}\n'
+                          .format(club))
         print('No changes since prior scan for {} '.format(club))
         return None
     # FIND what changed since last scan and add to correct list
     # ---
-    # baseline_review - Any changes except IP and status 
+    # baseline_review - Any changes except IP and status
     # baseline_add - New Mac Address and ID
     # baseline_update - IP, Status - no review required
     # baseline_remove - Mac Address and IP not found in scan
@@ -420,7 +420,6 @@ def diff(results):
     if len(diff) != 0:
         # for each item different in baseline
         for diff_item in diff:
-            print('diff 1')
             # returns dict item if ID found in baseline,
             # returns None if not found
             baseline_item_id = next((item for item in baseline if item['ID'] ==
@@ -431,37 +430,34 @@ def diff(results):
                                       diff_item['Mac Address']), None)
             # if diff item matches baseline ID, Mac, Location, changes
             # do not need review and inventory can be updated
-            if baseline_item_id is not None and baseline_item_mac is not None:
-                print('diff 2')
-                if baseline_item_id['Mac Address'] == baseline_item_mac['Mac Address']:
-                    print('diff 3')
+            if (baseline_item_id is not None and
+                    baseline_item_mac is not None):
+                if (baseline_item_id['Mac Address'] ==
+                        baseline_item_mac['Mac Address']):
                     if diff_item['Location'] == baseline_item_id['Location']:
-                        # Changes do not need review. Add item for baseline update
-                        print('Changes do not need review')
-                        status_file.write('\nDevice with ID {} and Mac Address {}'
-                                          'updated\n'
+                        # Changes do not need review.
+                        # Add item for baseline update
+                        status_file.write('\nDevice with ID {} '
+                                          'and Mac Address {} updated\n'
                                           .format(diff_item['ID'],
                                                   diff_item['Mac Address']))
                         baseline_update.append(diff_item)
-                        print('diff 3.1')
                     else:
-                        status_file.write('\nDevice with ID {} and Mac Address {}'
+                        status_file.write('\nDevice with ID {} '
+                                          'and Mac Address {} '
                                           'has different location\n'
                                           .format(diff_item['ID'],
                                                   diff_item['Mac Address']))
                         baseline_update.append(diff_item)
-                        print('diff 3.2')
 
             # if ID and Mac are not found in baseline
             # new item to be added to baseline
             elif baseline_item_id is None and baseline_item_mac is None:
-                print('new item to be added to baseline')
-                status_file.write('\nNew device with ID {} and Mac Address {}'
+                status_file.write('\nNew device with ID {} and Mac Address {} '
                                   'added\n'
                                   .format(diff_item['ID'],
                                           diff_item['Mac Address']))
                 baseline_add.append(diff_item)
-                print('diff 4')
             # ID found with different Mac Address
             elif baseline_item_id is not None and baseline_item_mac is None:
                 if baseline_item_id['Mac Address'] != diff_item['Mac Address']:
@@ -472,7 +468,6 @@ def diff(results):
                                               diff_item['Mac Address'],
                                               baseline_item_id['Mac Address']))
                 baseline_review.append(diff_item)
-                print('diff 5')
             # Mac Address found with different ID
             elif baseline_item_id is None and baseline_item_mac is not None:
                 if baseline_item_mac['ID'] != diff_item['ID']:
@@ -488,7 +483,6 @@ def diff(results):
     # key to respective item in results one by one
     if len(diff2) != 0:
         for diff2_item in diff2:
-            print('diff2 1')
             # returns dict item if ID found in results,
             # returns None if not found
             results_item_id = next((item for item in results if item['ID'] ==
@@ -500,13 +494,11 @@ def diff(results):
             # if diff2_item Id and Mac cannot be found in results
             # changes do not need review, remove item from inventory
             if results_item_id is None and results_item_mac is None:
-                print('Item no longer found, Remove item from baseline')
-                status_file.write('\nDevice with ID {} and Mac Address {}'
+                status_file.write('\nDevice with ID {} and Mac Address {} '
                                   'no longer found, removed from baseline\n'
                                   .format(diff2_item['ID'],
                                           diff2_item['Mac Address']))
                 baseline_remove.append(diff2_item)
-                print('diff2 2')
             # if item with same ID is found but with different mac address
             elif results_item_id is not None and results_item_mac is None:
                 status_file.write('\nDevice with ID {} and Mac Address {} '
@@ -516,7 +508,6 @@ def diff(results):
                                           diff2_item['Mac Address'],
                                           results_item_id['Mac Address']))
                 baseline_review.append(diff2_item)
-                print('diff2 3')
             # if item with same Mac Address is found but with different ID
             elif results_item_id is None and results_item_mac is not None:
                 status_file.write('\nDevice with ID {} and Mac Address {} '
@@ -526,15 +517,22 @@ def diff(results):
                                           diff2_item['Mac Address'],
                                           results_item_mac['ID']))
                 baseline_review.append(diff2_item)
-                print('diff2 4')
     # remove duplicates from baseline_review
     baseline_review = set(baseline_review)
     # if there are differences found, print lists for debugging
     if len(all_diff) != 0:
-        print('Baseline_review', baseline_review)
-        print('Baseline_add', baseline_add)
-        print('Baseline_update', baseline_update)
-        print('Baseline_remove', baseline_remove)
+        for item in baseline_review:
+            print('review')
+            print(item)
+        for item in baseline_update:
+            print('update')
+            print(item)
+        for item in baseline_add:
+            print('add')
+            print(item)
+        for item in baseline_remove:
+            print('remove')
+            print(item)
     # if hostname does not match location in scan, write message in status file
     if results[0]['Hostname'] != '':
         if results[0]['Location'] not in results[0]['Hostname']:
@@ -547,7 +545,7 @@ def diff(results):
     return all_diff
 
 
-def id_compare_update(results, club_number, counter):
+def id_compare_update(results, club_number):
     """Returns a ID for each host.
     This function returns a generated ID after it compares it to ID's
     on baseline, to avoid duplicate IDs.
@@ -555,7 +553,6 @@ def id_compare_update(results, club_number, counter):
         Args:
             results = list of results
             club_number = numerical value for club
-            counter = to increment IDs
 
         Returns:
             ID - generated ID
@@ -565,17 +562,25 @@ def id_compare_update(results, club_number, counter):
             needed information, it will return base values for result_id.
     """
     last_results = results[-1]
-    baseline_ids = []
     # open baseline json to compare to prior scans
     baseline = load_baseline(results)
     # last results updated_id = 'club_number' + 'length of results'
     result_id = (str(club_number) + str(len(results)))
     if baseline is None:
         return result_id
+
+    print('This should not print without baseline')
+    if club_number is None:
+        result_id = ''.join(last_results['IP'].split('.'))
+        return result_id
+
     # add all baseline IDs to list
     baseline_ids = [int(item['ID']) for item in baseline]
+    # add all results IDs to list
+    results_ids = [int(item['ID']) for item in results]
     # get highest ID in list
     baseline_ids_max = max(baseline_ids)
+    results_ids_max = max(results_ids)
     # returns dictionary item if ['ID'] matches result_id, None otherwise
     dict_item_id = next((item for item in baseline if item['ID'] ==
                          result_id), None)
@@ -590,11 +595,15 @@ def id_compare_update(results, club_number, counter):
             # if mac address is not found anywhere else in baseline
             if dict_item_mac is None:
                 # create a new id
-                result_id = club_number + str(len(baseline) + 1 + counter)
-                print('id found but mac doesnt match')
+                result_id = club_number + str(len(baseline) + 1)
                 # make sure id created is not in baseline
+                if results_ids_max > baseline_ids_max:
+                    baseline_ids_max = results_ids_max
                 while int(result_id) <= baseline_ids_max:
-                    result_id = result_id + 1
+                    result_id = int(result_id) + 1
+
+                print('New Device found, adding to baseline {} '
+                      .format(result_id))
                 additional_ids.append(result_id)
             # if mac address is found with a different ID in baseline
             else:
@@ -609,11 +618,14 @@ def id_compare_update(results, club_number, counter):
             result_id = dict_item_mac['ID']
         else:
             # if ID is not found and Mac Address is not found, add new ID
-            result_id = club_number + str(len(baseline) + 1 + counter)
-            print('id not found, mac doesnt match')
+            result_id = club_number + str(len(baseline) + 1)
             # make sure id created is not in baseline
+            if results_ids_max > baseline_ids_max:
+                baseline_ids_max = results_ids_max
             while int(result_id) <= baseline_ids_max:
-                result_id = result_id + 1
+                result_id = int(result_id) + 1
+
+            print('New Device found, adding to baseline {} '.format(result_id))
             additional_ids.append(result_id)
 
     return result_id
@@ -660,7 +672,6 @@ def load_baseline(results):
         output = open(baseline_path)
         baseline = load(output)
         output.close()
-        print('returning baseline') 
         return baseline
 
     except FileNotFoundError:
@@ -689,21 +700,23 @@ def club_id(conn, host):
         for attempt in range(2):
             if conn is not None:
                 try:
-                    club_info = conn.send_command('sh cdp entry *')
+                    # send command to get hostname
+                    club_info = conn.send_command('sh run | inc hostname')
+                    # search club pattern 'club000' in club_info
                     club_result = club_rgx.search(club_info)
                     print('Getting club ID... attempt', attempt + 1)
+                    # if club pattern is not found
                     if club_result is None:
+                        # search for regional pattern
                         club_result = reg_rgx.search(club_info)
+                    # if regional pattern found
                     if club_result is not None:
+                        # club_result returns reg pattern 'reg-000'
                         club_result = club_result.group(0)
+                    # if reg pattern is not found
                     if club_result is None:
-                        hostname = get_hostnames(host)
-                        hostname_club = club_rgx.search(hostname['hostnames'])
-                        if hostname_club is not None:
-                            club_result = hostname_club.group(0)
-                        if hostname_club is None:
-                            club_result = 'null'
-                    break
+                        # look for ID in router hostname
+                        raise OSError
 
                 except(OSError):
                     if attempt == 0:
@@ -717,8 +730,7 @@ def club_id(conn, host):
                             club_result = hostname_club.group(0)
                         if hostname_club is None:
                             print('could not get club_id')
-                            club_result = 'null'
-
+                            return None
         club_result = club_result.lower()
         return club_result
 
@@ -786,7 +798,9 @@ def club_num(club_result):
         Does not raise an error if club number is not found,
         it will return 'null'
     """
-    club_number = 'null'
+    if club_result is None:
+        return None
+
     club_n_regex = compile(r'((?<=club)[\d]{3})')
     reg_n_regex = compile(r'((?<=reg-)[\d]{3})')
     # Extract club number for regional offices
@@ -799,6 +813,8 @@ def club_num(club_result):
         if club_id is not None:
             club_id = club_id.group(0)
             club_number = club_id
+        else:
+            club_number = club_result
     else:
         # If regional Office pattern found, Club Number = regional_num (config)
         club_number = cfg.regional_num[club_result]
@@ -828,15 +844,16 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     asset3 = ('-' + mac_third + mac_fourth)
     loc_num_rgx = compile(r'([\d]{3})')
 
-    if club_number != 'null':
+    if club_number is not None:
         # club_number is the return from club_num()
         asset1 = club_number
     else:
-        # Extract location number
-        club_id = loc_num_rgx.search(club_result)
-        if club_id is not None:
-            club_id = club_id.group(0)
-            asset1 = club_id
+        if club_result is not None:
+            # Extract location number
+            club_id = loc_num_rgx.search(club_result)
+            if club_id is not None:
+                club_id = club_id.group(0)
+                asset1 = club_id
         else:
             asset1 = '000'
 
@@ -850,8 +867,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ip_list()
-#ip_list = ['10.6.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
-ip_list = ['10.10.0.0/24']
+ip_list = ['10.6.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
+ip_list = ['10.10.238.0/24']
 main(ip_list)
 
 end = time()
