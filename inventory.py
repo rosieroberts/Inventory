@@ -50,7 +50,7 @@ def main(ip_list):
     for ip in ip_list:
         clb_runtime_str = time()
         router_connect = connect(str(get_site_router(ip)))
-        if router_connect is not None:
+        if router_connect:
             results = get_router_info(router_connect, str(get_site_router(ip)))
             diff(results, load_baseline(results))
             write_to_files(results, header_added, str(get_site_router(ip)))
@@ -59,7 +59,7 @@ def main(ip_list):
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
-        if router_connect is not None:
+        if router_connect:
             print('\n{} Scan Runtime: {} '
                   .format(results[0]['Location'], clb_runtime))
         else:
@@ -369,12 +369,11 @@ def diff(results, baseline):
         print('no results found')
         return None
     if not baseline:
-        print('no prior baseline found')
+        print('No prior baseline found')
         return None
     if results[0]['Location'] != baseline[0]['Location']:
         print('Club information cannot be compared')
         return None
-
     # make directory that will contain all deltas by date
     mydir = path.join('./delta')
     mydir_obj = Path(mydir)
@@ -540,7 +539,6 @@ def diff(results, baseline):
         # create file for review
         review_file = open(mydir + '/review_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
-        # dump all deltas in .json file for each club in directory
         review_file.write(dumps(list(review)))
         review_file.close()
         all_diff.extend(review)
@@ -555,7 +553,6 @@ def diff(results, baseline):
         # create file for update
         update_file = open(mydir + '/update_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
-        # dump all deltas in .json file for each club in directory
         update_file.write(dumps(list(update)))
         update_file.close()
         all_diff.extend(update)
@@ -570,7 +567,6 @@ def diff(results, baseline):
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m-%d-%Y")), 'a+')
-        # dump all deltas in .json file for each club in directory
         add_file.write(dumps(list(add)))
         add_file.close()
         all_diff.extend(add)
@@ -585,7 +581,6 @@ def diff(results, baseline):
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
-        # dump all deltas in .json file for each club in directory
         remove_file.write(dumps(list(remove)))
         remove_file.close()
         all_diff.extend(remove)
@@ -622,7 +617,6 @@ def id_compare_update(results, club_number):
     if baseline is None:
         return result_id
 
-    print('This should not print without baseline')
     if club_number is None:
         result_id = ''.join(last_results['IP'].split('.'))
         return result_id
@@ -637,8 +631,8 @@ def id_compare_update(results, club_number):
     # returns dictionary item if ['ID'] matches result_id, None otherwise
     dict_item_id = next((item for item in baseline if item['ID'] ==
                          result_id), None)
-    # returns dictionary item if ['Mac Address] matches mac in last result
-    # returns none if the mac address is not found in last result
+    # returns dictionary item if ['Mac Address] matches mac in each item
+    # returns none if the mac address is not found in item
     dict_item_mac = next((itm for itm in baseline if itm['Mac Address'] ==
                           results[-1]['Mac Address']), None)
     # if ID is found in baseline
