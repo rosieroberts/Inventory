@@ -1,8 +1,8 @@
 from re import compile
 import random
-import config as cnf
-import ips
-import inventory as inv
+from Inventory import config as cnf
+from Inventory import ips
+from Inventory import inventory
 
 # tests for ips.py
 # tests for length of get_ips() to make sure ips are retrieved from snmpwalk
@@ -11,14 +11,15 @@ import inventory as inv
 
 ip_list = ips.get_ip_list()
 random_ip = random.choice(ip_list)
-random_ip_router = str(inv.getSiteRouter(random_ip))
+random_ip_router = str(inventory.get_site_router(random_ip))
 
 mac_regex = compile(r'^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$')
 ip_w_mask = compile(r'^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$')
 ip_regex = compile(r'(?:\d+\.){3}\d+')
 
 results = []
-results = inv.getRouterInfo(inv.connect(random_ip_router), random_ip_router)
+results = inventory.get_router_info(inventory.connect(random_ip_router),
+                                    random_ip_router)
 
 
 def test1_ips():
@@ -35,10 +36,10 @@ def test3_ips():
     ip_value = ip_regex.search(random_ip_router)
     assert ip_value is not None
 
-# tests for inventory.py
 
+# tests for inventory.py
 def test1_inv():
-    assert inv.connect(random_ip_router) is not None
+    assert inventory.connect(random_ip_router) is not None
 
 
 def test2_inv():
