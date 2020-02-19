@@ -52,7 +52,8 @@ def main(ip_list):
         router_connect = connect(str(get_site_router(ip)))
         if router_connect:
             results = get_router_info(router_connect, str(get_site_router(ip)))
-            diff(results, load_baseline(results))
+            diff_result = diff(results, load_baseline(results))
+            all_api_payload_items = api_payload(diff_result)
             write_to_files(results, header_added, str(get_site_router(ip)))
             router_connect.disconnect()
         clb_runtime_end = time()
@@ -69,6 +70,7 @@ def main(ip_list):
     print(not_connected)
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
+    return all_api_payload_items
 
 
 def connect(ip):
@@ -379,8 +381,13 @@ def diff(results, baseline):
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
+    # make directory that will contain all scan statuses by date
+    mydir = path.join('./scan_status')
+    mydir_obj = Path(mydir)
+    mydir_obj.mkdir(parents=True, exist_ok=True)
+
     # create file to write status of differences as they happen
-    status_file = open('scan_status_{}'
+    status_file = open('./scan_status/scan_{}'
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club:
         status_file.write(club.upper())
@@ -453,7 +460,7 @@ def diff(results, baseline):
                         update.append(diff_item)
                         # if IP changed
                         if diff_item['IP'] != id_in_baseline['IP']:
-                            msg3 = ('\nDevice with ID {}'
+                            msg3 = ('\nDevice with ID {} '
                                     'and Mac Address {} '
                                     '\nhas different IP {}, '
                                     '\nhas been updated\n'
@@ -591,6 +598,32 @@ def diff(results, baseline):
 
     print(all_diff)
     return all_diff
+
+
+def api_payload(all_diff):
+    """Returns a list of strings with " escaped for each club changes,
+    needed for API call.
+
+        Args:
+            all_diff = return from diff() for each club
+
+        Returns:
+            list of strings with escaped "
+
+        Raises:
+            Does not raise an error, returns none if functions fails
+    """
+    club_api_list = []
+
+    for item in all_diff:
+        print(item)
+        item_str = str(item)
+        item_str.replace('"', '\"')
+        print(item_str)
+        club_api_list.extend(item_str)
+
+    print(club_api_list)
+    return club_api_list
 
 
 def id_compare_update(results, club_number):
