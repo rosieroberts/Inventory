@@ -41,7 +41,6 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
-
     header_added = False
 
     print(cfg.intro1)
@@ -52,8 +51,8 @@ def main(ip_list):
         router_connect = connect(str(get_site_router(ip)))
         if router_connect:
             results = get_router_info(router_connect, str(get_site_router(ip)))
-            diff_result = diff(results, load_baseline(results))
-            all_api_payload_items = api_payload(diff_result)
+            add, remove, update = diff(results, load_baseline(results))
+            all_api_payload_items = api_payload(add, remove, update)
             write_to_files(results, header_added, str(get_site_router(ip)))
             router_connect.disconnect()
         clb_runtime_end = time()
@@ -597,10 +596,10 @@ def diff(results, baseline):
         print('None')
 
     print(all_diff)
-    return all_diff
+    return add, remove, update, review
 
 
-def api_payload(all_diff):
+def api_payload(add, remove, update):
     """Returns a list of strings with " escaped for each club changes,
     needed for API call.
 
@@ -613,17 +612,36 @@ def api_payload(all_diff):
         Raises:
             Does not raise an error, returns none if functions fails
     """
-    club_api_list = []
+    if not add and not remove and not update:
+        return None
 
-    for item in all_diff:
+    add_api = []
+    remove_api = []
+    update_api = []
+
+    for item in add:
         print(item)
         item_str = str(item)
         item_str.replace('"', '\"')
         print(item_str)
-        club_api_list.extend(item_str)
+        add_api.extend(item_str)
 
-    print(club_api_list)
-    return club_api_list
+    for item in remove:
+        print(item)
+        item_str = str(item)
+        item_str.replace('"', '\"')
+        print(item_str)
+        remove_api.extend(item_str)
+
+    for item in update:
+        print(item)
+        item_str = str(item)
+        item_str.replace('"', '\"')
+        print(item_str)
+        update_api.extend(item_str)
+
+    print(add_api, remove_api, update_api)
+    return add_api, remove_api, update_api
 
 
 def id_compare_update(results, club_number):
