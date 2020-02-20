@@ -41,6 +41,9 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
+    all_diff = []
+    all_api_payload_items = []
+ 
     header_added = False
 
     print(cfg.intro1)
@@ -51,8 +54,9 @@ def main(ip_list):
         router_connect = connect(str(get_site_router(ip)))
         if router_connect:
             results = get_router_info(router_connect, str(get_site_router(ip)))
-            add, remove, update = diff(results, load_baseline(results))
-            all_api_payload_items = api_payload(add, remove, update)
+            all_diff = diff(results, load_baseline(results))
+            if  all_diff:
+                all_api_payload_items = api_payload(all_diff[0], all_diff[1], all_diff[2])
             write_to_files(results, header_added, str(get_site_router(ip)))
             router_connect.disconnect()
         clb_runtime_end = time()
@@ -314,8 +318,8 @@ def write_to_files(results, header_added, host):
         # writing full scan to .json
         club_output = open(
             './full_scans/full_scan{}.json'.format(
-                today.strftime('%Y-%m-%d')), 'a+')
-        club_output.write(dumps(results))
+                today.strftime('%m-%d-%Y')), 'a+')
+        club_output.write(dumps(results, indent=4))
         club_output.close()
         keys = results[0].keys()
         # make directory that will contain individual scans by club
@@ -324,9 +328,9 @@ def write_to_files(results, header_added, host):
         mydir_obj.mkdir(parents=True, exist_ok=True)
         club_base_file = open(
             mydir + '/{}_{}.json'.format(results[0]['Location'],
-                                         today.strftime("%Y-%m-%d")), 'w+')
+                                         today.strftime('%m-%d-%Y')), 'w+')
         # dump .json file for each raw club scan in directory
-        club_base_file.write(dumps(results))
+        club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
         # create .csv file with full scan
         with open('./full_scans/full_scan{}.csv'
@@ -389,6 +393,7 @@ def diff(results, baseline):
     status_file = open('./scan_status/scan_{}'
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club:
+        status_file.write('\n\n')
         status_file.write(club.upper())
 
     not_in_baseline = list(filter(lambda item: item not in baseline, results))
@@ -545,7 +550,7 @@ def diff(results, baseline):
         # create file for review
         review_file = open(mydir + '/review_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
-        review_file.write(dumps(list(review)))
+        review_file.write(dumps(list(review), indent=4))
         review_file.close()
         all_diff.extend(review)
         for item in review:
@@ -559,7 +564,7 @@ def diff(results, baseline):
         # create file for update
         update_file = open(mydir + '/update_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
-        update_file.write(dumps(list(update)))
+        update_file.write(dumps(list(update), indent=4))
         update_file.close()
         all_diff.extend(update)
         for item in update:
@@ -573,7 +578,7 @@ def diff(results, baseline):
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m-%d-%Y")), 'a+')
-        add_file.write(dumps(list(add)))
+        add_file.write(dumps(list(add), indent=4))
         add_file.close()
         all_diff.extend(add)
         for item in add:
@@ -587,7 +592,7 @@ def diff(results, baseline):
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
-        remove_file.write(dumps(list(remove)))
+        remove_file.write(dumps(list(remove), indent=4))
         remove_file.close()
         all_diff.extend(remove)
         for item in remove:
@@ -595,8 +600,7 @@ def diff(results, baseline):
     else:
         print('None')
 
-    print(all_diff)
-    return add, remove, update, review
+    return [add, remove, update, review]
 
 
 def api_payload(add, remove, update):
@@ -619,29 +623,34 @@ def api_payload(add, remove, update):
     remove_api = []
     update_api = []
 
+    print(len(add))
     for item in add:
+        print('add api')
         print(item)
         item_str = str(item)
-        item_str.replace('"', '\"')
-        print(item_str)
+        item_str.replace("'", "\"")
         add_api.extend(item_str)
 
+    print(len(remove))
     for item in remove:
+        print('remove api')
         print(item)
         item_str = str(item)
-        item_str.replace('"', '\"')
-        print(item_str)
+        item_str.replace("'", "\"")
         remove_api.extend(item_str)
 
+    print(len(update))
     for item in update:
+        print('update api')
         print(item)
         item_str = str(item)
-        item_str.replace('"', '\"')
-        print(item_str)
+        item_str.replace("'", "\"")
         update_api.extend(item_str)
 
+    print('all api')
+
     print(add_api, remove_api, update_api)
-    return add_api, remove_api, update_api
+    return [add_api, remove_api, update_api]
 
 
 def id_compare_update(results, club_number):
@@ -693,12 +702,12 @@ def id_compare_update(results, club_number):
             # if mac address is not found anywhere else in baseline
             if dict_item_mac is None:
                 # create a new id
-                result_id = club_number + str(len(baseline) + 1)
+                result_id = str(club_number) + str(len(baseline) + 1)
                 # make sure id created is not in baseline
                 if results_ids_max > baseline_ids_max:
                     baseline_ids_max = results_ids_max
                 while int(result_id) <= baseline_ids_max:
-                    result_id = int(result_id) + 1
+                    result_id = str(int(result_id) + 1)
 
                 print('New Device found, adding to baseline {} '
                       .format(result_id))
@@ -721,7 +730,7 @@ def id_compare_update(results, club_number):
             if results_ids_max > baseline_ids_max:
                 baseline_ids_max = results_ids_max
             while int(result_id) <= baseline_ids_max:
-                result_id = int(result_id) + 1
+                result_id = str(int(result_id) + 1)
 
             print('New Device found, adding to baseline {} '.format(result_id))
             additional_ids.append(result_id)
@@ -757,15 +766,17 @@ def load_baseline(results):
             last_baseline = sorted_list_dir[-1]
             # if scan is perfomed more than once in a day, make sure baseline
             # still the prior scan performed in an earlier date
-            if today.strftime("%Y-%m-%d") in last_baseline:
+            if today.strftime("%m-%d-%Y") in last_baseline:
                 if len(list_dir) >= 2:
                     last_baseline = sorted_list_dir[-2]
                 else:
                     return None
             # full path of baseline to use for difference
             baseline_path = path.join(club_bsln_path, str(last_baseline))
-        else:
+        elif len(list_dir) == 1:
             baseline_path = path.join(club_bsln_path, str(list_dir[0]))
+        else:
+            return None
 
         output = open(baseline_path)
         baseline = load(output)
