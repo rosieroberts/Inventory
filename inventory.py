@@ -42,8 +42,11 @@ def main(ip_list):
         Does not raise an error.
     """
     all_diff = []
-    all_api_payload_items = []
- 
+    all_api_payload = []
+    add = []
+    remove = []
+    update = []
+
     header_added = False
 
     print(cfg.intro1)
@@ -55,8 +58,13 @@ def main(ip_list):
         if router_connect:
             results = get_router_info(router_connect, str(get_site_router(ip)))
             all_diff = diff(results, load_baseline(results))
-            if  all_diff:
-                all_api_payload_items = api_payload(all_diff[0], all_diff[1], all_diff[2])
+            if all_diff:
+                all_api_payload = api_payload(all_diff[0],
+                                              all_diff[1],
+                                              all_diff[2])
+                add = all_api_payload[0]
+                remove = all_api_payload[1]
+                update = all_api_payload[2]
             write_to_files(results, header_added, str(get_site_router(ip)))
             router_connect.disconnect()
         clb_runtime_end = time()
@@ -73,7 +81,11 @@ def main(ip_list):
     print(not_connected)
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
-    return all_api_payload_items
+
+    print(add)
+    print(remove)
+    print(update)
+    return [add, remove, update]
 
 
 def connect(ip):
@@ -624,32 +636,35 @@ def api_payload(add, remove, update):
     update_api = []
 
     print(len(add))
+    print('add api')
     for item in add:
-        print('add api')
         print(item)
         item_str = str(item)
-        item_str.replace("'", "\"")
-        add_api.extend(item_str)
+        item_str = item_str.replace("'", "\\\"")
+        add_api.append(item_str)
+        print('updated add')
+        print(add_api)
 
     print(len(remove))
+    print('remove api')
     for item in remove:
-        print('remove api')
         print(item)
         item_str = str(item)
-        item_str.replace("'", "\"")
-        remove_api.extend(item_str)
+        item_str = item_str.replace("'", "\\\"")
+        remove_api.append(item_str)
+        print('updated remove')
+        print(add_api)
 
     print(len(update))
+    print('update api')
     for item in update:
-        print('update api')
         print(item)
         item_str = str(item)
-        item_str.replace("'", "\"")
-        update_api.extend(item_str)
+        item_str = item_str.replace("'", "\\\"")
+        update_api.append(item_str)
+        print('updated update')
+        print(add_api)
 
-    print('all api')
-
-    print(add_api, remove_api, update_api)
     return [add_api, remove_api, update_api]
 
 
