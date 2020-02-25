@@ -8,6 +8,7 @@ from pathlib import Path
 from time import time
 from re import compile
 from datetime import timedelta, date
+import requests
 # import traceback
 
 from nmap import PortScanner
@@ -59,12 +60,13 @@ def main(ip_list):
             results = get_router_info(router_connect, str(get_site_router(ip)))
             all_diff = diff(results, load_baseline(results))
             if all_diff:
-                all_api_payload = api_payload(all_diff[0],
-                                              all_diff[1],
-                                              all_diff[2])
-                add = all_api_payload[0]
-                remove = all_api_payload[1]
-                update = all_api_payload[2]
+                all_api_payload = api_payload(all_diff)
+                if all_api_payload:
+                    add = all_api_payload[0]
+                    remove = all_api_payload[1]
+                    update = all_api_payload[2]
+
+                api_call(all_diff, add, remove, update)
             write_to_files(results, header_added, str(get_site_router(ip)))
             router_connect.disconnect()
         clb_runtime_end = time()
@@ -82,9 +84,6 @@ def main(ip_list):
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
 
-    print(add)
-    print(remove)
-    print(update)
     return [add, remove, update]
 
 
@@ -230,7 +229,7 @@ def get_router_info(conn, host):
 
                             # for main results
                             host_info = {
-                                'ID': club_number,
+                                'ID': None,
                                 'IP': ip_result,
                                 'Location': club_result,
                                 'Asset Tag': asset_tag,
@@ -263,12 +262,9 @@ def get_router_info(conn, host):
                                     results.append(host_info)
                                 else:
                                     continue
-                            updated_id = id_compare_update(
-                                results,
-                                club_number
-                            )
+                            updated_id = get_id(results[-1]['Asset Tag'])
                             results[-1]['ID'] = updated_id
-
+                            print(updated_id)
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
                     # Then, not_added items mac's are compared to router
@@ -358,9 +354,8 @@ def write_to_files(results, header_added, host):
 
 def diff(results, baseline):
     """ Function to get differences between current and prior scans
-    once differences are found, differences are written in delta files
     by date of scan.
-    Function also returns a list of all deltas.
+    Function returns a list of all differences.
 
     Args:
         results - current scan device information by location
@@ -391,10 +386,6 @@ def diff(results, baseline):
     if results[0]['Location'] != baseline[0]['Location']:
         print('Club information cannot be compared')
         return None
-    # make directory that will contain all deltas by date
-    mydir = path.join('./delta')
-    mydir_obj = Path(mydir)
-    mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # make directory that will contain all scan statuses by date
     mydir = path.join('./scan_status')
@@ -409,9 +400,11 @@ def diff(results, baseline):
         status_file.write(club.upper())
 
     not_in_baseline = list(filter(lambda item: item not in baseline, results))
+    print('not in baseline', not_in_baseline)
     not_in_results = list(filter(lambda item: item not in results, baseline))
+    print('not in results', not_in_results)
 
-    if not(not_in_baseline and not_in_results):
+    if not not_in_baseline and not not_in_results:
         status_file.write('\nNo changes since prior scan for {}\n'
                           .format(club))
         print('No changes since prior scan for {} '.format(club))
@@ -556,66 +549,46 @@ def diff(results, baseline):
             print(msg8)
             status_file.write(msg8)
 
-    print('\nREVIEW')
     if review:
-        print('Writing Devices to Review')
+        print('There are devices to review, check scan_status file')
         # create file for review
         review_file = open(mydir + '/review_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
         review_file.write(dumps(list(review), indent=4))
         review_file.close()
         all_diff.extend(review)
-        for item in review:
-            print(item)
-    else:
-        print('None')
 
-    print('\nUPDATE')
     if update:
-        print('Writing Devices to Update')
+        print('There are devices that need to be updated in DB')
         # create file for update
         update_file = open(mydir + '/update_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
         update_file.write(dumps(list(update), indent=4))
         update_file.close()
         all_diff.extend(update)
-        for item in update:
-            print(item)
-    else:
-        print('None')
 
-    print('\nADD')
     if add:
-        print('Writing Devices to Add')
+        print('There are devices that need to be added to DB')
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m-%d-%Y")), 'a+')
         add_file.write(dumps(list(add), indent=4))
         add_file.close()
         all_diff.extend(add)
-        for item in add:
-            print(item)
-    else:
-        print('None')
 
-    print('\nREMOVE')
     if remove:
-        print('Writing Devices to Remove')
+        print('There are devices that need to be removed from DB')
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
                            .format(today.strftime("%m-%d-%Y")), 'a+')
         remove_file.write(dumps(list(remove), indent=4))
         remove_file.close()
         all_diff.extend(remove)
-        for item in remove:
-            print(item)
-    else:
-        print('None')
 
     return [add, remove, update, review]
 
 
-def api_payload(add, remove, update):
+def api_payload(all_diff):
     """Returns a list of strings with " escaped for each club changes,
     needed for API call.
 
@@ -628,129 +601,189 @@ def api_payload(add, remove, update):
         Raises:
             Does not raise an error, returns none if functions fails
     """
-    if not add and not remove and not update:
+    if not all_diff:
         return None
+
+    for item in all_diff[0]:
+        item.pop('ID')
+
+    add = all_diff[0]
+    remove = all_diff[1]
+    update = all_diff[2]
+
+    print('add')
+    print(add)
+    print('remove')
+    print(remove)
+    print('update')
+    print(update)
+
+    for list in all_diff:
+        for item in list:
+            item_str = str(item)
+            item_str = item_str.replace("'", "\\\"")
+            item_str = item_str.replace("Mac Address", "_snipeit_mac_address_1")
+            item_str = item_str.replace("IP", "_snipeit_ip_2")
+            item_str = item_str.replace("Hostname", "_snipeit_hostname_3")
+            item = item_str
+            print(item)
+
+    # payload does not have the right string with the escapes, figure out why
+
+
 
     add_api = []
     remove_api = []
     update_api = []
 
-    print(len(add))
-    print('add api')
-    for item in add:
-        print(item)
-        item_str = str(item)
-        item_str = item_str.replace("'", "\\\"")
-        add_api.append(item_str)
-        print('updated add')
-        print(add_api)
+    add_api = all_diff[0]
+    remove_api = all_diff[1]
+    update_api = all_diff[2]
 
-    print(len(remove))
-    print('remove api')
-    for item in remove:
-        print(item)
-        item_str = str(item)
-        item_str = item_str.replace("'", "\\\"")
-        remove_api.append(item_str)
-        print('updated remove')
-        print(add_api)
+    print('add_api')
+    print(add_api)
+    print('remove_api')
+    print(remove_api)
+    print('update_api')
+    print(update_api)
 
-    print(len(update))
-    print('update api')
-    for item in update:
-        print(item)
-        item_str = str(item)
-        item_str = item_str.replace("'", "\\\"")
-        update_api.append(item_str)
-        print('updated update')
-        print(add_api)
-
+   # print(add_api, remove_api, update_api)
     return [add_api, remove_api, update_api]
 
 
-def id_compare_update(results, club_number):
+def api_call(all_diff, add, remove, update):
+
+    # make directory that will contain all scan statuses by date
+    mydir = path.join('./api_status')
+    mydir_obj = Path(mydir)
+    mydir_obj.mkdir(parents=True, exist_ok=True)
+
+    # create file to write status of differences as they happen
+    status_file = open('./api_status/scan_{}'
+                       .format(today.strftime('%m-%d-%Y')), 'a+')
+
+    print('APIadd')
+    print(add)
+    print('APIremove')
+    print(remove)
+    print('APIupdate')
+    print(update)
+
+
+    if all_diff:
+        club = all_diff[0][0]['Location']
+
+    print(club)
+    if club:
+        status_file.write('\n\n')
+        status_file.write(club.upper())
+
+    if add:
+        print('post')
+        url = cfg.api_url_post
+        for item in add:
+            payload = item
+            print('add payload', payload)
+            print(type(payload))
+            response = requests.request("POST",
+                                         url=url,
+                                         data=payload,
+                                         headers=cfg.api_headers)
+            print(response)
+            if response.status_code == 200:
+                status_file.write('Sent request to add new item'
+                                  'with asset-tag {} to Snipe-IT'.format(item['Asset Tag']))
+
+                url = cfg.api_url_get + str(item['Asset Tag'])
+                response = requests.request("GET",
+                                            url=url,
+                                            headers=cfg.api_headers)
+                item_w_id = response.json()
+                id = item_w_id['id']
+
+                club_base_file = open(mydir + '/{}_{}.json'
+                                      .format(club,
+                                              today.strftime('%m-%d-%Y')), 'w+')
+                results = json.load(club_base_file)
+
+                for itm in results:
+                    print(itm['ID'])
+                    if itm['Asset Tag'] == item['Asset Tag']:
+                        itm['ID'] = id
+                        # dump .json file for each updated item
+                        json.dump(itm, club_base_file) 
+                        club_base_file.close()
+                        print(itm['ID'])
+
+            if response.status_code == 401:
+                status_file.write('Unauthorized. Could not send'
+                                  'request to add new item' 
+                                  'with asset-tag {} to Snipe-IT'.format(item['Asset Tag']))
+
+    if remove:
+        print('delete')
+        for item in add:
+            url = cfg.api_url_id + str(item['ID'])
+            payload = item
+            print('remove payload', payload)
+            response = requests.request("DELETE", url=url, data=payload, headers=cfg.api_headers)
+            print(response)
+
+            if response.status_code == 200:
+                status_file.write('Sent request to remove item'
+                                  'with asset-tag {} from Snipe-IT'
+                                      .format(item['Asset Tag']))
+
+            if response.status_code == 401:
+                status_file.write('Unauthorized. Could not send'
+                                  'request to remove item'
+                                  'with asset-tag {} from Snipe-IT'
+                                      .format(item['Asset Tag']))
+
+    if update:
+        print('put')
+        for item in update:
+            url = cfg.api_url_id + str(item['ID'])
+            payload = item
+            print('update payload', payload)
+            response = requests.request("PUT", url=url, data=payload, headers=cfg.api_headers)
+            print(response)
+
+            if response.status_code == 200:
+                status_file.write('Sent request to update item'
+                                  'with asset-tag {} from Snipe-IT'
+                                      .format(item['Asset Tag']))
+
+            if response.status_code == 401:
+                status_file.write('Unauthorized. Could not send'
+                                  'request to update item'
+                                  'with asset-tag {} from Snipe-IT'
+                                      .format(item['Asset Tag']))
+
+
+def get_id(asset_tag):
     """Returns a ID for each host.
     This function returns a generated ID after it compares it to ID's
     on baseline, to avoid duplicate IDs.
 
         Args:
-            results = list of results
-            club_number = numerical value for club
+            Asset Tag = asset tag of device
 
         Returns:
-            ID - generated ID
+            ID - get ID from snipe-it
 
         Raises:
-            Does not raise an error. If the ID does not contain all
-            needed information, it will return base values for result_id.
+            
     """
-    last_results = results[-1]
-    # open baseline json to compare to prior scans
-    baseline = load_baseline(results)
-    # last results updated_id = 'club_number' + 'length of results'
-    result_id = (str(club_number) + str(len(results)))
-    if baseline is None:
-        return result_id
 
-    if club_number is None:
-        result_id = ''.join(last_results['IP'].split('.'))
-        return result_id
+    url = cfg.api_url_get + str(asset_tag)
 
-    # add all baseline IDs to list
-    baseline_ids = [int(item['ID']) for item in baseline]
-    # add all results IDs to list
-    results_ids = [int(item['ID']) for item in results]
-    # get highest ID in list
-    baseline_ids_max = max(baseline_ids)
-    results_ids_max = max(results_ids)
-    # returns dictionary item if ['ID'] matches result_id, None otherwise
-    dict_item_id = next((item for item in baseline if item['ID'] ==
-                         result_id), None)
-    # returns dictionary item if ['Mac Address] matches mac in each item
-    # returns none if the mac address is not found in item
-    dict_item_mac = next((itm for itm in baseline if itm['Mac Address'] ==
-                          results[-1]['Mac Address']), None)
-    # if ID is found in baseline
-    if dict_item_id is not None:
-        # if mac address does not match mac address in item found
-        if last_results['Mac Address'] != dict_item_id['Mac Address']:
-            # if mac address is not found anywhere else in baseline
-            if dict_item_mac is None:
-                # create a new id
-                result_id = str(club_number) + str(len(baseline) + 1)
-                # make sure id created is not in baseline
-                if results_ids_max > baseline_ids_max:
-                    baseline_ids_max = results_ids_max
-                while int(result_id) <= baseline_ids_max:
-                    result_id = str(int(result_id) + 1)
+    response = requests.request("GET", url=url, headers=cfg.api_headers)    
 
-                print('New Device found, adding to baseline {} '
-                      .format(result_id))
-                additional_ids.append(result_id)
-            # if mac address is found with a different ID in baseline
-            else:
-                # update result_id with old baseline ID
-                result_id = dict_item_mac['ID']
+    content = response.json()
+    result_id = content['id']
 
-    # if ID is not found in baseline
-    else:
-        # if mac address is found in other items
-        if dict_item_mac is not None:
-            # revert to previous ID number
-            result_id = dict_item_mac['ID']
-        else:
-            # if ID is not found and Mac Address is not found, add new ID
-            result_id = club_number + str(len(baseline) + 1)
-            # make sure id created is not in baseline
-            if results_ids_max > baseline_ids_max:
-                baseline_ids_max = results_ids_max
-            while int(result_id) <= baseline_ids_max:
-                result_id = str(int(result_id) + 1)
-
-            print('New Device found, adding to baseline {} '.format(result_id))
-            additional_ids.append(result_id)
-
-    return result_id
+    return str(result_id)
 
 
 def load_baseline(results):
