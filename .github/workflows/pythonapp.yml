@@ -22,6 +22,7 @@ jobs:
         python -m pip install netmiko
         python -m pip install python-nmap
         python -m pip install netaddr
+        python -m pip install requests
     - name: Lint with flake8
       run: |
         pip install flake8
