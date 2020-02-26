@@ -2,7 +2,7 @@
 
 from os import path, listdir
 from ipaddress import ip_network
-from json import dumps, load
+from json import dumps, dump, load
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -622,15 +622,14 @@ def api_payload(all_diff):
         for item in list:
             item_str = str(item)
             item_str = item_str.replace("'", "\\\"")
-            item_str = item_str.replace("Mac Address", "_snipeit_mac_address_1")
+            item_str = item_str.replace("Mac Address",
+                                        "_snipeit_mac_address_1")
             item_str = item_str.replace("IP", "_snipeit_ip_2")
             item_str = item_str.replace("Hostname", "_snipeit_hostname_3")
             item = item_str
             print(item)
 
     # payload does not have the right string with the escapes, figure out why
-
-
 
     add_api = []
     remove_api = []
@@ -647,7 +646,7 @@ def api_payload(all_diff):
     print('update_api')
     print(update_api)
 
-   # print(add_api, remove_api, update_api)
+    # print(add_api, remove_api, update_api)
     return [add_api, remove_api, update_api]
 
 
@@ -669,7 +668,6 @@ def api_call(all_diff, add, remove, update):
     print('APIupdate')
     print(update)
 
-
     if all_diff:
         club = all_diff[0][0]['Location']
 
@@ -686,13 +684,14 @@ def api_call(all_diff, add, remove, update):
             print('add payload', payload)
             print(type(payload))
             response = requests.request("POST",
-                                         url=url,
-                                         data=payload,
-                                         headers=cfg.api_headers)
+                                        url=url,
+                                        data=payload,
+                                        headers=cfg.api_headers)
             print(response)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
-                                  'with asset-tag {} to Snipe-IT'.format(item['Asset Tag']))
+                                  'with asset-tag {} to Snipe-IT'
+                                  .format(item['Asset Tag']))
 
                 url = cfg.api_url_get + str(item['Asset Tag'])
                 response = requests.request("GET",
@@ -703,22 +702,24 @@ def api_call(all_diff, add, remove, update):
 
                 club_base_file = open(mydir + '/{}_{}.json'
                                       .format(club,
-                                              today.strftime('%m-%d-%Y')), 'w+')
-                results = json.load(club_base_file)
+                                              today.strftime('%m-%d-%Y')),
+                                      'w+')
+                results = load(club_base_file)
 
                 for itm in results:
                     print(itm['ID'])
                     if itm['Asset Tag'] == item['Asset Tag']:
                         itm['ID'] = id
                         # dump .json file for each updated item
-                        json.dump(itm, club_base_file) 
+                        dump(itm, club_base_file)
                         club_base_file.close()
                         print(itm['ID'])
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send'
-                                  'request to add new item' 
-                                  'with asset-tag {} to Snipe-IT'.format(item['Asset Tag']))
+                                  'request to add new item'
+                                  'with asset-tag {} to Snipe-IT'
+                                  .format(item['Asset Tag']))
 
     if remove:
         print('delete')
@@ -726,19 +727,22 @@ def api_call(all_diff, add, remove, update):
             url = cfg.api_url_id + str(item['ID'])
             payload = item
             print('remove payload', payload)
-            response = requests.request("DELETE", url=url, data=payload, headers=cfg.api_headers)
+            response = requests.request("DELETE",
+                                        url=url,
+                                        data=payload,
+                                        headers=cfg.api_headers)
             print(response)
 
             if response.status_code == 200:
                 status_file.write('Sent request to remove item'
                                   'with asset-tag {} from Snipe-IT'
-                                      .format(item['Asset Tag']))
+                                  .format(item['Asset Tag']))
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send'
                                   'request to remove item'
                                   'with asset-tag {} from Snipe-IT'
-                                      .format(item['Asset Tag']))
+                                  .format(item['Asset Tag']))
 
     if update:
         print('put')
@@ -746,19 +750,22 @@ def api_call(all_diff, add, remove, update):
             url = cfg.api_url_id + str(item['ID'])
             payload = item
             print('update payload', payload)
-            response = requests.request("PUT", url=url, data=payload, headers=cfg.api_headers)
+            response = requests.request("PUT",
+                                        url=url,
+                                        data=payload,
+                                        headers=cfg.api_headers)
             print(response)
 
             if response.status_code == 200:
                 status_file.write('Sent request to update item'
                                   'with asset-tag {} from Snipe-IT'
-                                      .format(item['Asset Tag']))
+                                  .format(item['Asset Tag']))
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send'
                                   'request to update item'
                                   'with asset-tag {} from Snipe-IT'
-                                      .format(item['Asset Tag']))
+                                  .format(item['Asset Tag']))
 
 
 def get_id(asset_tag):
@@ -773,12 +780,12 @@ def get_id(asset_tag):
             ID - get ID from snipe-it
 
         Raises:
-            
+
     """
 
     url = cfg.api_url_get + str(asset_tag)
 
-    response = requests.request("GET", url=url, headers=cfg.api_headers)    
+    response = requests.request("GET", url=url, headers=cfg.api_headers)
 
     content = response.json()
     result_id = content['id']
