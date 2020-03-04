@@ -227,7 +227,6 @@ def get_router_info(conn, host):
                             if hostname is None:
                                 continue
 
-
                             url_loc = cfg.api_url_get_locations
 
                             response_loc = requests.request("GET",
@@ -620,7 +619,7 @@ def api_payload(all_diff):
     add = []
     remove = []
     update = []
-    review = []
+    #review = []
 
     if not all_diff:
         return None
@@ -646,7 +645,7 @@ def api_payload(all_diff):
 
     print(add)
     print(remove)
-    print(update)   
+    print(update)
 
     return [add, remove, update]
 
@@ -700,8 +699,8 @@ def api_call(club_id, add, remove, update):
                 id = item_w_id['id']
 
                 club_base = open(baseline_dir + '/{}_{}.json'
-                                      .format(club,
-                                              today.strftime('%m-%d-%Y')))
+                                 .format(club,
+                                         today.strftime('%m-%d-%Y')))
 
                 results = load(club_base)
 
