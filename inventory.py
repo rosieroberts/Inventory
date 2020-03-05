@@ -235,9 +235,9 @@ def get_router_info(conn, host):
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
 
-                            for item in loc_id_data['rows']:
-                                if item['name'] == str(club_result):
-                                    loc_id = str(item['id'])
+                            for itm in loc_id_data['rows']:
+                                if itm['name'] == str(club_result):
+                                    loc_id = str(itm['id'])
 
                             # for main results
                             host_info = {
