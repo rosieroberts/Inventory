@@ -672,9 +672,9 @@ def api_call(club_id, add, remove, update):
         status_file.write(club.upper())
 
     if add:
-        url = cfg.api_url
-        print(url)
         for item in add:
+            url = cfg.api_url
+            print(url)
             item_str = str(item)
             item_str = item_str.replace('\'', '\"')
             payload = str(item)
@@ -713,13 +713,15 @@ def api_call(club_id, add, remove, update):
                                           .format(club,
                                                   today.strftime('%m-%d-%Y')), 'w')
 
+                    results_upd = []
                     for itm in results:
                         if itm['Asset Tag'] == item['asset_tag']:
                             print('*************************before item ID', itm['ID'])
                             itm['ID'] = id
                             print('*************************after item ID', itm['ID'])
-                        # dump .json file for each updated item
-                        dump(itm, club_base_dump, indent=4)
+                        results_upd.append(itm)
+                    # dump .json file for each updated item
+                    dump(results_upd, club_base_dump, indent=4)
                     club_base_dump.close()
 
                 except KeyError:
