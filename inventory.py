@@ -5,7 +5,7 @@ from ipaddress import ip_network
 from json import dumps, dump, load
 from csv import DictWriter
 from pathlib import Path
-from time import time, sleep
+from time import time
 from re import compile
 from datetime import timedelta, date
 import requests
@@ -235,9 +235,9 @@ def get_router_info(conn, host):
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
 
-                            for item in loc_id_data['rows']:
-                                if item['name'] == str(club_result):
-                                    loc_id = str(item['id'])
+                            for itm in loc_id_data['rows']:
+                                if itm['name'] == str(club_result):
+                                    loc_id = str(itm['id'])
 
                             # for main results
                             host_info = {
@@ -644,7 +644,7 @@ def api_payload(all_diff):
 
     for item in add:
         item.pop('id')
-          
+
     print(add)
     print(remove)
     print(update)
@@ -679,7 +679,7 @@ def api_call(club_id, add, remove, update):
             item_str = item_str.replace('\'', '\"')
             payload = str(item)
             payload = item_str
-            print(payload) 
+            print(payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
@@ -760,7 +760,7 @@ def api_call(club_id, add, remove, update):
         print('put')
         for item in update:
             item_str = item
-            #item_str.pop('id')
+            # item_str.pop('id')
             print(item)
             item_str = str(item)
             item_str = item_str.replace('\'', '\"')
