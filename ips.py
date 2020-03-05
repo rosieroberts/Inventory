@@ -102,8 +102,8 @@ def get_ip_list():
     # format: ['ip/mask']
     ips_with_mask = ['/'.join(x) for x in final_list]
 
-    for item in ips_with_mask:
-        print(item)
+    #for item in ips_with_mask:
+     #   print(item)
 
     return(ips_with_mask)
 
