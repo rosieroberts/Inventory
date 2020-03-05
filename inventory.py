@@ -5,7 +5,7 @@ from ipaddress import ip_network
 from json import dumps, dump, load
 from csv import DictWriter
 from pathlib import Path
-from time import time
+from time import time, sleep
 from re import compile
 from datetime import timedelta, date
 import requests
@@ -196,6 +196,7 @@ def get_router_info(conn, host):
                     arp_table = conn.send_command('sh arp')
                     arp_list = arp_table.splitlines()
                     print('Sending command to router... attempt', attempt2 + 1)
+                    id_count = 1
                     for item in arp_list:
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
@@ -235,14 +236,12 @@ def get_router_info(conn, host):
                             loc_id_data = response_loc.json()
 
                             for item in loc_id_data['rows']:
-                                print(item['name'])
-                                print(item['id'])
                                 if item['name'] == str(club_result):
-                                    loc_id = item['id']
+                                    loc_id = str(item['id'])
 
                             # for main results
                             host_info = {
-                                'ID': None,
+                                'ID': id_count,
                                 'IP': ip_result,
                                 'Location': club_result,
                                 'Location ID': loc_id,
@@ -279,6 +278,7 @@ def get_router_info(conn, host):
                                     continue
                             updated_id = get_id(results[-1]['Asset Tag'])
                             results[-1]['ID'] = updated_id
+                            id_count += 1
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -355,7 +355,7 @@ def write_to_files(results, header_added, host):
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
-        print('dumped')
+
         # create .csv file with full scan
         with open('./full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d')), 'a') as csvfile:
@@ -432,8 +432,8 @@ def diff(results, baseline):
     # baseline_remove - Mac Address and IP not found in scan
 
     # if new scan items are not found in baseline
+    count = 0
     if not_in_baseline:
-        count = 0
         for diff_item in not_in_baseline:
             count += 1
             print('\nDIFF ITEM', count)
@@ -619,10 +619,12 @@ def api_payload(all_diff):
     add = []
     remove = []
     update = []
-    #review = []
+    review = []
 
     if not all_diff:
         return None
+
+    review = all_diff[3]
 
     for list in all_diff:
         for item in list:
@@ -633,21 +635,21 @@ def api_payload(all_diff):
             item['status_id'] = item.pop('Status ID')
             item['asset_tag'] = item.pop('Asset Tag')
             item['rtd_location_id'] = item.pop('Location ID')
+            item.pop('Status')
             item['id'] = item.pop('ID')
 
     add = all_diff[0]
     remove = all_diff[1]
     update = all_diff[2]
-    review = all_diff[3]
 
     for item in add:
         item.pop('id')
-
+          
     print(add)
     print(remove)
     print(update)
 
-    return [add, remove, update]
+    return [add, remove, update, review]
 
 
 def api_call(club_id, add, remove, update):
@@ -670,52 +672,58 @@ def api_call(club_id, add, remove, update):
         status_file.write(club.upper())
 
     if add:
-        url = cfg.api_url_post
+        url = cfg.api_url
+        print(url)
         for item in add:
             item_str = str(item)
-            item_str = item_str.replace('\'', '\\\"')
-            item_str = item_str.replace('{', '"{')
-            item_str = item_str.replace('}', '}"')
+            item_str = item_str.replace('\'', '\"')
             payload = str(item)
             payload = item_str
-            payload2 = "{\"rtd_location_id\": \"85\", \"Category\": \"Phone\", \"Manufacturer\": \"Cisco Systems, Inc\", \"Model Name\": \"Phone, Cisco\", \"Status\": \"up\", \"_snipeit_mac_address_1\": \"E8:B7:48:1D:7F:72\", \"_snipeit_ip_2\": \"172.24.216.159\", \"_snipeit_hostname_3\": \"\", \"model_id\": \"8\", \"status_id\": \"4\", \"asset_tag\": \"867P-7F72\"}"
-
+            print(payload) 
             response = requests.request("POST",
                                         url=url,
-                                        data=payload2,
+                                        data=payload,
                                         headers=cfg.api_headers)
 
             print('RESPONSE POST----', response.text)
+            print(response.status_code)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
                                   'with asset-tag {} to Snipe-IT'
                                   .format(item['asset_tag']))
 
                 url = cfg.api_url_get + str(item['asset_tag'])
-                response = requests.request("GET",
-                                            url=url,
-                                            headers=cfg.api_headers)
-                item_w_id = response.json()
-                id = item_w_id['id']
+                print(url)
 
-                club_base = open(baseline_dir + '/{}_{}.json'
-                                 .format(club,
-                                         today.strftime('%m-%d-%Y')))
+                try:
+                    response = requests.request("GET",
+                                                url=url,
+                                                headers=cfg.api_headers)
+                    print(response.json())
+                    item_w_id = response.json()
+                    id = item_w_id['id']
 
-                results = load(club_base)
+                    club_base = open(baseline_dir + '/{}_{}.json'
+                                     .format(club,
+                                             today.strftime('%m-%d-%Y')))
 
-                club_base_dump = open(baseline_dir + '/{}_{}.json'
-                                      .format(club,
-                                              today.strftime('%m-%d-%Y')), 'w')
+                    results = load(club_base)
 
-                for itm in results:
-                    if itm['Asset Tag'] == item['asset_tag']:
-                        print('*************************before item ID', itm['ID'])
-                        itm['ID'] = id
-                        print('*************************after item ID', itm['ID'])
-                    # dump .json file for each updated item
-                    dump(itm, club_base_dump)
-                club_base_dump.close()
+                    club_base_dump = open(baseline_dir + '/{}_{}.json'
+                                          .format(club,
+                                                  today.strftime('%m-%d-%Y')), 'w')
+
+                    for itm in results:
+                        if itm['Asset Tag'] == item['asset_tag']:
+                            print('*************************before item ID', itm['ID'])
+                            itm['ID'] = id
+                            print('*************************after item ID', itm['ID'])
+                        # dump .json file for each updated item
+                        dump(itm, club_base_dump, indent=4)
+                    club_base_dump.close()
+
+                except KeyError:
+                    print('could not update ID in baseline')
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send'
@@ -726,18 +734,14 @@ def api_call(club_id, add, remove, update):
                 status_file.write('Payload does not match Snipe_IT. '
                                   'item {}'
                                   .format(item['asset_tag']))
-
+    print(remove)
     if remove:
         print('delete')
-        for item in add:
-            item_str = str(item)
-            item_str = item_str.replace('\'', '\\\"')
-            url = cfg.api_url_id + str(item['id'])
-            payload = item
-            print('remove payload ', payload)
+        for item in remove:
+            url = cfg.api_url + str(item['id'])
+            print(url)
             response = requests.request("DELETE",
                                         url=url,
-                                        data=payload,
                                         headers=cfg.api_headers)
             print(response.text)
 
@@ -755,10 +759,13 @@ def api_call(club_id, add, remove, update):
     if update:
         print('put')
         for item in update:
+            item_str = item
+            #item_str.pop('id')
+            print(item)
             item_str = str(item)
-            item_str = item_str.replace('\'', '\\\"')
-            url = cfg.api_url_id + str(item['id'])
-            payload = item
+            item_str = item_str.replace('\'', '\"')
+            url = cfg.api_url + str(item['id'])
+            payload = item_str
             print('update payload ', payload)
             response = requests.request("PUT",
                                         url=url,
