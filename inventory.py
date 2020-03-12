@@ -5,7 +5,7 @@ from ipaddress import ip_network
 from json import dumps, dump, load
 from csv import DictWriter
 from pathlib import Path
-from time import time, strftime, gmtime
+from time import time
 from re import compile, IGNORECASE
 from datetime import timedelta, date
 import requests
@@ -89,7 +89,7 @@ def main(ip_list):
 
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
-        clb_runtime = str(timedelta(seconds=int(clb_runtime))) 
+        clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
 
         if router_connect:
@@ -103,7 +103,7 @@ def main(ip_list):
     print(not_connected)
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
     print(clubs)
-    
+
     return [add, remove, update]
 
 
@@ -377,7 +377,6 @@ def write_to_files(results, host):
                 today.strftime('%m-%d-%Y')), 'a+')
         club_output.write(dumps(results, indent=4))
         club_output.close()
-        keys = results[0].keys()
 
         # make directory that will contain individual scans by club
         mydir = path.join('./baselines/{}'.format(results[0]['Location']))
@@ -938,7 +937,7 @@ def club_id(conn, host):
     club_rgx = compile(cfg.club_rgx)
     reg_rgx = compile(cfg.reg_rgx)
     fort_regex = compile(r'(^[0-9]{3}(?=-fgt-))', IGNORECASE)
-    ip_regex = compile(r'(?:\d+\.){3}\d+') 
+    ip_regex = compile(r'(?:\d+\.){3}\d+')
 
     for _ in range(1):
         for attempt in range(2):
@@ -979,11 +978,10 @@ def club_id(conn, host):
                                 print('could not get club_id')
                                 return None
 
-
                 if fort_regex.search(host):
                     try:
                         hostname = host
-                        hostname_club_number = fort_rgx.search(hostname)
+                        hostname_club_num = fort_regex.search(hostname)
                         if hostname_club_num:
                             club_num_result = hostname_club_num.group(0)
                             club_result = str('club') + str(club_num_result)

@@ -5,7 +5,7 @@ from nmap import PortScanner
 import re
 import config as cfg
 from time import time
-from datetime import timedelta, date
+from datetime import timedelta
 
 # Core router
 session = Session(hostname=cfg.snmp['hostname'],
@@ -82,14 +82,14 @@ def fortinet_ips(ip_list_f):
         nmap_args = '-sn'
         scanner = PortScanner()
         scanner.scan(hosts=host, arguments=nmap_args)
-        hosts = {} 
+        hosts = {}
         for ip in scanner.all_hosts():
             hosts['ip'] = ip
             hosts['hostnames'] = None
 
             if 'hostnames' in scanner[ip]:
                 hosts['hostnames'] = scanner[ip].hostname()
-                
+
             club_num_rgx = re.compile(r'(^[0-9]{3}(?=-fgt-))', re.IGNORECASE)
             club_search = club_num_rgx.search(hosts['hostnames'])
             if club_search:
@@ -133,7 +133,7 @@ def oid_exclude(oid, oid_value):
 
 def get_ip_list():
     """ Get final IP list by removing exclude_list from ip_list """
-    
+
     full_ip_list = get_ips()
 
     # find hosts that are always excluded
@@ -158,8 +158,7 @@ def get_ip_list():
     # -for item in fortinet_list:
      #   -ips_with_mask.append(item)
 
-    #for item in ips_with_mask:
+    # for item in ips_with_mask:
      #   print(item)
 
     return(ips_with_mask)
-
