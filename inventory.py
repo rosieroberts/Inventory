@@ -6,7 +6,7 @@ from json import dumps, dump, load
 from csv import DictWriter
 from pathlib import Path
 from time import time
-from re import compile
+from re import compile, IGNORECASE
 from datetime import timedelta, date
 import requests
 # import traceback
@@ -42,6 +42,7 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
+
     all_diff = []
     all_api_payload = []
     add = []
@@ -49,35 +50,54 @@ def main(ip_list):
     update = []
 
     header_added = False
+    ip_regex = compile(r'(?:\d+\.){3}\d+')
 
     print(cfg.intro1)
     print(cfg.intro2)
 
     for ip in ip_list:
+        ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
-        router_connect = connect(str(get_site_router(ip)))
+        if ip_address:
+            router_connect = connect(str(get_site_router(ip)))
+        else:
+            router_connect = connect(str(ip))
+
         if router_connect:
-            results = get_router_info(router_connect, str(get_site_router(ip)))
-            write_to_files(results, header_added, str(get_site_router(ip)))
+            if ip_address:
+                results = get_router_info(router_connect, str(get_site_router(ip)))
+                write_to_files(results, str(get_site_router(ip)))
+
+            else:
+                results = get_router_info(router_connect, str(ip))
+                write_to_files(results, str(ip))
+
             all_diff = diff(results, load_baseline(results))
+
             if all_diff:
                 all_api_payload = api_payload(all_diff)
+
                 if all_api_payload:
                     add = all_api_payload[0]
                     remove = all_api_payload[1]
                     update = all_api_payload[2]
 
                 api_call(results[0]['Location'], add, remove, update)
+
+            csv(results, header_added)
             router_connect.disconnect()
+
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
+
         if router_connect:
             print('\n{} Scan Runtime: {} '
                   .format(results[0]['Location'], clb_runtime))
         else:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
+
     print('\nThe following {} hosts were not scanned'
           .format(len(not_connected)))
     print(not_connected)
@@ -193,7 +213,12 @@ def get_router_info(conn, host):
         for attempt2 in range(2):
             if conn is not None:
                 try:
-                    arp_table = conn.send_command('sh arp')
+                    host_ip_type = ip_regex.search(host)
+                    if host_ip_type:
+                        arp_table = conn.send_command('sh arp')
+                    else:
+                        arp_table = conn.send_command('get system arp')
+
                     arp_list = arp_table.splitlines()
                     print('Sending command to router... attempt', attempt2 + 1)
                     id_count = 1
@@ -235,9 +260,17 @@ def get_router_info(conn, host):
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
 
-                            for item in loc_id_data['rows']:
-                                if item['name'] == str(club_result):
-                                    loc_id = str(item['id'])
+                            try:
+                                if loc_id_data.get('total') != 0:
+                                    for itm in loc_id_data['rows']:
+                                        if itm['name'] == str(club_result):
+                                            loc_id = str(itm['id'])
+                                else:
+                                    loc_id = None
+
+                            except KeyError:
+                                print(loc_id_data)
+                                loc_id = None
 
                             # for main results
                             host_info = {
@@ -249,7 +282,7 @@ def get_router_info(conn, host):
                                 'Category': device_type,
                                 'Manufacturer': vendor,
                                 'Model Name': model_name,
-                                'Model ID': model_id,
+                                'Model Number': model_id,
                                 'Hostname': hostname['hostnames'],
                                 'Mac Address': mac_result,
                                 'Status': hostname['status'],
@@ -298,7 +331,7 @@ def get_router_info(conn, host):
 
                 except(OSError):
                     if attempt2 == 0:
-                        print('Could not send cmd "sh arp", trying again')
+                        print('Could not send command, trying again')
                         continue
                     else:
                         print('Could not get arp table ' + (host))
@@ -314,7 +347,7 @@ def get_router_info(conn, host):
     return results
 
 
-def write_to_files(results, header_added, host):
+def write_to_files(results, host):
     """Function to print and add results to .json and .csv files
 
     Args:
@@ -344,7 +377,7 @@ def write_to_files(results, header_added, host):
                 today.strftime('%m-%d-%Y')), 'a+')
         club_output.write(dumps(results, indent=4))
         club_output.close()
-        keys = results[0].keys()
+
         # make directory that will contain individual scans by club
         mydir = path.join('./baselines/{}'.format(results[0]['Location']))
         mydir_obj = Path(mydir)
@@ -353,19 +386,38 @@ def write_to_files(results, header_added, host):
             mydir + '/{}_{}.json'.format(results[0]['Location'],
                                          today.strftime('%m-%d-%Y')), 'w+')
         # dump .json file for each raw club scan in directory
+        print(results[0])
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
 
+    else:
+        print('No results received from router')
+        not_connected.append(host)
+
+
+def csv(results, header_added):
+    """ Write results to csv"""
+
+    keys = results[0].keys()
+
+    if results:
+        for item in results:
+            item.pop('ID')
+            item.pop('Status ID')
+            item.pop('Location ID')
+
+        print('results', results[0])
+
         # create .csv file with full scan
         with open('./full_scans/full_scan{}.csv'
-                  .format(today.strftime('%m-%d')), 'a') as csvfile:
+                  .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
+            print('results written to .csv file')
     else:
-        print('No results received from router')
-        not_connected.append(host)
+        print('No results written to .csv file')
 
 
 def diff(results, baseline):
@@ -386,6 +438,8 @@ def diff(results, baseline):
         function returns None
 
     """
+    print('diff')
+    print(results[0])
     club = results[0]['Location']
     update = []
     remove = []
@@ -628,10 +682,11 @@ def api_payload(all_diff):
 
     for list in all_diff:
         for item in list:
+            print(item)
             item['_snipeit_mac_address_1'] = item.pop('Mac Address')
             item['_snipeit_ip_2'] = item.pop('IP')
             item['_snipeit_hostname_3'] = item.pop('Hostname')
-            item['model_id'] = item.pop('Model ID')
+            item['model_id'] = item.pop('Model Number')
             item['status_id'] = item.pop('Status ID')
             item['asset_tag'] = item.pop('Asset Tag')
             item['rtd_location_id'] = item.pop('Location ID')
@@ -672,9 +727,9 @@ def api_call(club_id, add, remove, update):
         status_file.write(club.upper())
 
     if add:
-        url = cfg.api_url
-        print(url)
         for item in add:
+            url = cfg.api_url
+            print(url)
             item_str = str(item)
             item_str = item_str.replace('\'', '\"')
             payload = str(item)
@@ -713,13 +768,15 @@ def api_call(club_id, add, remove, update):
                                           .format(club,
                                                   today.strftime('%m-%d-%Y')), 'w')
 
+                    results_upd = []
                     for itm in results:
                         if itm['Asset Tag'] == item['asset_tag']:
                             print('*************************before item ID', itm['ID'])
                             itm['ID'] = id
                             print('*************************after item ID', itm['ID'])
-                        # dump .json file for each updated item
-                        dump(itm, club_base_dump, indent=4)
+                        results_upd.append(itm)
+                    # dump .json file for each updated item
+                    dump(results_upd, club_base_dump, indent=4)
                     club_base_dump.close()
 
                 except KeyError:
@@ -879,42 +936,69 @@ def club_id(conn, host):
     """
     club_rgx = compile(cfg.club_rgx)
     reg_rgx = compile(cfg.reg_rgx)
+    fort_regex = compile(r'(^[0-9]{3}(?=-fgt-))', IGNORECASE)
+    ip_regex = compile(r'(?:\d+\.){3}\d+')
 
     for _ in range(1):
         for attempt in range(2):
+            print(attempt)
             if conn is not None:
-                try:
-                    # send command to get hostname
-                    club_info = conn.send_command('sh run | inc hostname')
-                    # search club pattern 'club000' in club_info
-                    club_result = club_rgx.search(club_info)
-                    print('Getting club ID... attempt', attempt + 1)
-                    # if club pattern is not found
-                    if club_result is None:
-                        # search for regional pattern
-                        club_result = reg_rgx.search(club_info)
-                    # if regional pattern found
-                    if club_result is not None:
-                        # club_result returns reg pattern 'reg-000'
-                        club_result = club_result.group(0)
-                    # if reg pattern is not found
-                    if club_result is None:
-                        # look for ID in router hostname
-                        raise OSError
+                if ip_regex.search(host):
+                    try:
+                        # send command to get hostname
+                        club_info = conn.send_command('sh run | inc hostname')
+                        # search club pattern 'club000' in club_info
+                        club_result = club_rgx.search(club_info)
+                        print('Getting club ID... attempt', attempt + 1)
+                        # if club pattern is not found
+                        if club_result is None:
+                            # search for regional pattern
+                            club_result = reg_rgx.search(club_info)
+                        # if regional pattern found
+                        if club_result is not None:
+                            # club_result returns reg pattern 'reg-000'
+                            club_result = club_result.group(0)
+                            break
+                        # if reg pattern is not found
+                        if club_result is None:
+                            # look for ID in router hostname
+                            raise OSError
 
-                except(OSError):
-                    if attempt == 0:
-                        print('Could not send command, cdp. Trying again')
-                        continue
-                    if attempt == 1:
-                        print('Getting club_id from nmap hostname')
-                        hostname = get_hostnames(host)
-                        hostname_club = club_rgx.search(hostname['hostnames'])
-                        if hostname_club is not None:
-                            club_result = hostname_club.group(0)
-                        if hostname_club is None:
+                    except(OSError):
+                        if attempt == 0:
+                            print('Could not send command. Trying again')
+                            continue
+                        if attempt == 1:
+                            print('Getting club_id from nmap hostname')
+                            hostname = get_hostnames(host)
+                            hostname_club = club_rgx.search(hostname['hostnames'])
+                            if hostname_club:
+                                club_result = hostname_club.group(0)
+                            if not hostname_club:
+                                print('could not get club_id')
+                                return None
+
+                if fort_regex.search(host):
+                    try:
+                        hostname = host
+                        hostname_club_num = fort_regex.search(hostname)
+                        if hostname_club_num:
+                            club_num_result = hostname_club_num.group(0)
+                            club_result = str('club') + str(club_num_result)
+                            print(club_result)
+                            break
+                        if not hostname_club_num:
+                            print('could not get club_id, trying again')
+                            return None
+                    except OSError:
+                        if attempt == 0:
+                            print('Could not send command. Trying again')
+                            continue
+
+                        if attempt > 0:
                             print('could not get club_id')
                             return None
+
         club_result = club_result.lower()
         return club_result
 
@@ -1056,8 +1140,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ip_list()
-ip_list = ['10.6.3.0/24', '10.11.139.0/24', '10.16.11.0/24', '10.96.0.0/24']
-ip_list = ['10.10.238.0/24']
+ip_list = ['10.10.31.0/24', '10.10.52.0/24']
 main(ip_list)
 
 end = time()
