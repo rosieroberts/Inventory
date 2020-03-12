@@ -338,10 +338,7 @@ def get_router_info(conn, host):
                         club_output = open(
                             './full_scans/full_scan{}.json'.format(
                                 today.strftime('%m-%d-%Y')), 'a+')
-<<<<<<< HEAD
-=======
-                        for item in results:   
->>>>>>> 1fc4d888bbc0f72cb5bcf950be2aca6eb7bd4c9f
+                        for item in results:
                             club_output.write(dumps(item, indent=4))
                             club_output.close()
                             print(item)
