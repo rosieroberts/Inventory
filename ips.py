@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
 from easysnmp import Session
+from nmap import PortScanner
 import re
 import config as cfg
+from time import time
+from datetime import timedelta, date
 
 # Core router
 session = Session(hostname=cfg.snmp['hostname'],
@@ -22,6 +25,8 @@ def get_ips():
     Extract IP and subnet mask and add to ip_list. """
     split_list = []
     ip_list = []
+    ip_list_f = []
+
     # for subnet mask to extract IPs and subnet masks and add to ful_ip_list
     subnet_masks = session.walk(oids[1])
     # regex to get ip address from oid value
@@ -37,6 +42,7 @@ def get_ips():
     # convert subnet masks to cidr notation
     # while it is being split and added to list
     # format: ['ip', 'subnet mask(/24)']
+
     for item in full_ip_list:
         # split item in two parts
         item = item.split('/')
@@ -45,15 +51,56 @@ def get_ips():
         # subnet mask is replaced with cidr notation mask and added to list
         item[1] = str(sum(bin(int(x)).count('1') for x in item[1].split('.')))
         split_list.append(item)
+
     # regex to search for IPs to include clubs and regional offices
     regex_include = re.compile(r'(^10\.([4-9]|[1-8][0-9]|9[0-6])\.)')
+    regex_fort = re.compile(r'(^172\.([3][0-1])\.)')
     # search for included IPs in list
     for item in split_list:
         regex_value = regex_include.search(item[0])
         if regex_value:
             ip_list.append(item)
+        regex_f_value = regex_fort.search(item[0])
+        if regex_f_value:
+            ip_list_f.append(item)
     # returns list - ip = item[0] and mask = item[1]
-    return(ip_list)
+
+    return [ip_list, ip_list_f]
+
+
+def fortinet_ips(ip_list_f):
+    """ Get ips from fortigate"""
+    start = time()
+    ip_list = []
+    hostname_list = []
+    host_list = []
+    for list in ip_list_f:
+        ip_list.append(list[0])
+
+    for ip in ip_list:
+        host = str(ip)
+        nmap_args = '-sn'
+        scanner = PortScanner()
+        scanner.scan(hosts=host, arguments=nmap_args)
+        hosts = {} 
+        for ip in scanner.all_hosts():
+            hosts['ip'] = ip
+            hosts['hostnames'] = None
+
+            if 'hostnames' in scanner[ip]:
+                hosts['hostnames'] = scanner[ip].hostname()
+                
+            club_num_rgx = re.compile(r'(^[0-9]{3}(?=-fgt-))', re.IGNORECASE)
+            club_search = club_num_rgx.search(hosts['hostnames'])
+            if club_search:
+                hostname_list.append(hosts['hostnames'])
+                host_list.append(hosts['hostnames'])
+
+    elapsed_time = time() - start
+    elapsed_time = str(timedelta(seconds=int(elapsed_time)))
+    print('Duration getting fortinet hosts: ', elapsed_time)
+
+    return hostname_list
 
 
 def always_exclude(ip_list):
@@ -86,9 +133,14 @@ def oid_exclude(oid, oid_value):
 
 def get_ip_list():
     """ Get final IP list by removing exclude_list from ip_list """
+    
     full_ip_list = get_ips()
-    # fimd hosts that are always excluded
-    exclude_list = always_exclude(full_ip_list)
+
+    # find hosts that are always excluded
+    exclude_list = always_exclude(full_ip_list[0])
+
+    # -fortinet_list = fortinet_ips(full_ip_list[1])
+
     # find hosts that are not found via ospf and add them to exclude_list
     exclude_list.extend(list(oid_exclude(oids[3], '13')))
     # find hosts that are not remote and add them to exclude_list
@@ -97,15 +149,17 @@ def get_ip_list():
     exclude_list.extend(list(oid_exclude(oids[4], '1')))
     # compare IP list with excluded_list
     # and remove excluded items, add to final_list
-    final_list = [item for item in full_ip_list if item[0] not in exclude_list]
+    final_list = [item for item in full_ip_list[0] if item[0] not in exclude_list]
     # join ip_list and mask and return final list with usable ips/mask
     # format: ['ip/mask']
+
     ips_with_mask = ['/'.join(x) for x in final_list]
+
+    # -for item in fortinet_list:
+     #   -ips_with_mask.append(item)
 
     #for item in ips_with_mask:
      #   print(item)
 
     return(ips_with_mask)
 
-
-get_ip_list()
