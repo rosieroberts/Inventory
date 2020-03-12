@@ -325,8 +325,23 @@ def get_router_info(conn, host):
                                 results.append(itm)
                     clubs.append(club_result)
                     print('Results complete...')
-                    for item in results:
-                        print(item)
+
+                    # make directory that will contain all full scans by date
+                    full_scan_dir = path.join('./full_scans')
+                    full_scan_dir_obj = Path(full_scan_dir)
+                    full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
+
+                    if len(results) != 0:
+                        print('\nWriting {} results to files...'
+                              .format(results[0]['Location']))
+                        # writing full scan to .json
+                        club_output = open(
+                            './full_scans/full_scan{}.json'.format(
+                                today.strftime('%m-%d-%Y')), 'a+')
+                        for item in results:   
+                            club_output.write(dumps(item, indent=4))
+                            club_output.close()
+                            print(item)
                     break
 
                 except(OSError):
@@ -362,21 +377,6 @@ def write_to_files(results, host):
         if file already exists, results list is appended to
         end of existing file.
     """
-
-    # make directory that will contain all full scans by date
-    full_scan_dir = path.join('./full_scans')
-    full_scan_dir_obj = Path(full_scan_dir)
-    full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
-
-    if len(results) != 0:
-        print('\nWriting {} results to files...'
-              .format(results[0]['Location']))
-        # writing full scan to .json
-        club_output = open(
-            './full_scans/full_scan{}.json'.format(
-                today.strftime('%m-%d-%Y')), 'a+')
-        club_output.write(dumps(results, indent=4))
-        club_output.close()
 
         # make directory that will contain individual scans by club
         mydir = path.join('./baselines/{}'.format(results[0]['Location']))
