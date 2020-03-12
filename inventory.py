@@ -339,6 +339,7 @@ def get_router_info(conn, host):
                             './full_scans/full_scan{}.json'.format(
                                 today.strftime('%m-%d-%Y')), 'a+')
 <<<<<<< HEAD
+                        for item in results:
 =======
                         for item in results:   
 >>>>>>> 1fc4d888bbc0f72cb5bcf950be2aca6eb7bd4c9f
