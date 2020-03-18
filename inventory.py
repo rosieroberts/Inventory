@@ -2,7 +2,7 @@
 
 from os import path, listdir
 from ipaddress import ip_network
-from json import dumps, dump, load
+from json import dumps, dump, load, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -269,16 +269,18 @@ def get_router_info(conn, host):
                                     loc_id = None
 
                             except KeyError:
-                                print(loc_id_data)
                                 loc_id = None
+
+                            if loc_id == None:
+                                loc_id = str(loc_id)
 
                             # for main results
                             host_info = {
                                 'ID': id_count,
+                                'Asset Tag': asset_tag,
                                 'IP': ip_result,
                                 'Location': club_result,
                                 'Location ID': loc_id,
-                                'Asset Tag': asset_tag,
                                 'Category': device_type,
                                 'Manufacturer': vendor,
                                 'Model Name': model_name,
@@ -341,8 +343,8 @@ def get_router_info(conn, host):
 
                         for item in results:
                             club_output.write(dumps(item, indent=4))
-                            club_output.close()
                             print(item)
+                        club_output.close()
                     break
 
                 except(OSError):
@@ -560,9 +562,9 @@ def diff(results, baseline):
                     else:
                         review.append(diff_item)
                         msg5 = ('\nDevice with ID {} and Mac Address {} '
-                                '\nhas changed to ID {}'
-                                'and Mac Address {},'
-                                '\nMac Address {} is already in'
+                                '\nhas changed to ID {} '
+                                'and Mac Address {}, '
+                                '\nMac Address {} is already in '
                                 'baseline with ID {}. '
                                 '\nneeds review\n'
                                 .format(id_in_baseline['ID'],
@@ -866,7 +868,8 @@ def get_id(asset_tag):
         content = response.json()
         result_id = content['id']
 
-    except KeyError:
+    except (KeyError,
+            decoder.JSONDecodeError):
         result_id = None
 
     return str(result_id)
@@ -1142,7 +1145,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ip_list()
-ip_list = ['10.10.31.0/24', '10.10.52.0/24']
+#ip_list = ['10.10.31.0/24', '10.10.52.0/24']
+#ip_list = ['10.6.31.0/24']
 main(ip_list)
 
 end = time()
