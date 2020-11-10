@@ -1,4 +1,4 @@
-# Inventory
+# Inventory***
 
 A tool used to get information from all devices connected to each location in the company.
 
