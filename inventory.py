@@ -1146,7 +1146,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 ip_list = get_ip_list()
 #ip_list = ['10.10.31.0/24', '10.10.52.0/24']
-#ip_list = ['10.6.31.0/24']
+#ip_list = ['10.11.144.0/24']
 main(ip_list)
 
 end = time()
