@@ -260,17 +260,20 @@ def get_router_info(conn, host):
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
 
+
                             try:
                                 if loc_id_data.get('total') != 0:
                                     for itm in loc_id_data['rows']:
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
+                                        else:
+                                            loc_id = None
                                 else:
                                     loc_id = None
 
                             except KeyError:
                                 loc_id = None
-
+                            
                             if loc_id == None:
                                 loc_id = str(loc_id)
 
