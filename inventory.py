@@ -274,7 +274,7 @@ def get_router_info(conn, host):
                             except KeyError:
                                 loc_id = None
                             
-                            if loc_id == None:
+                            if loc_id is None:
                                 loc_id = str(loc_id)
 
                             # for main results
