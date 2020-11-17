@@ -2,7 +2,7 @@
 
 from os import path, listdir
 from ipaddress import ip_network
-from json import dumps, dump, load
+from json import dumps, dump, load, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -260,25 +260,30 @@ def get_router_info(conn, host):
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
 
+
                             try:
                                 if loc_id_data.get('total') != 0:
                                     for itm in loc_id_data['rows']:
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
+                                        else:
+                                            loc_id = None
                                 else:
                                     loc_id = None
 
                             except KeyError:
-                                print(loc_id_data)
                                 loc_id = None
+                            
+                            if loc_id is None:
+                                loc_id = str(loc_id)
 
                             # for main results
                             host_info = {
                                 'ID': id_count,
+                                'Asset Tag': asset_tag,
                                 'IP': ip_result,
                                 'Location': club_result,
                                 'Location ID': loc_id,
-                                'Asset Tag': asset_tag,
                                 'Category': device_type,
                                 'Manufacturer': vendor,
                                 'Model Name': model_name,
@@ -325,8 +330,24 @@ def get_router_info(conn, host):
                                 results.append(itm)
                     clubs.append(club_result)
                     print('Results complete...')
-                    for item in results:
-                        print(item)
+
+                    # make directory that will contain all full scans by date
+                    full_scan_dir = path.join('./full_scans')
+                    full_scan_dir_obj = Path(full_scan_dir)
+                    full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
+
+                    if len(results) != 0:
+                        print('\nWriting {} results to files...'
+                              .format(results[0]['Location']))
+                        # writing full scan to .json
+                        club_output = open(
+                            './full_scans/full_scan{}.json'.format(
+                                today.strftime('%m-%d-%Y')), 'a+')
+
+                        for item in results:
+                            club_output.write(dumps(item, indent=4))
+                            print(item)
+                        club_output.close()
                     break
 
                 except(OSError):
@@ -362,21 +383,7 @@ def write_to_files(results, host):
         if file already exists, results list is appended to
         end of existing file.
     """
-
-    # make directory that will contain all full scans by date
-    full_scan_dir = path.join('./full_scans')
-    full_scan_dir_obj = Path(full_scan_dir)
-    full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
-
     if len(results) != 0:
-        print('\nWriting {} results to files...'
-              .format(results[0]['Location']))
-        # writing full scan to .json
-        club_output = open(
-            './full_scans/full_scan{}.json'.format(
-                today.strftime('%m-%d-%Y')), 'a+')
-        club_output.write(dumps(results, indent=4))
-        club_output.close()
 
         # make directory that will contain individual scans by club
         mydir = path.join('./baselines/{}'.format(results[0]['Location']))
@@ -558,9 +565,9 @@ def diff(results, baseline):
                     else:
                         review.append(diff_item)
                         msg5 = ('\nDevice with ID {} and Mac Address {} '
-                                '\nhas changed to ID {}'
-                                'and Mac Address {},'
-                                '\nMac Address {} is already in'
+                                '\nhas changed to ID {} '
+                                'and Mac Address {}, '
+                                '\nMac Address {} is already in '
                                 'baseline with ID {}. '
                                 '\nneeds review\n'
                                 .format(id_in_baseline['ID'],
@@ -864,7 +871,8 @@ def get_id(asset_tag):
         content = response.json()
         result_id = content['id']
 
-    except KeyError:
+    except (KeyError,
+            decoder.JSONDecodeError):
         result_id = None
 
     return str(result_id)
@@ -1140,7 +1148,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ip_list()
-ip_list = ['10.10.31.0/24', '10.10.52.0/24']
+#ip_list = ['10.10.31.0/24', '10.10.52.0/24']
+ip_list = ['10.11.144.0/24']
 main(ip_list)
 
 end = time()
