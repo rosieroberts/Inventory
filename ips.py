@@ -3,6 +3,7 @@
 from easysnmp import Session
 from nmap import PortScanner
 import re
+from csv import reader
 import config as cfg
 from time import time
 from datetime import timedelta
@@ -65,15 +66,17 @@ def get_ips():
             ip_list_f.append(item)
     # returns list - ip = item[0] and mask = item[1]
 
+    for item in ip_list_f:
+        print(item)
+
     return [ip_list, ip_list_f]
 
 
-def fortinet_ips(ip_list_f):
+def fortigate_ips(ip_list_f):
     """ Get ips from fortigate"""
     start = time()
     ip_list = []
     hostname_list = []
-    host_list = []
     for list in ip_list_f:
         ip_list.append(list[0])
 
@@ -84,6 +87,7 @@ def fortinet_ips(ip_list_f):
         scanner.scan(hosts=host, arguments=nmap_args)
         hosts = {}
         for ip in scanner.all_hosts():
+            fgt = []
             hosts['ip'] = ip
             hosts['hostnames'] = None
 
@@ -94,20 +98,40 @@ def fortinet_ips(ip_list_f):
             club_search = club_num_rgx.search(hosts['hostnames'])
             if club_search:
                 hostname_list.append(hosts['hostnames'])
-                host_list.append(hosts['hostnames'])
+                fgt.append(ip)
+                fgt.append(str(club_search))
+                fgt_item = ','.join(fgt)
+                print(fgt_item, '**')
 
+    fgt_list = fortigate_list()
+
+    for item in fgt_list:
+        print(item)
     elapsed_time = time() - start
     elapsed_time = str(timedelta(seconds=int(elapsed_time)))
-    print('Duration getting fortinet hosts: ', elapsed_time)
+    print('Duration getting fortigate hosts: ', elapsed_time)
 
     return hostname_list
+
+
+def fortigate_list():
+    # get list of current fortigate ips/clubs
+
+    fgt_list = []
+    with open('fortigate.csv', newline='') as csvfile:
+        f_list = reader(csvfile, delimiter=' ', quotechar='|')
+        for row in f_list:
+            fgt_list.append(row)
+            print(row)
+
+    return(fgt_list)
 
 
 def always_exclude(ip_list):
     """ Get IPs to exclude from warehouse and TSC """
     always_exclude_list = []
     # clubs with fortinet
-    always_exclude_list.extend(cfg.exclude_list_add)
+    # ***always_exclude_list.extend(cfg.exclude_list_add)
     # Regex to exclude warehouse | TSC
     regex = re.compile(r'(^10\.11\.163\.)|(^10\.11\.20[0-7]\.)')
     # search for items to exclude
@@ -153,12 +177,18 @@ def get_ip_list():
     # join ip_list and mask and return final list with usable ips/mask
     # format: ['ip/mask']
 
+    for item in final_list:
+        print(item[0])
+
     ips_with_mask = ['/'.join(x) for x in final_list]
+    fortigate_list = fortigate_ips(full_ip_list[1])
 
     # -for item in fortinet_list:
-     #   -ips_with_mask.append(item)
+    #   -ips_with_mask.append(item)
 
     # for item in ips_with_mask:
-     #   print(item)
+    #    print(item)
 
     return(ips_with_mask)
+
+get_ip_list()
