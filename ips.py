@@ -66,17 +66,20 @@ def get_ips():
             ip_list_f.append(item)
     # returns list - ip = item[0] and mask = item[1]
 
-    for item in ip_list_f:
-        print(item)
+    #    for item in ip_list_f:
+    #        print(item)
 
     return [ip_list, ip_list_f]
 
 
-def fortigate_ips(ip_list_f):
+def get_fortigate_ips(ip_list_f):
     """ Get ips from fortigate"""
     start = time()
     ip_list = []
     hostname_list = []
+    gen_fgt_list = []
+    gen_ip_list = []
+
     for list in ip_list_f:
         ip_list.append(list[0])
 
@@ -93,28 +96,46 @@ def fortigate_ips(ip_list_f):
 
             if 'hostnames' in scanner[ip]:
                 hosts['hostnames'] = scanner[ip].hostname()
-
             club_num_rgx = re.compile(r'(^[0-9]{3}(?=-fgt-))', re.IGNORECASE)
             club_search = club_num_rgx.search(hosts['hostnames'])
             if club_search:
+                club_search = club_search.group(0)
                 hostname_list.append(hosts['hostnames'])
-                fgt.append(ip)
                 fgt.append(str(club_search))
+                fgt.append(ip)
+                gen_ip_list.append(ip)
                 fgt_item = ','.join(fgt)
-                print(fgt_item, '**')
+                gen_fgt_list.append(fgt_item)
 
-    fgt_list = fortigate_list()
-
-    for item in fgt_list:
-        print(item)
+    
     elapsed_time = time() - start
     elapsed_time = str(timedelta(seconds=int(elapsed_time)))
     print('Duration getting fortigate hosts: ', elapsed_time)
 
-    return hostname_list
+    return gen_fgt_list
 
 
-def fortigate_list():
+def final_fgt(gen_fgt_list, fgt_list):
+    # compare generated list with main list of fortigate clubs to make sure
+    # all clubs are included
+
+
+    list_set = set(fgt_list)
+    gen_list_set = set(gen_fgt_list)
+
+    not_in_fgt_list = [item for item in gen_fgt_list if item not in list_set]
+
+    not_in_gen_fgt_list = [item for item in fgt_list if item not in gen_list_set]
+
+    fgt_list = gen_fgt_list + not_in_gen_fgt_list
+
+    final_fgt_list = [item[4:] for item in fgt_list]
+
+    return final_fgt_list
+
+
+
+def csv_fortigate_list():
     # get list of current fortigate ips/clubs
 
     fgt_list = []
@@ -122,9 +143,10 @@ def fortigate_list():
         f_list = reader(csvfile, delimiter=' ', quotechar='|')
         for row in f_list:
             fgt_list.append(row)
-            print(row)
 
-    return(fgt_list)
+    fgt_list_flat = [item for sublist in fgt_list for item in sublist]
+
+    return(fgt_list_flat)
 
 
 def always_exclude(ip_list):
@@ -177,18 +199,19 @@ def get_ip_list():
     # join ip_list and mask and return final list with usable ips/mask
     # format: ['ip/mask']
 
-    for item in final_list:
-        print(item[0])
+    #for item in final_list:
+     #   print(item[0])
 
     ips_with_mask = ['/'.join(x) for x in final_list]
-    fortigate_list = fortigate_ips(full_ip_list[1])
 
-    # -for item in fortinet_list:
-    #   -ips_with_mask.append(item)
+    fgt_list = final_fgt(get_fortigate_ips(full_ip_list[1]), csv_fortigate_list()) 
+
 
     # for item in ips_with_mask:
-    #    print(item)
+      #  print(item)
+    # for item in fgt_list:
+      #  print(item)
 
-    return(ips_with_mask)
+    return ips_with_mask, fgt_list
 
 get_ip_list()
