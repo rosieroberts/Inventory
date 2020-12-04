@@ -174,6 +174,71 @@ def connect(ip):
         return None
 
 
+def connect_fgt(ip):
+    """Connects to router using .1 address from each ip router from ip_list.
+    Args:
+        ip - Router IP in x.x.x.1.
+    Returns:
+        Netmiko connection object.
+    Raises:
+        Does not raise an error. If connection is unsuccessful,
+        None is returned.
+    """
+    print('\n\nScanning IP {}'.format(ip))
+    for _ in range(1):
+        for attempt in range(2):
+            startconn = time()
+            try:
+                net_connect = ConnectHandler(device_type='fortinet',
+                                             host=ip,
+                                             username=cfg.ssh['username'],
+                                             password=cfg.ssh['password'],
+                                             blocking_timeout=20)
+                print('\nConnecting... attempt', attempt + 1)
+                endconn = time()
+                time_elapsed = endconn - startconn
+                print('Connection achieved in {} seconds'
+                      .format(int(time_elapsed)))
+                print(net_connect)
+                return net_connect
+
+            except(NetMikoTimeoutException,
+                   NetMikoAuthenticationException,
+                   SSHException,
+                   OSError,
+                   ValueError,
+                   EOFError):
+                print('except')
+                # traceback.print_exc()
+                # if connection fails and an Exception is raised,
+                # scan ip to see if port 22 is open,
+                # if it is open try to connect again
+                # if it is closed, return None and exit
+                nmap_args = 'p22'
+                scanner = PortScanner()
+                scanner.scan(hosts=ip, arguments=nmap_args)
+
+                for ip in scanner.all_hosts():
+                    if scanner[ip].has_tcp(22):
+                        if scanner[ip]['tcp'][22]['state'] == 'closed':
+                            print('port 22 is showing closed for ' + (ip))
+                            not_connected.append(ip)
+                            return None
+                        else:
+                            print('Port 22 is open ')
+                            break
+                    else:
+                        print('port 22 is closed for ' + (ip))
+                        continue
+                print('Connecting... attempt', attempt + 1)
+                if attempt == 0:
+                    print('Error, Trying to connect to {} again '.format(ip))
+        # exhausted all tries to connect, return None and exit
+        print('Connection to {} is not possible: '.format(ip))
+        not_connected.append(ip)
+        return None
+
+
 def get_router_info(conn, host):
     """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
@@ -1148,10 +1213,12 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list, fgt_list = get_ip_list()
-print(ip_list,fgt_list)
+print(ip_list, fgt_list)
 #ip_list = ['10.10.31.0/24', '10.10.52.0/24']
-ip_list = ['10.11.144.0/24']
-main(ip_list)
+#ip_list = ['10.11.144.0/24']
+#main(ip_list)
+for ip in fgt_list:
+    connect_fgt(ip)
 
 end = time()
 runtime = end - start
