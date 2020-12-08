@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from os import path, listdir
-from ipaddress import ip_network
 from json import dumps, dump, load, decoder
 from csv import DictWriter
 from pathlib import Path
@@ -59,18 +58,17 @@ def main(ip_list):
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
         if ip_address:
-            router_connect = connect(str(get_site_router(ip)))
-        else:
             router_connect = connect(str(ip))
+        else:
+            router_connect = None
 
         if router_connect:
             if ip_address:
-                results = get_router_info(router_connect, str(get_site_router(ip)))
-                write_to_files(results, str(get_site_router(ip)))
-
-            else:
                 results = get_router_info(router_connect, str(ip))
                 write_to_files(results, str(ip))
+            else:
+                results = None
+                write_to_files(results, str(ip))                
 
             all_diff = diff(results, load_baseline(results))
 
@@ -174,71 +172,6 @@ def connect(ip):
         return None
 
 
-def connect_fgt(ip):
-    """Connects to router using .1 address from each ip router from ip_list.
-    Args:
-        ip - Router IP in x.x.x.1.
-    Returns:
-        Netmiko connection object.
-    Raises:
-        Does not raise an error. If connection is unsuccessful,
-        None is returned.
-    """
-    print('\n\nScanning IP {}'.format(ip))
-    for _ in range(1):
-        for attempt in range(2):
-            startconn = time()
-            try:
-                net_connect = ConnectHandler(device_type='fortinet',
-                                             host=ip,
-                                             username=cfg.ssh['username'],
-                                             password=cfg.ssh['password'],
-                                             blocking_timeout=20)
-                print('\nConnecting... attempt', attempt + 1)
-                endconn = time()
-                time_elapsed = endconn - startconn
-                print('Connection achieved in {} seconds'
-                      .format(int(time_elapsed)))
-                print(net_connect)
-                return net_connect
-
-            except(NetMikoTimeoutException,
-                   NetMikoAuthenticationException,
-                   SSHException,
-                   OSError,
-                   ValueError,
-                   EOFError):
-                print('except')
-                # traceback.print_exc()
-                # if connection fails and an Exception is raised,
-                # scan ip to see if port 22 is open,
-                # if it is open try to connect again
-                # if it is closed, return None and exit
-                nmap_args = 'p22'
-                scanner = PortScanner()
-                scanner.scan(hosts=ip, arguments=nmap_args)
-
-                for ip in scanner.all_hosts():
-                    if scanner[ip].has_tcp(22):
-                        if scanner[ip]['tcp'][22]['state'] == 'closed':
-                            print('port 22 is showing closed for ' + (ip))
-                            not_connected.append(ip)
-                            return None
-                        else:
-                            print('Port 22 is open ')
-                            break
-                    else:
-                        print('port 22 is closed for ' + (ip))
-                        continue
-                print('Connecting... attempt', attempt + 1)
-                if attempt == 0:
-                    print('Error, Trying to connect to {} again '.format(ip))
-        # exhausted all tries to connect, return None and exit
-        print('Connection to {} is not possible: '.format(ip))
-        not_connected.append(ip)
-        return None
-
-
 def get_router_info(conn, host):
     """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
@@ -276,6 +209,7 @@ def get_router_info(conn, host):
 
     for _ in range(1):
         for attempt2 in range(2):
+            results = None
             if conn is not None:
                 try:
                     host_ip_type = ip_regex.search(host)
@@ -448,7 +382,7 @@ def write_to_files(results, host):
         if file already exists, results list is appended to
         end of existing file.
     """
-    if len(results) != 0:
+    if len(results) != 0 or results is not None:
 
         # make directory that will contain individual scans by club
         mydir = path.join('./baselines/{}'.format(results[0]['Location']))
@@ -1112,24 +1046,6 @@ def get_hostnames(ip):
         return host
 
 
-#  Function to return only a site router IP which ends in '.1'.
-def get_site_router(ip):
-    """Returns router IP when called
-
-    Args:
-        ip - ip from ips.py. Looped in main()
-
-    Returns:
-        first_host - first host from given subnet ending in x.x.x.1,
-        this is the router ip.
-
-    Raises:
-        Does not raise an error.
-    """
-    site_hosts = ip_network(ip)
-    first_host = next(site_hosts.hosts())
-    return(first_host)
-
 
 def club_num(club_result):
     """Returns a generated ID for each club asset
@@ -1212,13 +1128,12 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-ip_list, fgt_list = get_ip_list()
-print(ip_list, fgt_list)
+ip_list = get_ip_list()
+print(ip_list)
 #ip_list = ['10.10.31.0/24', '10.10.52.0/24']
 #ip_list = ['10.11.144.0/24']
-#main(ip_list)
-for ip in fgt_list:
-    connect_fgt(ip)
+main(ip_list)
+
 
 end = time()
 runtime = end - start

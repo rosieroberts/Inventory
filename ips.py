@@ -2,6 +2,7 @@
 
 from easysnmp import Session
 from nmap import PortScanner
+from ipaddress import ip_network
 import re
 from csv import reader
 import config as cfg
@@ -73,8 +74,9 @@ def get_ips():
 
 
 def get_fortigate_ips(ip_list_f):
-    """ Get ips from fortigate"""
+    # Get ips from fortigate using nmap, looking for -fgt flag in hostname
     start = time()
+    print('get_fortigate_ips', start)
     ip_list = []
     hostname_list = []
     gen_fgt_list = []
@@ -119,7 +121,7 @@ def final_fgt(gen_fgt_list, fgt_list):
     # compare generated list with main list of fortigate clubs to make sure
     # all clubs are included
 
-
+    print('final_fgt')
     list_set = set(fgt_list)
     gen_list_set = set(gen_fgt_list)
 
@@ -137,7 +139,7 @@ def final_fgt(gen_fgt_list, fgt_list):
 
 def csv_fortigate_list():
     # get list of current fortigate ips/clubs
-
+    print('csv_fortigate_list')
     fgt_list = []
     with open('fortigate.csv', newline='') as csvfile:
         f_list = reader(csvfile, delimiter=' ', quotechar='|')
@@ -177,15 +179,33 @@ def oid_exclude(oid, oid_value):
     return(oid_exclude_list)
 
 
+#  Function to return only a site router IP which ends in '.1'.
+def get_site_router(ip):
+    """Returns router IP when called
+
+    Args:
+        ip - ip from ips.py. Looped in main()
+
+    Returns:
+        first_host - first host from given subnet ending in x.x.x.1,
+        this is the router ip.
+
+    Raises:
+        Does not raise an error.
+    """
+    site_hosts = ip_network(ip)
+    first_host = next(site_hosts.hosts())
+    return(first_host)
+
+
+
 def get_ip_list():
-    """ Get final IP list by removing exclude_list from ip_list """
+    #Get final IP list by removing exclude_list from ip_list
 
     full_ip_list = get_ips()
 
     # find hosts that are always excluded
     exclude_list = always_exclude(full_ip_list[0])
-
-    # -fortinet_list = fortinet_ips(full_ip_list[1])
 
     # find hosts that are not found via ospf and add them to exclude_list
     exclude_list.extend(list(oid_exclude(oids[3], '13')))
@@ -204,14 +224,25 @@ def get_ip_list():
 
     ips_with_mask = ['/'.join(x) for x in final_list]
 
-    fgt_list = final_fgt(get_fortigate_ips(full_ip_list[1]), csv_fortigate_list()) 
+    fgt_ips = final_fgt(get_fortigate_ips(full_ip_list[1]), csv_fortigate_list()) 
 
 
-    # for item in ips_with_mask:
-      #  print(item)
-    # for item in fgt_list:
-      #  print(item)
+    for item in ips_with_mask:
+        print(item)
+    for item in fgt_ips:
+        print(item)
 
-    return ips_with_mask, fgt_list
+    cisco_ips = []
+    for ip in ips_with_mask:
+        cisco_router_ip = get_site_router(ip)
+        cisco_router_ip = str(cisco_router_ip)
+        cisco_ips.append(cisco_router_ip)
+
+
+    final_ip_list = cisco_ips + fgt_ips
+
+    return final_ip_list
+
 
 get_ip_list()
+
