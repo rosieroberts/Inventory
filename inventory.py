@@ -68,7 +68,7 @@ def main(ip_list):
                 write_to_files(results, str(ip))
             else:
                 results = None
-                write_to_files(results, str(ip))                
+                write_to_files(results, str(ip))
 
             all_diff = diff(results, load_baseline(results))
 
@@ -259,7 +259,6 @@ def get_router_info(conn, host):
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
 
-
                             try:
                                 if loc_id_data.get('total') != 0:
                                     for itm in loc_id_data['rows']:
@@ -272,7 +271,7 @@ def get_router_info(conn, host):
 
                             except KeyError:
                                 loc_id = None
-                            
+
                             if loc_id is None:
                                 loc_id = str(loc_id)
 
@@ -1046,7 +1045,6 @@ def get_hostnames(ip):
         return host
 
 
-
 def club_num(club_result):
     """Returns a generated ID for each club asset
 
@@ -1130,8 +1128,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 ip_list = get_ip_list()
 print(ip_list)
-#ip_list = ['10.10.31.0/24', '10.10.52.0/24']
-#ip_list = ['10.11.144.0/24']
+# ip_list = ['10.10.31.0/24', '10.10.52.0/24']
+# ip_list = ['10.11.144.0/24']
 main(ip_list)
 
 
