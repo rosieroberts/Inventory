@@ -4,7 +4,6 @@ from easysnmp import Session
 from nmap import PortScanner
 from ipaddress import ip_network
 import re
-from csv import reader
 import config as cfg
 from time import time
 from datetime import timedelta
@@ -107,7 +106,7 @@ def get_fgt_ips(ip_list_f):
                 fgt_host_list.append(fgt_d)
             else:
                 not_fgt.append(ip)
-    
+
     print(fgt_host_list)
     elapsed_time = time() - start
     elapsed_time = str(timedelta(seconds=int(elapsed_time)))
@@ -164,13 +163,11 @@ def get_site_router(ip):
     return(first_host)
 
 
-
 def get_ip_list():
-    #Get final IP list by removing exclude_list from ip_list
+    # Get final IP list by removing exclude_list from ip_list
 
     full_ip_list = get_ips()
-    cisco_ip_list = full_ip_list[0]
-    fgt_ip_list  = full_ip_list[1]
+    fgt_ip_list = full_ip_list[1]
 
     # find hosts that are always excluded
     exclude_list = always_exclude(full_ip_list[0])
@@ -187,34 +184,28 @@ def get_ip_list():
     # join ip_list and mask and return final list with usable ips/mask
     # format: ['ip/mask']
 
-    #for item in final_list:
+    # for item in final_list:
     #   print(item[0])
 
     ips_with_mask = ['/'.join(x) for x in final_list]
 
     fgt_ips = get_fgt_ips(fgt_ip_list)
 
-
-    #for item in ips_with_mask:
-        #print(item)
-    #for item in fgt_ips:
-     #   print(item)
+    # for item in ips_with_mask:
+    # print(item)
+    # for item in fgt_ips:
+    # print(item)
 
     cisco_ips = []
     for ip in ips_with_mask:
         cisco_router_ip = str(get_site_router(ip))
         cisco_ips.append(cisco_router_ip)
 
-
     final_ip_list = cisco_ips + fgt_ips
 
     print('***')
-    
+
     for item in final_ip_list:
         print(item)
 
     return final_ip_list
-
-
-get_ip_list()
-
