@@ -209,7 +209,6 @@ def get_router_info(conn, host):
 
     for _ in range(1):
         for attempt2 in range(2):
-            results = None
             if conn is not None:
                 try:
                     host_ip_type = ip_regex.search(host)
@@ -300,11 +299,16 @@ def get_router_info(conn, host):
                             # If the mac address is the same,
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
+
+                            # fix this code to account for the fact that
+                            # fgt routers do not end in .1 as a rule
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
-                                else:
+                                elif first_octet == 10:
                                     not_added.append(host_info)
+                                elif first_octet ==172:
+                                    results.append(host_info)
                                     continue
                             else:
                                 if (host_info['Mac Address'] !=
@@ -1129,7 +1133,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 ip_list = get_ip_list()
 print(ip_list)
 # ip_list = ['10.10.31.0/24', '10.10.52.0/24']
-# ip_list = ['10.11.144.0/24']
+ip_list = ['10.7.2.0/24']
 main(ip_list)
 
 
