@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 
 from easysnmp import Session
-from nmap import PortScanner
-from ipaddress import ip_network
 import re
 import config as cfg
-from time import time
-from datetime import timedelta
 
 # Core router
 session = Session(hostname=cfg.snmp['hostname'],
@@ -22,7 +18,6 @@ def get_ips():
     Extract IP and subnet mask and add to ip_list. """
     split_list = []
     ip_list = []
-    ip_list_f = []
 
     # for subnet mask to extract IPs and subnet masks and add to ful_ip_list
     subnet_masks = session.walk(oid)
@@ -59,7 +54,6 @@ def get_ips():
     for item in ip_list:
         print(item)
     print(len(ip_list))
-
 
     final_list = []
     for item in ip_list:
