@@ -134,6 +134,7 @@ def connect(ip):
                 time_elapsed = endconn - startconn
                 print('Connection achieved in {} seconds'
                       .format(int(time_elapsed)))
+                print(net_connect)
                 return net_connect
 
             except(NetMikoTimeoutException,
@@ -308,7 +309,7 @@ def get_router_info(conn, host):
                                     results.append(host_info)
                                 elif first_octet == 10:
                                     not_added.append(host_info)
-                                elif first_octet ==172:
+                                elif first_octet == 172:
                                     results.append(host_info)
                                     continue
                             else:
