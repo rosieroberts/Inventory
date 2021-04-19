@@ -17,7 +17,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 
-from ips import get_ip_list
+from ips import get_ips
 import config as cfg
 
 
@@ -55,6 +55,7 @@ def main(ip_list):
     print(cfg.intro2)
 
     for ip in ip_list:
+        print(type(ip))
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
         if ip_address:
@@ -1130,14 +1131,15 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-ip_list = get_ip_list()
+ip_list = get_ips()
 print(ip_list)
-# ip_list = ['10.10.31.0/24', '10.10.52.0/24']
-ip_list = ['10.7.2.0/24']
+
+ip_list = ['172.31.0.97']
 main(ip_list)
 
 
 end = time()
 runtime = end - start
 runtime = str(timedelta(seconds=int(runtime)))
+
 print('\nScript Runtime: {} '.format(runtime))
