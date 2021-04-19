@@ -51,9 +51,6 @@ def get_ips():
         regex_value = regex_ip.search(item[0])
         if regex_value:
             ip_list.append(item)
-    for item in ip_list:
-        print(item)
-    print(len(ip_list))
 
     final_list = []
     for item in ip_list:
@@ -62,5 +59,3 @@ def get_ips():
     print(final_list)
     return final_list
 
-
-get_ips()
