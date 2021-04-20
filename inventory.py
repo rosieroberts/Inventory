@@ -60,7 +60,7 @@ def main(ip_list):
         clb_runtime_str = time()
 
         if ip_address:
-            # connect to router and get connect object and device type 
+            # connect to router and get connect object and device type
             # item returned [0]
             # device_type [1]
             router_connect = connect(str(ip))
@@ -140,7 +140,7 @@ def connect(ip):
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
 
-                print('connected') 
+                print('connected')
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print('Connection achieved in {} seconds'
@@ -183,7 +183,6 @@ def connect(ip):
         print('Connection to {} is not possible: '.format(ip))
         not_connected.append(ip)
         return None
-
 
 
 def get_router_info(conn, host, device_type):
@@ -232,7 +231,6 @@ def get_router_info(conn, host, device_type):
                         elif device_type == 'cisco_ios':
                             arp_table = conn.send_command('sh arp')
                             mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
-                                               
 
                     arp_list = arp_table.splitlines()
                     id_count = 1
@@ -989,7 +987,6 @@ def club_id(conn, host, device_type):
                                 # look for ID in router hostname
                                 raise OSError
 
-
                         if device_type == 'fortinet':
                             club_info = conn.send_command('show system snmp sysinfo')
                             # search club number '000' in club_info
@@ -1162,8 +1159,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 ip_list = get_ips()
 print(ip_list)
 
-ip_list = ['172.31.0.97'] # fortigate
-ip_list = ['172.31.2.3', '172.31.0.97'] # cisco
+ip_list = ['172.31.0.97']    # fortigate
+ip_list = ['172.31.2.3', '172.31.0.97']   # cisco
 
 main(ip_list)
 
