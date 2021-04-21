@@ -361,7 +361,7 @@ def get_router_info(conn, host, device_type):
                     print('Results complete...')
 
                     # make directory that will contain all full scans by date
-                    full_scan_dir = path.join('./full_scans')
+                    full_scan_dir = path.join('./scans/full_scans')
                     full_scan_dir_obj = Path(full_scan_dir)
                     full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
 
@@ -370,7 +370,7 @@ def get_router_info(conn, host, device_type):
                               .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
-                            './full_scans/full_scan{}.json'.format(
+                            './scans/full_scans/full_scan{}.json'.format(
                                 today.strftime('%m-%d-%Y')), 'a+')
 
                         for item in results:
@@ -419,7 +419,7 @@ def write_to_files(results, host):
     if len(results) != 0 or results is not None:
 
         # make directory that will contain individual scans by club
-        mydir = path.join('./baselines/{}'.format(results[0]['Location']))
+        mydir = path.join('./scans/baselines/{}'.format(results[0]['Location']))
         mydir_obj = Path(mydir)
         mydir_obj.mkdir(parents=True, exist_ok=True)
         club_base_file = open(
@@ -448,7 +448,7 @@ def csv(results, header_added):
         print('results', results[0])
 
         # create .csv file with full scan
-        with open('./full_scans/full_scan{}.csv'
+        with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
@@ -497,12 +497,12 @@ def diff(results, baseline):
         return None
 
     # make directory that will contain all scan statuses by date
-    mydir = path.join('./scan_status')
+    mydir = path.join('./scans/scan_status')
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # create file to write status of differences as they happen
-    status_file = open('./scan_status/scan_{}'
+    status_file = open('./scans/scan_status/scan_{}'
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club:
         status_file.write('\n\n')
@@ -749,17 +749,17 @@ def api_payload(all_diff):
 def api_call(club_id, add, remove, update):
 
     # make directory that will contain all scan statuses by date
-    mydir = path.join('./api_status')
+    mydir = path.join('./scans/api_status')
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # create file to write status of differences as they happen
-    status_file = open('./api_status/scan_{}'
+    status_file = open('./scans/api_status/scan_{}'
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club_id:
         club = str(club_id)
 
-    baseline_dir = path.join('./baselines/', club)
+    baseline_dir = path.join('./scans/baselines/', club)
 
     if club:
         status_file.write('\n\n')
@@ -929,7 +929,7 @@ def load_baseline(results):
         return None
 
     try:
-        club_bsln_path = './baselines/{}'.format(club)
+        club_bsln_path = './scans/baselines/{}'.format(club)
         # get list of all files in club baseline directory
         list_dir = listdir(club_bsln_path)
         if len(list_dir) > 1:
