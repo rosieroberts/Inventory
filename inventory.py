@@ -64,11 +64,12 @@ def main(ip_list):
             # item returned [0]
             # device_type [1]
             router_connect = connect(str(ip))
+
+        if router_connect:
             connect_obj = router_connect[0]
             device_type = router_connect[1]
-
-        if connect:
             if ip_address:
+                
                 results = get_router_info(connect_obj, str(ip), device_type)
                 write_to_files(results, str(ip))
             else:
@@ -103,7 +104,6 @@ def main(ip_list):
 
     print('\nThe following {} hosts were not scanned'
           .format(len(not_connected)))
-    print(not_connected)
     print('\nThe following {} clubs were scanned'.format(len(clubs)))
 
     return [add, remove, update]
@@ -140,7 +140,6 @@ def connect(ip):
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
 
-                print('connected')
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print('Connection achieved in {} seconds'
@@ -233,9 +232,11 @@ def get_router_info(conn, host, device_type):
                             mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
                     arp_list = arp_table.splitlines()
+                    ip_count = int(len(arp_list)) - 1
                     id_count = 1
                     print('Sending command to router... attempt', attempt2 + 1)
                     for item in arp_list:
+                        print('id_count ', id_count)
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
                         if ip_result is not None and mac_result is not None:
@@ -262,8 +263,8 @@ def get_router_info(conn, host, device_type):
                                 mac_result,
                                 vendor
                             )
-
                             if hostname is None:
+                                print('hostname is None')
                                 continue
 
                             url_loc = cfg.api_url_get_locations
@@ -272,7 +273,6 @@ def get_router_info(conn, host, device_type):
                                                             url=url_loc,
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
-
                             try:
                                 if loc_id_data.get('total') != 0:
                                     for itm in loc_id_data['rows']:
@@ -305,7 +305,6 @@ def get_router_info(conn, host, device_type):
                                 'Status': hostname['status'],
                                 'Status ID': hostname['status ID']
                             }
-
                             # The first value added to 'results'
                             # is the router value. This is only added if the
                             # host IP is 10.x.x.1.
@@ -320,11 +319,16 @@ def get_router_info(conn, host, device_type):
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
-                                elif first_octet == 10:
-                                    not_added.append(host_info)
+                                elif first_octet == 10 and last_octet != 1:
+                                    if len(not_added) != (ip_count-1):
+                                        not_added.append(host_info)
+                                        continue
+                                    else:
+                                        results.append(host_info)
                                 elif first_octet == 172:
                                     results.append(host_info)
-                                    continue
+                                else:
+                                    results.append(host_info)
                             else:
                                 if (host_info['Mac Address'] !=
                                         results[0]['Mac Address']):
@@ -333,7 +337,9 @@ def get_router_info(conn, host, device_type):
                                     continue
                             updated_id = get_id(results[-1]['Asset Tag'])
                             results[-1]['ID'] = updated_id
+                            print('id_count + 1 ', id_count + 1)
                             id_count += 1
+
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -343,8 +349,11 @@ def get_router_info(conn, host, device_type):
 
                     if not_added != 0:
                         for itm in not_added:
-                            if itm['Mac Address'] != results[0]['Mac Address']:
+                            if len(results) == 0:
                                 results.append(itm)
+                            else:
+                                if itm['Mac Address'] != results[0]['Mac Address']:
+                                    results.append(itm)
                     clubs.append(club_result)
                     print('Results complete...')
 
@@ -382,6 +391,10 @@ def get_router_info(conn, host, device_type):
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
+    print('return results get_router_info')
+    print(results)
+    print('f_results')
+    print(f_results)
     return results
 
 
@@ -991,15 +1004,17 @@ def club_id(conn, host, device_type):
                             club_info = conn.send_command('show system snmp sysinfo')
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
+                            club_result = None
                             print('Getting club ID... attempt', attempt + 1)
                             if club_number is not None:
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
                                 club_result = 'club' + str(club_number)
-                        # if pattern is not found
-                        if club_result is None:
-                            # look for ID in router hostname
-                            raise OSError
+                            # if pattern is not found
+                            if club_result is None:
+                                print('no club ID found')
+                                # look for ID in router hostname
+                                raise OSError
 
                     except(OSError):
                         if attempt == 0:
@@ -1015,25 +1030,8 @@ def club_id(conn, host, device_type):
                                 print('could not get club_id')
                                 return None
 
-                if fort_regex.search(host):
-                    try:
-                        hostname = host
-                        hostname_club_num = fort_regex.search(hostname)
-                        if hostname_club_num:
-                            club_num_result = hostname_club_num.group(0)
-                            club_result = str('club') + str(club_num_result)
-                            break
-                        if not hostname_club_num:
-                            print('could not get club_id, trying again')
-                            return None
-                    except OSError:
-                        if attempt == 0:
-                            print('Could not send command. Trying again')
-                            continue
-
                         if attempt > 0:
                             print('could not get club_id')
-                            return None
 
         club_result = club_result.lower()
         return club_result
@@ -1159,9 +1157,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 ip_list = get_ips()
 print(ip_list)
 
-ip_list = ['172.31.0.97']    # fortigate
-ip_list = ['172.31.2.3', '172.31.0.97']   # cisco
-
+#ip_list = ['172.31.0.97']    # fortigate
+#ip_list = ['172.31.2.3', '172.31.0.97', '172.31.0.8']   # cisco
 main(ip_list)
 
 
