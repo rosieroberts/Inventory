@@ -52,10 +52,11 @@ def get_ips():
         if regex_value:
             ip_list.append(item)
 
-    final_list = []
+    f_list = []
     for item in ip_list:
-        final_list.append(item[0])
+        f_list.append(item[0])
 
+    final_list = [item for item in f_list if item not in cfg.exclude_ips]
     print(final_list)
     return final_list
 
