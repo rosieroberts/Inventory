@@ -227,17 +227,20 @@ def get_router_info(conn, host, device_type):
                     if host_ip_type:
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
+                            print(arp_table)
                         elif device_type == 'cisco_ios':
                             arp_table = conn.send_command('sh arp')
                             mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
                     arp_list = arp_table.splitlines()
                     ip_count = int(len(arp_list)) - 1
+                    print('out of for loop')
                     id_count = 1
                     print('Sending command to router... attempt', attempt2 + 1)
                     for item in arp_list:
                         print('id_count ', id_count)
                         ip_result = ip_regex.search(item)
+                        print(ip_result)
                         mac_result = mac_regex.search(item)
                         if ip_result is not None and mac_result is not None:
                             ip_result = ip_result.group(0)
