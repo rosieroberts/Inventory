@@ -69,7 +69,7 @@ def main(ip_list):
             connect_obj = router_connect[0]
             device_type = router_connect[1]
             if ip_address:
-                
+
                 results = get_router_info(connect_obj, str(ip), device_type)
                 write_to_files(results, str(ip))
             else:
@@ -318,7 +318,7 @@ def get_router_info(conn, host, device_type):
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
                                 elif first_octet == 10 and last_octet != 1:
-                                    if len(not_added) != (ip_count-1):
+                                    if len(not_added) != (ip_count - 1):
                                         not_added.append(host_info)
                                         continue
                                     else:
@@ -337,7 +337,7 @@ def get_router_info(conn, host, device_type):
 
                             # compare ID to inventory in snipe-it and update ID if found
                             updated_id = get_id(results[-1]['Asset Tag'])
-                
+
                             if updated_id is not None:
                                 results[-1]['ID'] = updated_id
                             else:
@@ -366,7 +366,7 @@ def get_router_info(conn, host, device_type):
                                     else:
                                         results[-1]['ID'] = id_count
                                         id_count += 1
- 
+
                     clubs.append(club_result)
                     print('Results complete...')
 
@@ -762,7 +762,7 @@ def api_call(club_id, add, remove, update):
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club_id:
         club = str(club_id)
-    #possible bug -line below. When club is none, sends error
+    # possible bug -line below. When club is none, sends error
     baseline_dir = path.join('./scans/baselines/', club)
 
     if club:
