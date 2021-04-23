@@ -227,20 +227,16 @@ def get_router_info(conn, host, device_type):
                     if host_ip_type:
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
-                            print(arp_table)
                         elif device_type == 'cisco_ios':
                             arp_table = conn.send_command('sh arp')
                             mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
                     arp_list = arp_table.splitlines()
                     ip_count = int(len(arp_list)) - 1
-                    print('out of for loop')
                     id_count = 1
                     print('Sending command to router... attempt', attempt2 + 1)
                     for item in arp_list:
-                        print('id_count ', id_count)
                         ip_result = ip_regex.search(item)
-                        print(ip_result)
                         mac_result = mac_regex.search(item)
                         if ip_result is not None and mac_result is not None:
                             ip_result = ip_result.group(0)
@@ -267,7 +263,6 @@ def get_router_info(conn, host, device_type):
                                 vendor
                             )
                             if hostname is None:
-                                print('hostname is None')
                                 continue
 
                             url_loc = cfg.api_url_get_locations
@@ -337,12 +332,18 @@ def get_router_info(conn, host, device_type):
                                         results[0]['Mac Address']):
                                     results.append(host_info)
                                 else:
+                                    not_added.append(host_info)
                                     continue
-                            updated_id = get_id(results[-1]['Asset Tag'])
-                            results[-1]['ID'] = updated_id
-                            print('id_count + 1 ', id_count + 1)
-                            id_count += 1
 
+                            # compare ID to inventory in snipe-it and update ID if found
+                            updated_id = get_id(results[-1]['Asset Tag'])
+                
+                            if updated_id is not None:
+                                results[-1]['ID'] = updated_id
+                            else:
+                                results[-1]['ID'] = id_count
+
+                            id_count += 1
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -357,6 +358,15 @@ def get_router_info(conn, host, device_type):
                             else:
                                 if itm['Mac Address'] != results[0]['Mac Address']:
                                     results.append(itm)
+                                    # compare ID to inventory in snipe-it and update ID if found
+                                    updated_id = get_id(results[-1]['Asset Tag'])
+
+                                    if updated_id is not None:
+                                        results[-1]['ID'] = updated_id
+                                    else:
+                                        results[-1]['ID'] = id_count
+                                        id_count += 1
+ 
                     clubs.append(club_result)
                     print('Results complete...')
 
@@ -375,7 +385,6 @@ def get_router_info(conn, host, device_type):
 
                         for item in results:
                             club_output.write(dumps(item, indent=4))
-                            print(item)
                         club_output.close()
                     break
 
@@ -394,10 +403,8 @@ def get_router_info(conn, host, device_type):
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
-    print('return results get_router_info')
-    print(results)
-    print('f_results')
-    print(f_results)
+    for item in results:
+        print(item)
     return results
 
 
@@ -445,8 +452,6 @@ def csv(results, header_added):
             item.pop('Status ID')
             item.pop('Location ID')
 
-        print('results', results[0])
-
         # create .csv file with full scan
         with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
@@ -478,7 +483,6 @@ def diff(results, baseline):
 
     """
     print('diff')
-    print(results[0])
     club = results[0]['Location']
     update = []
     remove = []
@@ -758,7 +762,7 @@ def api_call(club_id, add, remove, update):
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club_id:
         club = str(club_id)
-
+    #possible bug -line below. When club is none, sends error
     baseline_dir = path.join('./scans/baselines/', club)
 
     if club:
@@ -901,13 +905,13 @@ def get_id(asset_tag):
         response = requests.request("GET", url=url, headers=cfg.api_headers)
 
         content = response.json()
-        result_id = content['id']
+        result_id = str(content['id'])
 
     except (KeyError,
             decoder.JSONDecodeError):
         result_id = None
 
-    return str(result_id)
+    return result_id
 
 
 def load_baseline(results):
@@ -1160,8 +1164,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 ip_list = get_ips()
 print(ip_list)
 
-#ip_list = ['172.31.0.97']    # fortigate
-#ip_list = ['172.31.2.3', '172.31.0.97', '172.31.0.8']   # cisco
+ip_list = ['172.31.0.24', '172.31.0.105', '172.31.0.53']
 main(ip_list)
 
 
