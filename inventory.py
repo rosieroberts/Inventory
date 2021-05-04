@@ -6,6 +6,7 @@ from csv import DictWriter
 from pathlib import Path
 from time import time
 from re import compile, IGNORECASE
+from copy import deepcopy
 from datetime import timedelta, date
 import requests
 import traceback
@@ -41,7 +42,6 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
-
     all_diff = []
     all_api_payload = []
     add = []
@@ -76,7 +76,8 @@ def main(ip_list):
                 results = None
                 write_to_files(results, str(ip))
 
-            all_diff = diff(results, load_baseline(results))
+            results_copy = deepcopy(results)
+            all_diff = diff(results_copy, load_baseline(results_copy))
 
             if all_diff:
                 all_api_payload = api_payload(all_diff)
@@ -85,7 +86,6 @@ def main(ip_list):
                     add = all_api_payload[0]
                     remove = all_api_payload[1]
                     update = all_api_payload[2]
-
                 api_call(results[0]['Location'], add, remove, update)
 
             csv(results, header_added)
@@ -233,7 +233,7 @@ def get_router_info(conn, host, device_type):
 
                     arp_list = arp_table.splitlines()
                     ip_count = int(len(arp_list)) - 1
-                    id_count = 1
+
                     print('Sending command to router... attempt', attempt2 + 1)
                     for item in arp_list:
                         ip_result = ip_regex.search(item)
@@ -289,7 +289,7 @@ def get_router_info(conn, host, device_type):
 
                             # for main results
                             host_info = {
-                                'ID': id_count,
+                                'ID': None,
                                 'Asset Tag': asset_tag,
                                 'IP': ip_result,
                                 'Location': club_result,
@@ -340,10 +340,6 @@ def get_router_info(conn, host, device_type):
 
                             if updated_id is not None:
                                 results[-1]['ID'] = updated_id
-                            else:
-                                results[-1]['ID'] = id_count
-
-                            id_count += 1
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -363,9 +359,6 @@ def get_router_info(conn, host, device_type):
 
                                     if updated_id is not None:
                                         results[-1]['ID'] = updated_id
-                                    else:
-                                        results[-1]['ID'] = id_count
-                                        id_count += 1
 
                     clubs.append(club_result)
                     print('Results complete...')
@@ -452,6 +445,7 @@ def csv(results, header_added):
             item.pop('Status ID')
             item.pop('Location ID')
 
+
         # create .csv file with full scan
         with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
@@ -482,7 +476,7 @@ def diff(results, baseline):
         function returns None
 
     """
-    print('diff')
+    print('Comparing to Prior Scan, Looking for Differences')
     club = results[0]['Location']
     update = []
     remove = []
@@ -536,6 +530,7 @@ def diff(results, baseline):
             print('\nDIFF ITEM', count)
             # find id of different item in baseline,
             # returns dict, otherwise None
+        
             id_in_baseline = next((item for item in baseline if
                                    diff_item['ID'] == item['ID']), None)
             # find mac address of different item in baseline,
@@ -712,7 +707,7 @@ def api_payload(all_diff):
         Raises:
             Does not raise an error, returns none if functions fails
     """
-
+    diff = deepcopy(all_diff)
     add = []
     remove = []
     update = []
@@ -723,9 +718,8 @@ def api_payload(all_diff):
 
     review = all_diff[3]
 
-    for list in all_diff:
+    for list in diff:
         for item in list:
-            print(item)
             item['_snipeit_mac_address_1'] = item.pop('Mac Address')
             item['_snipeit_ip_2'] = item.pop('IP')
             item['_snipeit_hostname_3'] = item.pop('Hostname')
@@ -736,16 +730,17 @@ def api_payload(all_diff):
             item.pop('Status')
             item['id'] = item.pop('ID')
 
-    add = all_diff[0]
-    remove = all_diff[1]
-    update = all_diff[2]
+    add = diff[0]
+    remove = diff[1]
+    update = diff[2]
 
     for item in add:
         item.pop('id')
 
-    print(add)
-    print(remove)
-    print(update)
+    print('add\n', add)
+    print('remove\n', remove)
+    print('update\n', update)
+    print('review\n', review)
 
     return [add, remove, update, review]
 
@@ -1162,9 +1157,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-print(ip_list)
 
-ip_list = ['172.31.0.24', '172.31.0.105', '172.31.0.53']
 main(ip_list)
 
 
