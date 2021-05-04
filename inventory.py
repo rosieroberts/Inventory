@@ -445,7 +445,6 @@ def csv(results, header_added):
             item.pop('Status ID')
             item.pop('Location ID')
 
-
         # create .csv file with full scan
         with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
@@ -530,7 +529,7 @@ def diff(results, baseline):
             print('\nDIFF ITEM', count)
             # find id of different item in baseline,
             # returns dict, otherwise None
-        
+
             id_in_baseline = next((item for item in baseline if
                                    diff_item['ID'] == item['ID']), None)
             # find mac address of different item in baseline,
