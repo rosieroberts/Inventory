@@ -96,15 +96,20 @@ def main(ip_list):
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
 
-        if connect:
+        if connect and results:
             print('\n{} Scan Runtime: {} '
                   .format(results[0]['Location'], clb_runtime))
         else:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
 
-    print('\nThe following {} hosts were not scanned'
+    print('\nThe following {} hosts were not scanned:'
           .format(len(not_connected)))
-    print('\nThe following {} clubs were scanned'.format(len(clubs)))
+    for item in not_connected:
+        print(not_connected)
+
+    print('\nThe following {} clubs were scanned:'.format(len(clubs)))
+    for item in clubs:
+        print(item)
 
     return [add, remove, update]
 
@@ -347,7 +352,7 @@ def get_router_info(conn, host, device_type):
                     # mac's, and if different, added to results to avoid
                     # duplicate values
 
-                    if not_added != 0:
+                    if not_added:
                         for itm in not_added:
                             if len(results) == 0:
                                 results.append(itm)
@@ -359,16 +364,16 @@ def get_router_info(conn, host, device_type):
 
                                     if updated_id is not None:
                                         results[-1]['ID'] = updated_id
-
-                    clubs.append(club_result)
-                    print('Results complete...')
+                    if club_result: 
+                        clubs.append(club_result)
 
                     # make directory that will contain all full scans by date
                     full_scan_dir = path.join('./scans/full_scans')
                     full_scan_dir_obj = Path(full_scan_dir)
                     full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
 
-                    if len(results) != 0:
+                    if results:
+                        print('Results complete...')
                         print('\nWriting {} results to files...'
                               .format(results[0]['Location']))
                         # writing full scan to .json
@@ -416,10 +421,15 @@ def write_to_files(results, host):
         if file already exists, results list is appended to
         end of existing file.
     """
-    if len(results) != 0 or results is not None:
+    
+    if results:
 
         # make directory that will contain individual scans by club
-        mydir = path.join('./scans/baselines/{}'.format(results[0]['Location']))
+        if results[0]['Location'] is not None:
+            mydir = path.join('./scans/baselines/{}'.format(results[0]['Location']))
+        else:
+            mydir = path.join('./scans/baselines/{}'.format(results[0]['IP']))
+
         mydir_obj = Path(mydir)
         mydir_obj.mkdir(parents=True, exist_ok=True)
         club_base_file = open(
@@ -437,9 +447,8 @@ def write_to_files(results, host):
 def csv(results, header_added):
     """ Write results to csv"""
 
-    keys = results[0].keys()
-
     if results:
+        keys = results[0].keys()
         for item in results:
             item.pop('ID')
             item.pop('Status ID')
@@ -475,8 +484,9 @@ def diff(results, baseline):
         function returns None
 
     """
-    print('Comparing to Prior Scan, Looking for Differences')
-    club = results[0]['Location']
+    if results:
+        print('Comparing to Prior Scan, Looking for Differences')
+        club = results[0]['Location']
     update = []
     remove = []
     review = []
@@ -484,7 +494,6 @@ def diff(results, baseline):
     all_diff = []
 
     if not results:
-        print('no results found')
         return None
     if not baseline:
         print('No prior baseline found')
@@ -1035,6 +1044,7 @@ def club_id(conn, host, device_type):
                             print('could not get club_id')
 
         club_result = club_result.lower()
+        print(type(club_result))
         return club_result
 
 
