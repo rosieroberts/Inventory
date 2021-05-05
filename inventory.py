@@ -6,9 +6,10 @@ from csv import DictWriter
 from pathlib import Path
 from time import time
 from re import compile, IGNORECASE
+from copy import deepcopy
 from datetime import timedelta, date
 import requests
-# import traceback
+import traceback
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -17,7 +18,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 
-from ips import get_ip_list
+from ips import get_ips
 import config as cfg
 
 
@@ -41,12 +42,12 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
-
     all_diff = []
     all_api_payload = []
     add = []
     remove = []
     update = []
+    connect_obj = None
 
     header_added = False
     ip_regex = compile(r'(?:\d+\.){3}\d+')
@@ -57,20 +58,26 @@ def main(ip_list):
     for ip in ip_list:
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
+
         if ip_address:
+            # connect to router and get connect object and device type
+            # item returned [0]
+            # device_type [1]
             router_connect = connect(str(ip))
-        else:
-            router_connect = None
 
         if router_connect:
+            connect_obj = router_connect[0]
+            device_type = router_connect[1]
             if ip_address:
-                results = get_router_info(router_connect, str(ip))
+
+                results = get_router_info(connect_obj, str(ip), device_type)
                 write_to_files(results, str(ip))
             else:
                 results = None
                 write_to_files(results, str(ip))
 
-            all_diff = diff(results, load_baseline(results))
+            results_copy = deepcopy(results)
+            all_diff = diff(results_copy, load_baseline(results_copy))
 
             if all_diff:
                 all_api_payload = api_payload(all_diff)
@@ -79,28 +86,30 @@ def main(ip_list):
                     add = all_api_payload[0]
                     remove = all_api_payload[1]
                     update = all_api_payload[2]
-
                 api_call(results[0]['Location'], add, remove, update)
 
             csv(results, header_added)
-            router_connect.disconnect()
+            connect_obj.disconnect()
 
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
 
-        if router_connect:
+        if connect and results:
             print('\n{} Scan Runtime: {} '
                   .format(results[0]['Location'], clb_runtime))
         else:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
 
-    print('\nThe following {} hosts were not scanned'
+    print('\nThe following {} hosts were not scanned:'
           .format(len(not_connected)))
-    print(not_connected)
-    print('\nThe following {} clubs were scanned'.format(len(clubs)))
-    print(clubs)
+    for item in not_connected:
+        print(item)
+
+    print('\nThe following {} clubs were scanned:'.format(len(clubs)))
+    for item in clubs:
+        print(item)
 
     return [add, remove, update]
 
@@ -123,17 +132,25 @@ def connect(ip):
         for attempt in range(2):
             startconn = time()
             try:
-                net_connect = ConnectHandler(device_type='cisco_ios',
+                print('\nConnecting... attempt', attempt + 1)
+                if ip in cfg.routers_cisco:
+                    device_type = 'cisco_ios'
+
+                else:
+                    device_type = 'fortinet'
+
+                net_connect = ConnectHandler(device_type=device_type,
                                              host=ip,
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
                                              blocking_timeout=20)
-                print('\nConnecting... attempt', attempt + 1)
+
                 endconn = time()
                 time_elapsed = endconn - startconn
                 print('Connection achieved in {} seconds'
                       .format(int(time_elapsed)))
-                return net_connect
+
+                return net_connect, device_type
 
             except(NetMikoTimeoutException,
                    NetMikoAuthenticationException,
@@ -142,7 +159,7 @@ def connect(ip):
                    ValueError,
                    EOFError):
 
-                # traceback.print_exc()
+                traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan ip to see if port 22 is open,
                 # if it is open try to connect again
@@ -172,7 +189,7 @@ def connect(ip):
         return None
 
 
-def get_router_info(conn, host):
+def get_router_info(conn, host, device_type):
     """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
     information in a list of dictionaries per location.
@@ -200,27 +217,29 @@ def get_router_info(conn, host):
         list of failed results for investigation.
     """
     start2 = time()
-    club_result = club_id(conn, host)
+    club_result = club_id(conn, host, device_type)
     results = []  # main inventory results
     f_results = []  # list of failed results
-    mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
+    mac_regex = compile(r'([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
 
     for _ in range(1):
         for attempt2 in range(2):
-            results = None
             if conn is not None:
                 try:
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
-                        arp_table = conn.send_command('sh arp')
-                    else:
-                        arp_table = conn.send_command('get system arp')
+                        if device_type == 'fortinet':
+                            arp_table = conn.send_command('get system arp')
+                        elif device_type == 'cisco_ios':
+                            arp_table = conn.send_command('sh arp')
+                            mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
                     arp_list = arp_table.splitlines()
+                    ip_count = int(len(arp_list)) - 1
+
                     print('Sending command to router... attempt', attempt2 + 1)
-                    id_count = 1
                     for item in arp_list:
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
@@ -248,7 +267,6 @@ def get_router_info(conn, host):
                                 mac_result,
                                 vendor
                             )
-
                             if hostname is None:
                                 continue
 
@@ -258,7 +276,6 @@ def get_router_info(conn, host):
                                                             url=url_loc,
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
-
                             try:
                                 if loc_id_data.get('total') != 0:
                                     for itm in loc_id_data['rows']:
@@ -277,7 +294,7 @@ def get_router_info(conn, host):
 
                             # for main results
                             host_info = {
-                                'ID': id_count,
+                                'ID': None,
                                 'Asset Tag': asset_tag,
                                 'IP': ip_result,
                                 'Location': club_result,
@@ -291,7 +308,6 @@ def get_router_info(conn, host):
                                 'Status': hostname['status'],
                                 'Status ID': hostname['status ID']
                             }
-
                             # The first value added to 'results'
                             # is the router value. This is only added if the
                             # host IP is 10.x.x.1.
@@ -300,21 +316,35 @@ def get_router_info(conn, host):
                             # If the mac address is the same,
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
+
+                            # fix this code to account for the fact that
+                            # fgt routers do not end in .1 as a rule
                             if len(results) == 0:
                                 if first_octet == 10 and last_octet == 1:
                                     results.append(host_info)
+                                elif first_octet == 10 and last_octet != 1:
+                                    if len(not_added) != (ip_count - 1):
+                                        not_added.append(host_info)
+                                        continue
+                                    else:
+                                        results.append(host_info)
+                                elif first_octet == 172:
+                                    results.append(host_info)
                                 else:
-                                    not_added.append(host_info)
-                                    continue
+                                    results.append(host_info)
                             else:
                                 if (host_info['Mac Address'] !=
                                         results[0]['Mac Address']):
                                     results.append(host_info)
                                 else:
+                                    not_added.append(host_info)
                                     continue
+
+                            # compare ID to inventory in snipe-it and update ID if found
                             updated_id = get_id(results[-1]['Asset Tag'])
-                            results[-1]['ID'] = updated_id
-                            id_count += 1
+
+                            if updated_id is not None:
+                                results[-1]['ID'] = updated_id
 
                     # when the first value in sh arp is not 10.x.x.1 items
                     # are added to not_added list until it finds the router.
@@ -322,29 +352,37 @@ def get_router_info(conn, host):
                     # mac's, and if different, added to results to avoid
                     # duplicate values
 
-                    if not_added != 0:
+                    if not_added:
                         for itm in not_added:
-                            if itm['Mac Address'] != results[0]['Mac Address']:
+                            if len(results) == 0:
                                 results.append(itm)
-                    clubs.append(club_result)
-                    print('Results complete...')
+                            else:
+                                if itm['Mac Address'] != results[0]['Mac Address']:
+                                    results.append(itm)
+                                    # compare ID to inventory in snipe-it and update ID if found
+                                    updated_id = get_id(results[-1]['Asset Tag'])
+
+                                    if updated_id is not None:
+                                        results[-1]['ID'] = updated_id
+                    if club_result:
+                        clubs.append(club_result)
 
                     # make directory that will contain all full scans by date
-                    full_scan_dir = path.join('./full_scans')
+                    full_scan_dir = path.join('./scans/full_scans')
                     full_scan_dir_obj = Path(full_scan_dir)
                     full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
 
-                    if len(results) != 0:
+                    if results:
+                        print('Results complete...')
                         print('\nWriting {} results to files...'
                               .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
-                            './full_scans/full_scan{}.json'.format(
+                            './scans/full_scans/full_scan{}.json'.format(
                                 today.strftime('%m-%d-%Y')), 'a+')
 
                         for item in results:
                             club_output.write(dumps(item, indent=4))
-                            print(item)
                         club_output.close()
                     break
 
@@ -363,6 +401,8 @@ def get_router_info(conn, host):
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
+    for item in results:
+        print(item)
     return results
 
 
@@ -381,17 +421,21 @@ def write_to_files(results, host):
         if file already exists, results list is appended to
         end of existing file.
     """
-    if len(results) != 0 or results is not None:
+
+    if results:
 
         # make directory that will contain individual scans by club
-        mydir = path.join('./baselines/{}'.format(results[0]['Location']))
+        if results[0]['Location'] is not None:
+            mydir = path.join('./scans/baselines/{}'.format(results[0]['Location']))
+        else:
+            mydir = path.join('./scans/baselines/{}'.format(results[0]['IP']))
+
         mydir_obj = Path(mydir)
         mydir_obj.mkdir(parents=True, exist_ok=True)
         club_base_file = open(
             mydir + '/{}_{}.json'.format(results[0]['Location'],
                                          today.strftime('%m-%d-%Y')), 'w+')
         # dump .json file for each raw club scan in directory
-        print(results[0])
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
 
@@ -403,18 +447,15 @@ def write_to_files(results, host):
 def csv(results, header_added):
     """ Write results to csv"""
 
-    keys = results[0].keys()
-
     if results:
+        keys = results[0].keys()
         for item in results:
             item.pop('ID')
             item.pop('Status ID')
             item.pop('Location ID')
 
-        print('results', results[0])
-
         # create .csv file with full scan
-        with open('./full_scans/full_scan{}.csv'
+        with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
@@ -443,9 +484,9 @@ def diff(results, baseline):
         function returns None
 
     """
-    print('diff')
-    print(results[0])
-    club = results[0]['Location']
+    if results:
+        print('Comparing to Prior Scan, Looking for Differences')
+        club = results[0]['Location']
     update = []
     remove = []
     review = []
@@ -453,7 +494,6 @@ def diff(results, baseline):
     all_diff = []
 
     if not results:
-        print('no results found')
         return None
     if not baseline:
         print('No prior baseline found')
@@ -463,12 +503,12 @@ def diff(results, baseline):
         return None
 
     # make directory that will contain all scan statuses by date
-    mydir = path.join('./scan_status')
+    mydir = path.join('./scans/scan_status')
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # create file to write status of differences as they happen
-    status_file = open('./scan_status/scan_{}'
+    status_file = open('./scans/scan_status/scan_{}'
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club:
         status_file.write('\n\n')
@@ -498,6 +538,7 @@ def diff(results, baseline):
             print('\nDIFF ITEM', count)
             # find id of different item in baseline,
             # returns dict, otherwise None
+
             id_in_baseline = next((item for item in baseline if
                                    diff_item['ID'] == item['ID']), None)
             # find mac address of different item in baseline,
@@ -674,7 +715,7 @@ def api_payload(all_diff):
         Raises:
             Does not raise an error, returns none if functions fails
     """
-
+    diff = deepcopy(all_diff)
     add = []
     remove = []
     update = []
@@ -685,9 +726,8 @@ def api_payload(all_diff):
 
     review = all_diff[3]
 
-    for list in all_diff:
+    for list in diff:
         for item in list:
-            print(item)
             item['_snipeit_mac_address_1'] = item.pop('Mac Address')
             item['_snipeit_ip_2'] = item.pop('IP')
             item['_snipeit_hostname_3'] = item.pop('Hostname')
@@ -698,16 +738,17 @@ def api_payload(all_diff):
             item.pop('Status')
             item['id'] = item.pop('ID')
 
-    add = all_diff[0]
-    remove = all_diff[1]
-    update = all_diff[2]
+    add = diff[0]
+    remove = diff[1]
+    update = diff[2]
 
     for item in add:
         item.pop('id')
 
-    print(add)
-    print(remove)
-    print(update)
+    print('add\n', add)
+    print('remove\n', remove)
+    print('update\n', update)
+    print('review\n', review)
 
     return [add, remove, update, review]
 
@@ -715,17 +756,17 @@ def api_payload(all_diff):
 def api_call(club_id, add, remove, update):
 
     # make directory that will contain all scan statuses by date
-    mydir = path.join('./api_status')
+    mydir = path.join('./scans/api_status')
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # create file to write status of differences as they happen
-    status_file = open('./api_status/scan_{}'
+    status_file = open('./scans/api_status/scan_{}'
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club_id:
         club = str(club_id)
-
-    baseline_dir = path.join('./baselines/', club)
+    # possible bug -line below. When club is none, sends error
+    baseline_dir = path.join('./scans/baselines/', club)
 
     if club:
         status_file.write('\n\n')
@@ -867,13 +908,13 @@ def get_id(asset_tag):
         response = requests.request("GET", url=url, headers=cfg.api_headers)
 
         content = response.json()
-        result_id = content['id']
+        result_id = str(content['id'])
 
     except (KeyError,
             decoder.JSONDecodeError):
         result_id = None
 
-    return str(result_id)
+    return result_id
 
 
 def load_baseline(results):
@@ -895,7 +936,7 @@ def load_baseline(results):
         return None
 
     try:
-        club_bsln_path = './baselines/{}'.format(club)
+        club_bsln_path = './scans/baselines/{}'.format(club)
         # get list of all files in club baseline directory
         list_dir = listdir(club_bsln_path)
         if len(list_dir) > 1:
@@ -925,7 +966,7 @@ def load_baseline(results):
         return None
 
 
-def club_id(conn, host):
+def club_id(conn, host, device_type):
     """Sends command to router to retrieve location ID information.
     if not found, attempts to get location ID using get_hostnames()
 
@@ -942,33 +983,48 @@ def club_id(conn, host):
     """
     club_rgx = compile(cfg.club_rgx)
     reg_rgx = compile(cfg.reg_rgx)
-    fort_regex = compile(r'(^[0-9]{3}(?=-fgt-))', IGNORECASE)
+    fort_regex = compile(r'([0-9]{3}(?=-fgt-))', IGNORECASE)
     ip_regex = compile(r'(?:\d+\.){3}\d+')
-
     for _ in range(1):
         for attempt in range(2):
-            print(attempt)
             if conn is not None:
                 if ip_regex.search(host):
                     try:
-                        # send command to get hostname
-                        club_info = conn.send_command('sh run | inc hostname')
-                        # search club pattern 'club000' in club_info
-                        club_result = club_rgx.search(club_info)
-                        print('Getting club ID... attempt', attempt + 1)
-                        # if club pattern is not found
-                        if club_result is None:
-                            # search for regional pattern
-                            club_result = reg_rgx.search(club_info)
-                        # if regional pattern found
-                        if club_result is not None:
-                            # club_result returns reg pattern 'reg-000'
-                            club_result = club_result.group(0)
-                            break
-                        # if reg pattern is not found
-                        if club_result is None:
-                            # look for ID in router hostname
-                            raise OSError
+                        if device_type == 'cisco_ios':
+                            # send command to get hostname
+                            club_info = conn.send_command('sh run | inc hostname')
+                            # search club pattern 'club000' in club_info
+                            club_result = club_rgx.search(club_info)
+                            print('Getting club ID... attempt', attempt + 1)
+                            # if club pattern is not found
+                            if club_result is None:
+                                # search for regional pattern
+                                club_result = reg_rgx.search(club_info)
+                            # if regional pattern found
+                            if club_result is not None:
+                                # club_result returns reg pattern 'reg-000'
+                                club_result = club_result.group(0)
+                                break
+                            # if reg pattern is not found
+                            if club_result is None:
+                                # look for ID in router hostname
+                                raise OSError
+
+                        if device_type == 'fortinet':
+                            club_info = conn.send_command('show system snmp sysinfo')
+                            # search club number '000' in club_info
+                            club_number = fort_regex.search(club_info)
+                            club_result = None
+                            print('Getting club ID... attempt', attempt + 1)
+                            if club_number is not None:
+                                # club_number returns reg pattern '000'
+                                club_number = club_number.group(0)
+                                club_result = 'club' + str(club_number)
+                            # if pattern is not found
+                            if club_result is None:
+                                print('no club ID found')
+                                # look for ID in router hostname
+                                raise OSError
 
                     except(OSError):
                         if attempt == 0:
@@ -984,28 +1040,11 @@ def club_id(conn, host):
                                 print('could not get club_id')
                                 return None
 
-                if fort_regex.search(host):
-                    try:
-                        hostname = host
-                        hostname_club_num = fort_regex.search(hostname)
-                        if hostname_club_num:
-                            club_num_result = hostname_club_num.group(0)
-                            club_result = str('club') + str(club_num_result)
-                            print(club_result)
-                            break
-                        if not hostname_club_num:
-                            print('could not get club_id, trying again')
-                            return None
-                    except OSError:
-                        if attempt == 0:
-                            print('Could not send command. Trying again')
-                            continue
-
                         if attempt > 0:
                             print('could not get club_id')
-                            return None
 
         club_result = club_result.lower()
+        print(type(club_result))
         return club_result
 
 
@@ -1126,14 +1165,13 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-ip_list = get_ip_list()
-print(ip_list)
-# ip_list = ['10.10.31.0/24', '10.10.52.0/24']
-# ip_list = ['10.11.144.0/24']
+ip_list = get_ips()
+
 main(ip_list)
 
 
 end = time()
 runtime = end - start
 runtime = str(timedelta(seconds=int(runtime)))
+
 print('\nScript Runtime: {} '.format(runtime))
