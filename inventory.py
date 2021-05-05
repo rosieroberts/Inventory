@@ -364,7 +364,7 @@ def get_router_info(conn, host, device_type):
 
                                     if updated_id is not None:
                                         results[-1]['ID'] = updated_id
-                    if club_result: 
+                    if club_result:
                         clubs.append(club_result)
 
                     # make directory that will contain all full scans by date
@@ -421,7 +421,7 @@ def write_to_files(results, host):
         if file already exists, results list is appended to
         end of existing file.
     """
-    
+
     if results:
 
         # make directory that will contain individual scans by club

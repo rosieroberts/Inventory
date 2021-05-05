@@ -59,4 +59,3 @@ def get_ips():
     final_list = [item for item in f_list if item not in cfg.exclude_ips]
 
     return final_list
-
