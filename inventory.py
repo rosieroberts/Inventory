@@ -105,7 +105,7 @@ def main(ip_list):
     print('\nThe following {} hosts were not scanned:'
           .format(len(not_connected)))
     for item in not_connected:
-        print(not_connected)
+        print(item)
 
     print('\nThe following {} clubs were scanned:'.format(len(clubs)))
     for item in clubs:
