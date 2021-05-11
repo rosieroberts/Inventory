@@ -513,6 +513,7 @@ def diff(results, baseline):
     if club:
         status_file.write('\n\n')
         status_file.write(club.upper())
+        status_file.write('\n')
 
     not_in_baseline = list(filter(lambda item: item not in baseline, results))
     not_in_results = list(filter(lambda item: item not in results, baseline))
@@ -829,8 +830,8 @@ def api_call(club_id, add, remove, update):
                     print('could not update ID in baseline')
 
             if response.status_code == 401:
-                status_file.write('Unauthorized. Could not send'
-                                  'request to add new item'
+                status_file.write('Unauthorized. Could not send '
+                                  'request to add new item '
                                   'with asset-tag {} to Snipe-IT'
                                   .format(item['asset_tag']))
             if response.status_code == 422:
