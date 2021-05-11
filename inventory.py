@@ -276,21 +276,18 @@ def get_router_info(conn, host, device_type):
                                                             url=url_loc,
                                                             headers=cfg.api_headers)
                             loc_id_data = response_loc.json()
+                            loc_id = 'null'
                             try:
                                 if loc_id_data.get('total') != 0:
                                     for itm in loc_id_data['rows']:
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
-                                        else:
-                                            loc_id = None
-                                else:
-                                    loc_id = None
 
                             except KeyError:
+                                print('loc_id_except')
                                 loc_id = None
-
-                            if loc_id is None:
                                 loc_id = str(loc_id)
+                                print('Location ID is None for ', club_result)
 
                             # for main results
                             host_info = {
@@ -401,8 +398,10 @@ def get_router_info(conn, host, device_type):
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
+    print('********************SCAN RESULTS***********************************')
     for item in results:
         print(item)
+    print('*******************************************************************')
     return results
 
 
@@ -746,6 +745,7 @@ def api_payload(all_diff):
 
     for list in diff:
         for item in list:
+            print(item)
             item['_snipeit_mac_address_1'] = item.pop('Mac Address')
             item['_snipeit_ip_2'] = item.pop('IP')
             item['_snipeit_hostname_3'] = item.pop('Hostname')
@@ -794,18 +794,17 @@ def api_call(club_id, add, remove, update):
     if add:
         for item in add:
             url = cfg.api_url
-            print(url)
+            print('ADD URL\n', url)
             item_str = str(item)
-            item_str = item_str.replace('\'', '\"')
-            payload = str(item)
-            payload = item_str
-            print(payload)
+            payload = item_str.replace('\'', '\"')
+
+            print('---PAYLOAD\n', payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
                                         headers=cfg.api_headers)
 
-            print('RESPONSE POST----', response.text)
+            print('RESPONSE TEXT----\n', response.text)
             print(response.status_code)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
@@ -813,12 +812,12 @@ def api_call(club_id, add, remove, update):
                                   .format(item['asset_tag']))
 
                 url = cfg.api_url_get + str(item['asset_tag'])
-                print(url)
 
                 try:
                     response = requests.request("GET",
                                                 url=url,
                                                 headers=cfg.api_headers)
+                    print('***RESPONSE')
                     print(response.json())
                     item_w_id = response.json()
                     id = item_w_id['id']
@@ -1063,7 +1062,7 @@ def club_id(conn, host, device_type):
                             print('could not get club_id')
 
         club_result = club_result.lower()
-        print(type(club_result))
+
         return club_result
 
 
@@ -1096,9 +1095,9 @@ def get_hostnames(ip):
         if 'status' in scanner[ip]:
             host['status'] = scanner[ip]['status']['state']
         if host['status'] == 'up':
-            host['status ID'] = '4'
+            host['status ID'] = '5'
         if host['status'] == 'down':
-            host['status ID'] = '1'
+            host['status ID'] = '3'
 
         return host
 
@@ -1185,7 +1184,6 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-
 main(ip_list)
 
 
