@@ -491,6 +491,7 @@ def diff(results, baseline):
     remove = []
     review = []
     add = []
+    ID_update = []
     all_diff = []
 
     if not results:
@@ -562,16 +563,26 @@ def diff(results, baseline):
 
                 # if mac address is found in baseline with another ID
                 if mac_in_baseline:
-                    review.append(diff_item)
-                    if diff_item['ID'] != mac_in_baseline['ID']:
+                    if mac_in_baseline['ID'] is None:
+                        ID_update.append(diff_item)
                         msg2 = ('\nDevice with ID {} and Mac Address {} '
-                                '\nchanged to a different ID {}, '
-                                '\nneeds review\n'
-                                .format(mac_in_baseline['ID'],
-                                        diff_item['Mac Address'],
-                                        diff_item['ID']))
-                        print(msg2)
-                        status_file.write(msg2)
+                                    '\nupdated to a different ID {}, '
+                                    'in baseline\n'
+                                    .format(mac_in_baseline['ID'],
+                                            diff_item['Mac Address'],
+                                            diff_item['ID']))
+
+                    else:
+                        review.append(diff_item)
+                        if diff_item['ID'] != mac_in_baseline['ID']:
+                            msg2 = ('\nDevice with ID {} and Mac Address {} '
+                                    '\nchanged to a different ID {}, '
+                                    '\nneeds review\n'
+                                    .format(mac_in_baseline['ID'],
+                                            diff_item['Mac Address'],
+                                            diff_item['ID']))
+                    print(msg2)
+                    status_file.write(msg2)
 
             # if ID for different item is found in baseline
             if id_in_baseline:
@@ -618,14 +629,20 @@ def diff(results, baseline):
                                         mac_in_baseline['ID']))
                         print(msg5)
                         status_file.write(msg5)
+                # if mac is not found in baseline (new device)
                 else:
-                    review.append(diff_item)
-                    msg6 = ('\nDevice with ID {} and Mac Address {} '
-                            '\nhas a different mac address {}, '
-                            '\nneeds review\n'
-                            .format(diff_item['ID'],
-                                    id_in_baseline['Mac Address'],
-                                    diff_item['Mac Address']))
+                    if diff_item['ID'] is None:
+                        add.append(diff_item)
+                        msg6 = ('\nNew device with ID {} and Mac Address {} '
+                                'added\n'
+                                .format(diff_item['ID'],
+                                        diff_item['Mac Address']))
+                    else:
+                        review.append(diff_item)
+                        msg6 = ('\nDevice with ID {} and Mac Address {} '
+                                '\nneeds review\n'
+                                .format(diff_item['ID'],
+                                        diff_item['Mac Address']))
                     print(msg6)
                     status_file.write(msg6)
     # devices from baseline not found in results
@@ -772,6 +789,7 @@ def api_call(club_id, add, remove, update):
     if club:
         status_file.write('\n\n')
         status_file.write(club.upper())
+        status_file.write('\n')
 
     if add:
         for item in add:
