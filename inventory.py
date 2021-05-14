@@ -8,6 +8,7 @@ from time import time
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
+from pprint import pprint
 import requests
 import traceback
 
@@ -71,12 +72,16 @@ def main(ip_list):
             if ip_address:
 
                 results = get_router_info(connect_obj, str(ip), device_type)
-                write_to_files(results, str(ip))
             else:
                 results = None
-                write_to_files(results, str(ip))
 
             results_copy = deepcopy(results)
+
+            for item in results_copy:
+                item['ID'] = get_id(item['Asset Tag'])
+
+            write_to_files(results_copy, str(ip))
+
             all_diff = diff(results_copy, load_baseline(results_copy))
 
             if all_diff:
@@ -398,10 +403,9 @@ def get_router_info(conn, host, device_type):
     end2 = time()
     runtime2 = end2 - start2
     print('Club devices information was received in', runtime2)
-    print('********************SCAN RESULTS***********************************')
-    for item in results:
-        print(item)
-    print('*******************************************************************')
+    print('--------------------------SCAN RESULTS------------------------------')
+    pprint(results)
+    print('--------------------------------------------------------------------')
     return results
 
 
@@ -763,10 +767,10 @@ def api_payload(all_diff):
     for item in add:
         item.pop('id')
 
-    print('add\n', add)
-    print('remove\n', remove)
-    print('update\n', update)
-    print('review\n', review)
+    # print('add\n', add)
+    # print('remove\n', remove)
+    # print('update\n', update)
+    # print('review\n', review)
 
     return [add, remove, update, review]
 
@@ -793,6 +797,30 @@ def api_call(club_id, add, remove, update):
 
     if add:
         for item in add:
+            asset_tag = item['asset_tag']
+
+            try:
+                url = cfg.api_url_get + str(asset_tag)
+
+                response = requests.request("GET", url=url, headers=cfg.api_headers)
+
+                content = response.json()
+                tag = str(content['asset_tag'])
+                if tag:
+                    status_file.write('Cannot add item, asset_tag {} already exists '
+                                      'in Snipe-IT, review item\n{}'
+                                      .format(item['asset_tag'], item))
+
+
+            except (KeyError,
+                decoder.JSONDecodeError):
+                tag = None
+
+            if tag is not None:
+                print('Cannot add item to Snipe-IT, asset tag {} already exists.'
+                      .format(item['asset_tag']))
+                continue
+
             url = cfg.api_url
             print('ADD URL\n', url)
             item_str = str(item)
@@ -804,7 +832,8 @@ def api_call(club_id, add, remove, update):
                                         data=payload,
                                         headers=cfg.api_headers)
 
-            print('RESPONSE TEXT----\n', response.text)
+            print('RESPONSE TEXT----\n')
+            pprint(response.text)
             print(response.status_code)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
@@ -812,39 +841,6 @@ def api_call(club_id, add, remove, update):
                                   .format(item['asset_tag']))
 
                 url = cfg.api_url_get + str(item['asset_tag'])
-
-                try:
-                    response = requests.request("GET",
-                                                url=url,
-                                                headers=cfg.api_headers)
-                    print('***RESPONSE')
-                    print(response.json())
-                    item_w_id = response.json()
-                    id = item_w_id['id']
-
-                    club_base = open(baseline_dir + '/{}_{}.json'
-                                     .format(club,
-                                             today.strftime('%m-%d-%Y')))
-
-                    results = load(club_base)
-
-                    club_base_dump = open(baseline_dir + '/{}_{}.json'
-                                          .format(club,
-                                                  today.strftime('%m-%d-%Y')), 'w')
-
-                    results_upd = []
-                    for itm in results:
-                        if itm['Asset Tag'] == item['asset_tag']:
-                            print('*************************before item ID', itm['ID'])
-                            itm['ID'] = id
-                            print('*************************after item ID', itm['ID'])
-                        results_upd.append(itm)
-                    # dump .json file for each updated item
-                    dump(results_upd, club_base_dump, indent=4)
-                    club_base_dump.close()
-
-                except KeyError:
-                    print('could not update ID in baseline')
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send '
@@ -864,7 +860,7 @@ def api_call(club_id, add, remove, update):
             response = requests.request("DELETE",
                                         url=url,
                                         headers=cfg.api_headers)
-            print(response.text)
+            pprint(response.text)
 
             if response.status_code == 200:
                 status_file.write('Sent request to remove item'
@@ -892,7 +888,7 @@ def api_call(club_id, add, remove, update):
                                         url=url,
                                         data=payload,
                                         headers=cfg.api_headers)
-            print(response.text)
+            pprint(response.text)
 
             if response.status_code == 200:
                 status_file.write('Sent request to update item'
@@ -978,6 +974,8 @@ def load_baseline(results):
         output = open(baseline_path)
         baseline = load(output)
         output.close()
+        for item in baseline:
+            item['ID'] = get_id(item['Asset Tag'])
         return baseline
 
     except FileNotFoundError:
@@ -1184,6 +1182,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
+ip_list = ['172.31.2.128']
 main(ip_list)
 
 
