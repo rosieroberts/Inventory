@@ -482,6 +482,62 @@ def csv(results, header_added):
         print('No results written to .csv file')
 
 
+def check_if_remove(diff_item):
+    """ Check if record has not been in baseline for last 4 scans (weeks)"""
+    baselines = last_4_baselines(diff_item)
+
+    if baselines is None:
+        return False
+
+    baseline_1 = baselines[0]
+    baseline_2 = baselines[1]
+    baseline_3 = baselines[2]
+    baseline_4 = baselines[3]
+
+    id_found = next((itm for itm in baseline_1 if 
+                     diff_item['ID'] == itm['ID']), None)
+
+    mac_found = next((item for item in baseline_1 if
+                      diff_item['Mac Address'] ==
+                      item['Mac Address']), None)
+
+    if id_found is not None and mac_found is not None:
+        return False
+
+    id_found_2 = next((itm for itm in baseline_2 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_2 = next((item for item in baseline_2 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+
+    if id_found_2 is not None and mac_found_2 is not None:
+        return False
+
+    id_found_3 = next((itm for itm in baseline_3 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_3 = next((item for item in baseline_3 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+
+    if id_found_3 is not None and mac_found_3 is not None:
+        return False
+
+    id_found_4 = next((itm for itm in baseline_4 if
+                     diff_item['ID'] == itm['ID']), None)
+
+    mac_found_4 = next((item for item in baseline_4 if
+                      diff_item['Mac Address'] ==
+                      item['Mac Address']), None)
+
+    if id_found_4 is not None and mac_found_4 is not None:
+        return False
+
+    else:
+        return True
+
+
 def diff(results, baseline):
     """ Function to get differences between current and prior scans
     by date of scan.
@@ -678,16 +734,20 @@ def diff(results, baseline):
             if not id_in_results:
                 # if Mac Address is not found elsewhere in results
                 if not mac_in_results:
-                    count += 1
-                    print('\nDIFF ITEM', count)
-                    remove.append(diff_item)
-                    msg7 = ('\nDevice with ID {} and Mac Address {} '
-                            '\nno longer found, '
-                            'has been removed\n'
-                            .format(diff_item['ID'],
-                                    diff_item['Mac Address']))
-                    print(msg7)
-                    status_file.write(msg7)
+                    print('diff_item\n', diff_item)
+
+                    check_if_remove(diff_item)
+                    if check_if_remove is True:
+                        count += 1
+                        print('\nDIFF ITEM', count)
+                        remove.append(diff_item)
+                        msg7 = ('\nDevice with ID {} and Mac Address {} '
+                                '\nno longer found, '
+                                'has been removed\n'
+                                .format(diff_item['ID'],
+                                        diff_item['Mac Address']))
+                        print(msg7)
+                        status_file.write(msg7)
 
     # if hostname does not match location in scan, write message in status file
     if results[0]['Hostname'] != '':
@@ -995,6 +1055,66 @@ def load_baseline(results):
         return None
 
 
+def last_4_baselines(diff_item):
+    """Opens and loads prior 4 scans as baselines for use in remove_record()
+
+        Args:
+            item from differences that no longer appears in results
+
+        Returns:
+            list of 4 baselines - list of dictionary items from baseline in prior 4 scans
+
+        Raises:
+            Does not raise an error. If there is no baseline, returns None
+    """
+    if diff_item:
+        club = diff_item['Location']
+    else:
+        return None
+
+    try:
+        club_bsln_path = './scans/baselines/{}'.format(club)
+        # get list of all files in club baseline directory
+        list_dir = listdir(club_bsln_path)
+        if len(list_dir) >= 4:
+            # sort list to find latest 4 baselines
+            sorted_list_dir = sorted(list_dir)
+            bline_1 = sorted_list_dir[-1]
+            bline_2 = sorted_list_dir[-2]
+            bline_3 = sorted_list_dir[-3]
+            bline_4 = sorted_list_dir[-4]
+
+            # full path of baselines
+            baseline_1_path = path.join(club_bsln_path, str(bline_1))
+            baseline_2_path = path.join(club_bsln_path, str(bline_2))
+            baseline_3_path = path.join(club_bsln_path, str(bline_3))
+            baseline_4_path = path.join(club_bsln_path, str(bline_4))
+
+        else:
+            return None
+
+        output_1 = open(baseline_1_path)
+        baseline_1 = load(output_1)
+        output_1.close()
+
+        output_2 = open(baseline_2_path)
+        baseline_2 = load(output_2)
+        output_2.close()
+
+        output_3 = open(baseline_3_path)
+        baseline_3 = load(output_3)
+        output_3.close()
+
+        output_4 = open(baseline_4_path)
+        baseline_4 = load(output_4)
+        output_4.close()
+
+        return baseline_1, baseline_2, baseline_3, baseline_4
+
+    except FileNotFoundError:
+        return None
+
+
 def club_id(conn, host, device_type):
     """Sends command to router to retrieve location ID information.
     if not found, attempts to get location ID using get_hostnames()
@@ -1195,7 +1315,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-ip_list = ['172.31.0.70']
+# ip_list = ['172.31.0.70']
 main(ip_list)
 
 
