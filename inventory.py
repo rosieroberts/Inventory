@@ -9,6 +9,7 @@ from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
 from pprint import pprint
+from ipaddress import ip_address, ip_network
 import requests
 import traceback
 
@@ -228,6 +229,7 @@ def get_router_info(conn, host, device_type):
     mac_regex = compile(r'([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
+    ip_ranges = ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16']
 
     for _ in range(1):
         for attempt2 in range(2):
@@ -235,6 +237,7 @@ def get_router_info(conn, host, device_type):
                 try:
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
+                        print('Sending command to router... attempt', attempt2 + 1)
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
                         elif device_type == 'cisco_ios':
@@ -243,9 +246,19 @@ def get_router_info(conn, host, device_type):
 
                     arp_list = arp_table.splitlines()
                     ip_count = int(len(arp_list)) - 1
+                    arp_list_upd = []
 
-                    print('Sending command to router... attempt', attempt2 + 1)
+                    # Remove IPs not within ip_ranges
                     for item in arp_list:
+                        ip_result = ip_regex.search(item)
+                        if ip_result is not None:
+                            ip_result = ip_result.group(0)
+                            ip_add = ip_address(ip_result)
+                            for ip_range in ip_ranges:
+                                if ip_add in ip_network(ip_range):
+                                    arp_list_upd.append(item)
+
+                    for item in arp_list_upd:
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
                         if ip_result is not None and mac_result is not None:
@@ -1182,7 +1195,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-ip_list = ['172.31.2.128']
+ip_list = ['172.31.0.70']
 main(ip_list)
 
 
