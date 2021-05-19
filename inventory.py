@@ -245,7 +245,6 @@ def get_router_info(conn, host, device_type):
                             mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
 
                     arp_list = arp_table.splitlines()
-                    ip_count = int(len(arp_list)) - 1
                     arp_list_upd = []
 
                     # Remove IPs not within ip_ranges
@@ -257,6 +256,8 @@ def get_router_info(conn, host, device_type):
                             for ip_range in ip_ranges:
                                 if ip_add in ip_network(ip_range):
                                     arp_list_upd.append(item)
+
+                    ip_count = int(len(arp_list_upd)) - 1
 
                     for item in arp_list_upd:
                         ip_result = ip_regex.search(item)
