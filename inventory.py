@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from os import path, listdir
-from json import dumps, dump, load, decoder
+from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -229,7 +229,7 @@ def get_router_info(conn, host, device_type):
     mac_regex = compile(r'([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     not_added = []
-    ip_ranges = ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16']
+    ip_ranges = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
 
     for _ in range(1):
         for attempt2 in range(2):
@@ -494,7 +494,7 @@ def check_if_remove(diff_item):
     baseline_3 = baselines[2]
     baseline_4 = baselines[3]
 
-    id_found = next((itm for itm in baseline_1 if 
+    id_found = next((itm for itm in baseline_1 if
                      diff_item['ID'] == itm['ID']), None)
 
     mac_found = next((item for item in baseline_1 if
@@ -525,11 +525,11 @@ def check_if_remove(diff_item):
         return False
 
     id_found_4 = next((itm for itm in baseline_4 if
-                     diff_item['ID'] == itm['ID']), None)
+                       diff_item['ID'] == itm['ID']), None)
 
     mac_found_4 = next((item for item in baseline_4 if
-                      diff_item['Mac Address'] ==
-                      item['Mac Address']), None)
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
 
     if id_found_4 is not None and mac_found_4 is not None:
         return False
@@ -563,7 +563,7 @@ def diff(results, baseline):
     remove = []
     review = []
     add = []
-    ID_update = []
+    id_update = []
     all_diff = []
 
     if not results:
@@ -636,13 +636,13 @@ def diff(results, baseline):
                 # if mac address is found in baseline with another ID
                 if mac_in_baseline:
                     if mac_in_baseline['ID'] is None:
-                        ID_update.append(diff_item)
+                        id_update.append(diff_item)
                         msg2 = ('\nDevice with ID {} and Mac Address {} '
-                                    '\nupdated to a different ID {}, '
-                                    'in baseline\n'
-                                    .format(mac_in_baseline['ID'],
-                                            diff_item['Mac Address'],
-                                            diff_item['ID']))
+                                '\nupdated to a different ID {}, '
+                                'in baseline\n'
+                                .format(mac_in_baseline['ID'],
+                                        diff_item['Mac Address'],
+                                        diff_item['ID']))
 
                     else:
                         review.append(diff_item)
@@ -861,7 +861,7 @@ def api_call(club_id, add, remove, update):
     if club_id:
         club = str(club_id)
     # possible bug -line below. When club is none, sends error
-    baseline_dir = path.join('./scans/baselines/', club)
+    # baseline_dir = path.join('./scans/baselines/', club)
 
     if club:
         status_file.write('\n\n')
@@ -884,9 +884,8 @@ def api_call(club_id, add, remove, update):
                                       'in Snipe-IT, review item\n{}'
                                       .format(item['asset_tag'], item))
 
-
             except (KeyError,
-                decoder.JSONDecodeError):
+                    decoder.JSONDecodeError):
                 tag = None
 
             if tag is not None:
