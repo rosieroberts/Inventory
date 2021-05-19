@@ -339,11 +339,13 @@ def get_router_info(conn, host, device_type):
                                 if first_octet == 10:
                                     if last_octet == 1:
                                         results.append(host_info)
+                                    else:
                                         if len(not_added) != (ip_count - 1):
                                             not_added.append(host_info)
                                             continue
                                         else:
                                             results.append(host_info)
+
                                 elif first_octet == 172:
                                     results.append(host_info)
                                 else:
