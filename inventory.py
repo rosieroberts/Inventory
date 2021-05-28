@@ -456,7 +456,7 @@ def write_to_files(results, host):
                                          today.strftime('%m-%d-%Y')), 'w+')
 
         for item in results:
-            if item['ID'] == None:
+            if item['ID'] is None:
                 print('Updating new entries with ID from snipe-IT')
                 item_id = get_id(item['Asset Tag'])
                 if item_id:
@@ -594,7 +594,7 @@ def diff(results, baseline):
     if baseline is None:
         print('No prior baseline found')
         for item in results:
-            if item['ID'] == None:
+            if item['ID'] is None:
                 print('Checking snipe-it for record')
                 item_id = get_id(item['Asset Tag'])
                 if item_id:
@@ -616,14 +616,13 @@ def diff(results, baseline):
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
-            return [add, remove, update, review]        
-        else:              
+            return [add, remove, update, review]
+        else:
             return None
 
     if results[0]['Location'] != baseline[0]['Location']:
         print('Club information cannot be compared')
         return None
-
 
     # make directory that will contain all scan statuses by date
     mydir = path.join('./scans/scan_status')
