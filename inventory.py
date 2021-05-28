@@ -81,8 +81,6 @@ def main(ip_list):
             for item in results_copy:
                 item['ID'] = get_id(item['Asset Tag'])
 
-            write_to_files(results_copy, str(ip))
-
             all_diff = diff(results_copy, load_baseline(results_copy))
 
             if all_diff:
@@ -93,6 +91,8 @@ def main(ip_list):
                     remove = all_api_payload[1]
                     update = all_api_payload[2]
                 api_call(results[0]['Location'], add, remove, update)
+
+            write_to_files(results_copy, str(ip))
 
             csv(results, header_added)
             connect_obj.disconnect()
@@ -454,6 +454,16 @@ def write_to_files(results, host):
         club_base_file = open(
             mydir + '/{}_{}.json'.format(results[0]['Location'],
                                          today.strftime('%m-%d-%Y')), 'w+')
+
+        for item in results:
+            if item['ID'] == None:
+                print('Updating new entries with ID from snipe-IT')
+                item_id = get_id(item['Asset Tag'])
+                if item_id:
+                    item['ID'] = item_id
+                else:
+                    continue
+
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
@@ -500,11 +510,13 @@ def check_if_remove(diff_item):
     id_found = next((itm for itm in baseline_1 if
                      diff_item['ID'] == itm['ID']), None)
 
+    print('id1_found\n', id_found)
     mac_found = next((item for item in baseline_1 if
                       diff_item['Mac Address'] ==
                       item['Mac Address']), None)
-
+    print('mac1_found\n', mac_found)
     if id_found is not None and mac_found is not None:
+        print('item {} found in baseline_1'.format(diff_item['Mac Address']))
         return False
 
     id_found_2 = next((itm for itm in baseline_2 if
@@ -513,8 +525,10 @@ def check_if_remove(diff_item):
     mac_found_2 = next((item for item in baseline_2 if
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
-
+    print('id2_found\n', id_found_2)
+    print('mac2_found\n', mac_found_2)
     if id_found_2 is not None and mac_found_2 is not None:
+        print('item {} found in baseline_2'.format(diff_item['Mac Address']))
         return False
 
     id_found_3 = next((itm for itm in baseline_3 if
@@ -524,7 +538,10 @@ def check_if_remove(diff_item):
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
 
+    print('id3_found\n', id_found_3)
+    print('mac3_found\n', mac_found_3)
     if id_found_3 is not None and mac_found_3 is not None:
+        print('item {} found in baseline_3'.format(diff_item['Mac Address']))
         return False
 
     id_found_4 = next((itm for itm in baseline_4 if
@@ -533,11 +550,14 @@ def check_if_remove(diff_item):
     mac_found_4 = next((item for item in baseline_4 if
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
-
+    print('id4_found\n', id_found_4)
+    print('mac4_found\n', mac_found_4)
     if id_found_4 is not None and mac_found_4 is not None:
+        print('item {} found in baseline_4'.format(diff_item['Mac Address']))
         return False
 
     else:
+        print('returning True\n')
         return True
 
 
@@ -568,15 +588,42 @@ def diff(results, baseline):
     add = []
     id_update = []
     all_diff = []
-
+    print(baseline)
     if not results:
         return None
-    if not baseline:
+    if baseline is None:
         print('No prior baseline found')
-        return None
+        for item in results:
+            if item['ID'] == None:
+                print('Checking snipe-it for record')
+                item_id = get_id(item['Asset Tag'])
+                if item_id:
+                    item['ID'] = item_id
+                else:
+                    add.append(item)
+            else:
+                continue
+        if add:
+            print('There are devices that need to be added to DB')
+            # make directory that will contain all scan statuses by date
+            mydir = path.join('./scans/scan_status')
+            mydir_obj = Path(mydir)
+            mydir_obj.mkdir(parents=True, exist_ok=True)
+
+            # create file for add
+            add_file = open(mydir + '/add_{}.json'
+                            .format(today.strftime("%m-%d-%Y")), 'a+')
+            add_file.write(dumps(list(add), indent=4))
+            add_file.close()
+            all_diff.extend(add)
+            return [add, remove, update, review]        
+        else:              
+            return None
+
     if results[0]['Location'] != baseline[0]['Location']:
         print('Club information cannot be compared')
         return None
+
 
     # make directory that will contain all scan statuses by date
     mydir = path.join('./scans/scan_status')
@@ -1317,7 +1364,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.0.70']
+ip_list = ['172.31.0.11']
 main(ip_list)
 
 
