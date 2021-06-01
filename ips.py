@@ -57,5 +57,6 @@ def get_ips():
         f_list.append(item[0])
 
     final_list = [item for item in f_list if item not in cfg.exclude_ips]
-
     return final_list
+
+get_ips()

@@ -303,10 +303,8 @@ def get_router_info(conn, host, device_type):
                                             loc_id = str(itm['id'])
 
                             except KeyError:
-                                print('loc_id_except')
                                 loc_id = None
                                 loc_id = str(loc_id)
-                                print('Location ID is None for ', club_result)
 
                             # for main results
                             host_info = {
@@ -510,13 +508,10 @@ def check_if_remove(diff_item):
     id_found = next((itm for itm in baseline_1 if
                      diff_item['ID'] == itm['ID']), None)
 
-    print('id1_found\n', id_found)
     mac_found = next((item for item in baseline_1 if
                       diff_item['Mac Address'] ==
                       item['Mac Address']), None)
-    print('mac1_found\n', mac_found)
     if id_found is not None and mac_found is not None:
-        print('item {} found in baseline_1'.format(diff_item['Mac Address']))
         return False
 
     id_found_2 = next((itm for itm in baseline_2 if
@@ -525,10 +520,7 @@ def check_if_remove(diff_item):
     mac_found_2 = next((item for item in baseline_2 if
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
-    print('id2_found\n', id_found_2)
-    print('mac2_found\n', mac_found_2)
     if id_found_2 is not None and mac_found_2 is not None:
-        print('item {} found in baseline_2'.format(diff_item['Mac Address']))
         return False
 
     id_found_3 = next((itm for itm in baseline_3 if
@@ -538,10 +530,7 @@ def check_if_remove(diff_item):
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
 
-    print('id3_found\n', id_found_3)
-    print('mac3_found\n', mac_found_3)
     if id_found_3 is not None and mac_found_3 is not None:
-        print('item {} found in baseline_3'.format(diff_item['Mac Address']))
         return False
 
     id_found_4 = next((itm for itm in baseline_4 if
@@ -550,14 +539,10 @@ def check_if_remove(diff_item):
     mac_found_4 = next((item for item in baseline_4 if
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
-    print('id4_found\n', id_found_4)
-    print('mac4_found\n', mac_found_4)
     if id_found_4 is not None and mac_found_4 is not None:
-        print('item {} found in baseline_4'.format(diff_item['Mac Address']))
         return False
 
     else:
-        print('returning True\n')
         return True
 
 
@@ -588,7 +573,6 @@ def diff(results, baseline):
     add = []
     id_update = []
     all_diff = []
-    print(baseline)
     if not results:
         return None
     if baseline is None:
@@ -783,8 +767,6 @@ def diff(results, baseline):
             if not id_in_results:
                 # if Mac Address is not found elsewhere in results
                 if not mac_in_results:
-                    print('diff_item\n', diff_item)
-
                     check_if_remove(diff_item)
                     if check_if_remove is True:
                         count += 1
@@ -871,7 +853,6 @@ def api_payload(all_diff):
 
     for list in diff:
         for item in list:
-            print(item)
             item['_snipeit_mac_address_1'] = item.pop('Mac Address')
             item['_snipeit_ip_2'] = item.pop('IP')
             item['_snipeit_hostname_3'] = item.pop('Hostname')
@@ -888,11 +869,6 @@ def api_payload(all_diff):
 
     for item in add:
         item.pop('id')
-
-    # print('add\n', add)
-    # print('remove\n', remove)
-    # print('update\n', update)
-    # print('review\n', review)
 
     return [add, remove, update, review]
 
@@ -943,19 +919,17 @@ def api_call(club_id, add, remove, update):
                 continue
 
             url = cfg.api_url
-            print('ADD URL\n', url)
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
 
-            print('---PAYLOAD\n', payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
                                         headers=cfg.api_headers)
-
-            print('RESPONSE TEXT----\n')
-            pprint(response.text)
-            print(response.status_code)
+            print(response)
+            if 'error' in response['status']:
+                print('Error Sending API Call\n', payload)
+                pprint(response.text)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
                                   'with asset-tag {} to Snipe-IT'
@@ -972,12 +946,9 @@ def api_call(club_id, add, remove, update):
                 status_file.write('Payload does not match Snipe_IT. '
                                   'item {}'
                                   .format(item['asset_tag']))
-    print(remove)
     if remove:
-        print('delete')
         for item in remove:
             url = cfg.api_url + str(item['id'])
-            print(url)
             response = requests.request("DELETE",
                                         url=url,
                                         headers=cfg.api_headers)
@@ -995,16 +966,12 @@ def api_call(club_id, add, remove, update):
                                   .format(item['asset_tag']))
 
     if update:
-        print('put')
         for item in update:
             item_str = item
-            # item_str.pop('id')
-            print(item)
             item_str = str(item)
             item_str = item_str.replace('\'', '\"')
             url = cfg.api_url + str(item['id'])
             payload = item_str
-            print('update payload ', payload)
             response = requests.request("PUT",
                                         url=url,
                                         data=payload,
@@ -1363,7 +1330,6 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-ip_list = ['172.31.0.11']
 main(ip_list)
 
 
