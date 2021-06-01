@@ -81,8 +81,6 @@ def main(ip_list):
             for item in results_copy:
                 item['ID'] = get_id(item['Asset Tag'])
 
-            write_to_files(results_copy, str(ip))
-
             all_diff = diff(results_copy, load_baseline(results_copy))
 
             if all_diff:
@@ -93,6 +91,8 @@ def main(ip_list):
                     remove = all_api_payload[1]
                     update = all_api_payload[2]
                 api_call(results[0]['Location'], add, remove, update)
+
+            write_to_files(results_copy, str(ip))
 
             csv(results, header_added)
             connect_obj.disconnect()
@@ -303,10 +303,8 @@ def get_router_info(conn, host, device_type):
                                             loc_id = str(itm['id'])
 
                             except KeyError:
-                                print('loc_id_except')
                                 loc_id = None
                                 loc_id = str(loc_id)
-                                print('Location ID is None for ', club_result)
 
                             # for main results
                             host_info = {
@@ -454,6 +452,16 @@ def write_to_files(results, host):
         club_base_file = open(
             mydir + '/{}_{}.json'.format(results[0]['Location'],
                                          today.strftime('%m-%d-%Y')), 'w+')
+
+        for item in results:
+            if item['ID'] is None:
+                print('Updating new entries with ID from snipe-IT')
+                item_id = get_id(item['Asset Tag'])
+                if item_id:
+                    item['ID'] = item_id
+                else:
+                    continue
+
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
@@ -503,7 +511,6 @@ def check_if_remove(diff_item):
     mac_found = next((item for item in baseline_1 if
                       diff_item['Mac Address'] ==
                       item['Mac Address']), None)
-
     if id_found is not None and mac_found is not None:
         return False
 
@@ -513,7 +520,6 @@ def check_if_remove(diff_item):
     mac_found_2 = next((item for item in baseline_2 if
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
-
     if id_found_2 is not None and mac_found_2 is not None:
         return False
 
@@ -533,7 +539,6 @@ def check_if_remove(diff_item):
     mac_found_4 = next((item for item in baseline_4 if
                         diff_item['Mac Address'] ==
                         item['Mac Address']), None)
-
     if id_found_4 is not None and mac_found_4 is not None:
         return False
 
@@ -568,12 +573,37 @@ def diff(results, baseline):
     add = []
     id_update = []
     all_diff = []
-
     if not results:
         return None
-    if not baseline:
+    if baseline is None:
         print('No prior baseline found')
-        return None
+        for item in results:
+            if item['ID'] is None:
+                print('Checking snipe-it for record')
+                item_id = get_id(item['Asset Tag'])
+                if item_id:
+                    item['ID'] = item_id
+                else:
+                    add.append(item)
+            else:
+                continue
+        if add:
+            print('There are devices that need to be added to DB')
+            # make directory that will contain all scan statuses by date
+            mydir = path.join('./scans/scan_status')
+            mydir_obj = Path(mydir)
+            mydir_obj.mkdir(parents=True, exist_ok=True)
+
+            # create file for add
+            add_file = open(mydir + '/add_{}.json'
+                            .format(today.strftime("%m-%d-%Y")), 'a+')
+            add_file.write(dumps(list(add), indent=4))
+            add_file.close()
+            all_diff.extend(add)
+            return [add, remove, update, review]
+        else:
+            return None
+
     if results[0]['Location'] != baseline[0]['Location']:
         print('Club information cannot be compared')
         return None
@@ -737,8 +767,6 @@ def diff(results, baseline):
             if not id_in_results:
                 # if Mac Address is not found elsewhere in results
                 if not mac_in_results:
-                    print('diff_item\n', diff_item)
-
                     check_if_remove(diff_item)
                     if check_if_remove is True:
                         count += 1
@@ -825,7 +853,6 @@ def api_payload(all_diff):
 
     for list in diff:
         for item in list:
-            print(item)
             item['_snipeit_mac_address_1'] = item.pop('Mac Address')
             item['_snipeit_ip_2'] = item.pop('IP')
             item['_snipeit_hostname_3'] = item.pop('Hostname')
@@ -842,11 +869,6 @@ def api_payload(all_diff):
 
     for item in add:
         item.pop('id')
-
-    # print('add\n', add)
-    # print('remove\n', remove)
-    # print('update\n', update)
-    # print('review\n', review)
 
     return [add, remove, update, review]
 
@@ -897,19 +919,17 @@ def api_call(club_id, add, remove, update):
                 continue
 
             url = cfg.api_url
-            print('ADD URL\n', url)
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
 
-            print('---PAYLOAD\n', payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
                                         headers=cfg.api_headers)
-
-            print('RESPONSE TEXT----\n')
-            pprint(response.text)
-            print(response.status_code)
+            print(response)
+            if 'error' in response['status']:
+                print('Error Sending API Call\n', payload)
+                pprint(response.text)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
                                   'with asset-tag {} to Snipe-IT'
@@ -926,12 +946,9 @@ def api_call(club_id, add, remove, update):
                 status_file.write('Payload does not match Snipe_IT. '
                                   'item {}'
                                   .format(item['asset_tag']))
-    print(remove)
     if remove:
-        print('delete')
         for item in remove:
             url = cfg.api_url + str(item['id'])
-            print(url)
             response = requests.request("DELETE",
                                         url=url,
                                         headers=cfg.api_headers)
@@ -949,16 +966,12 @@ def api_call(club_id, add, remove, update):
                                   .format(item['asset_tag']))
 
     if update:
-        print('put')
         for item in update:
             item_str = item
-            # item_str.pop('id')
-            print(item)
             item_str = str(item)
             item_str = item_str.replace('\'', '\"')
             url = cfg.api_url + str(item['id'])
             payload = item_str
-            print('update payload ', payload)
             response = requests.request("PUT",
                                         url=url,
                                         data=payload,
@@ -1317,7 +1330,6 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.0.70']
 main(ip_list)
 
 
