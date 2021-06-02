@@ -546,6 +546,61 @@ def check_if_remove(diff_item):
         return True
 
 
+def check_if_add(diff_item):
+    """ Check if record has been in baseline for last 4 scans (weeks)
+    if record is found within the last 4 baselines, return False
+    if record is not found within the last 4 baselines, return True"""
+    baselines = last_4_baselines(diff_item)
+
+    if baselines is None:
+        return True
+
+    baseline_1 = baselines[0]
+    baseline_2 = baselines[1]
+    baseline_3 = baselines[2]
+    baseline_4 = baselines[3]
+
+    id_found = next((itm for itm in baseline_1 if
+                     diff_item['ID'] == itm['ID']), None)
+
+    mac_found = next((item for item in baseline_1 if
+                      diff_item['Mac Address'] ==
+                      item['Mac Address']), None)
+    if id_found is not None and mac_found is not None:
+        return False
+
+    id_found_2 = next((itm for itm in baseline_2 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_2 = next((item for item in baseline_2 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+    if id_found_2 is not None and mac_found_2 is not None:
+        return False
+
+    id_found_3 = next((itm for itm in baseline_3 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_3 = next((item for item in baseline_3 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+
+    if id_found_3 is not None and mac_found_3 is not None:
+        return False
+
+    id_found_4 = next((itm for itm in baseline_4 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_4 = next((item for item in baseline_4 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+    if id_found_4 is not None and mac_found_4 is not None:
+        return False
+
+    else:
+        return True
+
+
 def diff(results, baseline):
     """ Function to get differences between current and prior scans
     by date of scan.
@@ -658,13 +713,15 @@ def diff(results, baseline):
             if not id_in_baseline:
                 # if Mac Address is not found elsewhere in baseline
                 if not mac_in_baseline:
-                    add.append(diff_item)
-                    msg1 = ('\nNew device with ID {} and Mac Address {} '
-                            'added\n'
-                            .format(diff_item['ID'],
-                                    diff_item['Mac Address']))
-                    print(msg1)
-                    status_file.write(msg1)
+                    check_add = check_if_add(diff_item)
+                    if check_add is True:
+                        add.append(diff_item)
+                        msg1 = ('\nNew device with ID {} and Mac Address {} '
+                                'added\n'
+                                .format(diff_item['ID'],
+                                        diff_item['Mac Address']))
+                        print(msg1)
+                        status_file.write(msg1)
 
                 # if mac address is found in baseline with another ID
                 if mac_in_baseline:
@@ -737,11 +794,13 @@ def diff(results, baseline):
                 # if mac is not found in baseline (new device)
                 else:
                     if diff_item['ID'] is None:
-                        add.append(diff_item)
-                        msg6 = ('\nNew device with ID {} and Mac Address {} '
-                                'added\n'
-                                .format(diff_item['ID'],
-                                        diff_item['Mac Address']))
+                        check_add = check_if_add(diff_item)
+                        if check_add is True:
+                            add.append(diff_item)
+                            msg6 = ('\nNew device with ID {} and Mac Address {} '
+                                    'added\n'
+                                    .format(diff_item['ID'],
+                                            diff_item['Mac Address']))
                     else:
                         review.append(diff_item)
                         msg6 = ('\nDevice with ID {} and Mac Address {} '
@@ -1071,7 +1130,8 @@ def load_baseline(results):
 
 
 def last_4_baselines(diff_item):
-    """Opens and loads prior 4 scans as baselines for use in remove_record()
+    """Opens and loads prior 4 scans as baselines for use in check_if_remove()
+        and check_if_add()
 
         Args:
             item from differences that no longer appears in results
