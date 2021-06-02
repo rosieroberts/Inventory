@@ -985,10 +985,7 @@ def api_call(club_id, add, remove, update):
                                         url=url,
                                         data=payload,
                                         headers=cfg.api_headers)
-            print(response)
-            if 'error' in response['status']:
-                print('Error Sending API Call\n', payload)
-                pprint(response.text)
+            pprint(response.text)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
                                   'with asset-tag {} to Snipe-IT'
