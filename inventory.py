@@ -165,7 +165,7 @@ def connect(ip):
                    ValueError,
                    EOFError):
 
-                traceback.print_exc()
+                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan ip to see if port 22 is open,
                 # if it is open try to connect again
@@ -228,6 +228,7 @@ def get_router_info(conn, host, device_type):
     f_results = []  # list of failed results
     mac_regex = compile(r'([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
+    fortext_regex = compile(cfg.fortext)
     not_added = []
     ip_ranges = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
 
@@ -262,9 +263,12 @@ def get_router_info(conn, host, device_type):
                     for item in arp_list_upd:
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
+                        fortext_result = fortext_regex.search(item)
                         if ip_result is not None and mac_result is not None:
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
+                            if fortext_result is not None:
+                                fortext_result = fortext_result.group(0)
                             mac_result = cfg.mac_address_format(mac_result)
                             vendor = cfg.get_oui_vendor(mac_result)
                             device_type = cfg.get_device_type(
@@ -272,6 +276,9 @@ def get_router_info(conn, host, device_type):
                                 club_result,
                                 vendor
                             )
+                            fortext = cfg.is_fortext(fortext_result)
+                            if fortext is not None:
+                                device_type = fortext
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
@@ -697,7 +704,6 @@ def diff(results, baseline):
     if not_in_baseline:
         for diff_item in not_in_baseline:
             count += 1
-            print('\nDIFF ITEM', count)
             # find id of different item in baseline,
             # returns dict, otherwise None
 
@@ -714,12 +720,14 @@ def diff(results, baseline):
                 # if Mac Address is not found elsewhere in baseline
                 if not mac_in_baseline:
                     check_add = check_if_add(diff_item)
+                    #  if device is not found within the last 4 scans...
                     if check_add is True:
                         add.append(diff_item)
                         msg1 = ('\nNew device with ID {} and Mac Address {} '
                                 'added\n'
                                 .format(diff_item['ID'],
                                         diff_item['Mac Address']))
+                        print('\nDIFF ITEM', count)
                         print(msg1)
                         status_file.write(msg1)
 
@@ -743,6 +751,7 @@ def diff(results, baseline):
                                     .format(mac_in_baseline['ID'],
                                             diff_item['Mac Address'],
                                             diff_item['ID']))
+                    print('\nDIFF ITEM', count)
                     print(msg2)
                     status_file.write(msg2)
 
@@ -764,6 +773,7 @@ def diff(results, baseline):
                                     .format(diff_item['ID'],
                                             diff_item['Mac Address'],
                                             diff_item['IP']))
+                            print('\nDIFF ITEM', count)
                             print(msg3)
                             status_file.write(msg3)
 
@@ -772,6 +782,7 @@ def diff(results, baseline):
                                     '\nhas been updated\n '
                                     .format(id_in_baseline['ID'],
                                             id_in_baseline['Mac Address']))
+                            print('\nDIFF ITEM', count)
                             print(msg4)
                             status_file.write(msg4)
 
@@ -789,6 +800,7 @@ def diff(results, baseline):
                                         diff_item['Mac Address'],
                                         mac_in_baseline['Mac Address'],
                                         mac_in_baseline['ID']))
+                        print('\nDIFF ITEM', count)
                         print(msg5)
                         status_file.write(msg5)
                 # if mac is not found in baseline (new device)
@@ -807,6 +819,7 @@ def diff(results, baseline):
                                 '\nneeds review\n'
                                 .format(diff_item['ID'],
                                         diff_item['Mac Address']))
+                    print('\nDIFF ITEM', count)
                     print(msg6)
                     status_file.write(msg6)
     # devices from baseline not found in results
@@ -836,6 +849,7 @@ def diff(results, baseline):
                                 'has been removed\n'
                                 .format(diff_item['ID'],
                                         diff_item['Mac Address']))
+                        print('\nDIFF ITEM', count)
                         print(msg7)
                         status_file.write(msg7)
 
@@ -844,6 +858,7 @@ def diff(results, baseline):
         if results[0]['Location'] not in results[0]['Hostname']:
             msg8 = ('\nLocation {} does not match Hostname {}\n'
                     .format(club, results[0]['Hostname']))
+            print('\nDIFF ITEM', count)
             print(msg8)
             status_file.write(msg8)
 
