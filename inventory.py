@@ -12,6 +12,7 @@ from pprint import pprint
 from ipaddress import ip_address, ip_network
 import requests
 import traceback
+import urllib3
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -19,7 +20,6 @@ from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-
 from ips import get_ips
 import config as cfg
 
@@ -67,35 +67,42 @@ def main(ip_list):
             # device_type [1]
             router_connect = connect(str(ip))
 
-        if router_connect:
-            connect_obj = router_connect[0]
-            device_type = router_connect[1]
-            if ip_address:
+        try:
+            if router_connect:
+                connect_obj = router_connect[0]
+                device_type = router_connect[1]
+                if ip_address:
 
-                results = get_router_info(connect_obj, str(ip), device_type)
-            else:
-                results = None
+                    results = get_router_info(connect_obj, str(ip), device_type)
+                else:
+                    results = None
 
-            results_copy = deepcopy(results)
+                results_copy = deepcopy(results)
 
-            for item in results_copy:
-                item['ID'] = get_id(item['Asset Tag'])
+                for item in results_copy:
+                    item['ID'] = get_id(item['Asset Tag'])
 
-            all_diff = diff(results_copy, load_baseline(results_copy))
+                all_diff = diff(results_copy, load_baseline(results_copy))
 
-            if all_diff:
-                all_api_payload = api_payload(all_diff)
+                if all_diff:
+                    all_api_payload = api_payload(all_diff)
 
-                if all_api_payload:
-                    add = all_api_payload[0]
-                    remove = all_api_payload[1]
-                    update = all_api_payload[2]
-                api_call(results[0]['Location'], add, remove, update)
+                    if all_api_payload:
+                        add = all_api_payload[0]
+                        remove = all_api_payload[1]
+                        update = all_api_payload[2]
+                    api_call(results[0]['Location'], add, remove, update)
 
-            write_to_files(results_copy, str(ip))
+                write_to_files(results_copy, str(ip))
 
-            csv(results, header_added)
-            connect_obj.disconnect()
+                csv(results, header_added)
+                connect_obj.disconnect()
+
+        except(urllib3.exceptions.ProtocolError):
+            print('Remote end closed connection without response')
+            print('Scanning next club....')
+            continue
+
 
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
@@ -122,9 +129,6 @@ def main(ip_list):
 
 def connect(ip):
     """Connects to router using .1 address from each ip router from ip_list.
-
-    Args:
-        ip - Router IP in x.x.x.1.
 
     Returns:
         Netmiko connection object.
@@ -259,6 +263,10 @@ def get_router_info(conn, host, device_type):
                                     arp_list_upd.append(item)
 
                     ip_count = int(len(arp_list_upd)) - 1
+                    # ARP table does not include main router mac, adding to list of devices
+                    mac_addr_inf = conn.send_command('get hardware nic wan1 | grep Permanent_HWaddr')
+                    router_info = (str(host) + ' ' + str(mac_addr_inf))
+                    arp_list_upd.insert(0, router_info)
 
                     for item in arp_list_upd:
                         ip_result = ip_regex.search(item)
@@ -308,6 +316,7 @@ def get_router_info(conn, host, device_type):
                                     for itm in loc_id_data['rows']:
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
+                                            print(loc_id)
 
                             except KeyError:
                                 loc_id = None
@@ -741,6 +750,17 @@ def diff(results, baseline):
                                 .format(mac_in_baseline['ID'],
                                         diff_item['Mac Address'],
                                         diff_item['ID']))
+                    if diff_item['ID'] is None:
+                        if diff_item['IP'] == mac_in_baseline['IP']:
+                            update.append(diff_item)
+                            msg2 = ('\nDevice with ID {} and Mac Address {} '
+                                    '\nupdated to ID {}, Mac Address {} '
+                                    'and Asset Tag {}, '
+                                    .format(mac_in_baseline['ID'],
+                                            mac_in_baseline['Mac Address'],
+                                            diff_item['ID'],
+                                            diff_item['Mac Address'],
+                                            diff_item['Asset Tag']))
 
                     else:
                         review.append(diff_item)
@@ -749,7 +769,7 @@ def diff(results, baseline):
                                     '\nchanged to a different ID {}, '
                                     '\nneeds review\n'
                                     .format(mac_in_baseline['ID'],
-                                            diff_item['Mac Address'],
+                                            mac_in_baseline['Mac Address'],
                                             diff_item['ID']))
                     print('\nDIFF ITEM', count)
                     print(msg2)
@@ -813,15 +833,18 @@ def diff(results, baseline):
                                     'added\n'
                                     .format(diff_item['ID'],
                                             diff_item['Mac Address']))
+                            print('\nDIFF ITEM', count)
+                            print(msg6)
+                            status_file.write(msg6)                            
                     else:
                         review.append(diff_item)
                         msg6 = ('\nDevice with ID {} and Mac Address {} '
                                 '\nneeds review\n'
                                 .format(diff_item['ID'],
                                         diff_item['Mac Address']))
-                    print('\nDIFF ITEM', count)
-                    print(msg6)
-                    status_file.write(msg6)
+                        print('\nDIFF ITEM', count)
+                        print(msg6)
+                        status_file.write(msg6)
     # devices from baseline not found in results
     if not_in_results:
         for diff_item in not_in_results:
@@ -959,13 +982,13 @@ def api_call(club_id, add, remove, update):
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club_id:
         club = str(club_id)
-    # possible bug -line below. When club is none, sends error
-    # baseline_dir = path.join('./scans/baselines/', club)
+        # possible bug -line below. When club is none, sends error
+        # baseline_dir = path.join('./scans/baselines/', club)
 
-    if club:
-        status_file.write('\n\n')
-        status_file.write(club.upper())
-        status_file.write('\n')
+        if club:
+            status_file.write('\n\n')
+            status_file.write(club.upper())
+            status_file.write('\n')
 
     if add:
         for item in add:
@@ -978,6 +1001,7 @@ def api_call(club_id, add, remove, update):
 
                 content = response.json()
                 tag = str(content['asset_tag'])
+                print(item)
                 if tag:
                     status_file.write('Cannot add item, asset_tag {} already exists '
                                       'in Snipe-IT, review item\n{}'
@@ -995,7 +1019,7 @@ def api_call(club_id, add, remove, update):
             url = cfg.api_url
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
-
+            print(payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
@@ -1043,6 +1067,7 @@ def api_call(club_id, add, remove, update):
             item_str = item_str.replace('\'', '\"')
             url = cfg.api_url + str(item['id'])
             payload = item_str
+            print(payload)
             response = requests.request("PUT",
                                         url=url,
                                         data=payload,
@@ -1218,7 +1243,6 @@ def club_id(conn, host, device_type):
         'null' is returned.
     """
     club_rgx = compile(cfg.club_rgx)
-    reg_rgx = compile(cfg.reg_rgx)
     fort_regex = compile(r'([0-9]{3}(?=-fgt-))', IGNORECASE)
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     for _ in range(1):
@@ -1232,17 +1256,11 @@ def club_id(conn, host, device_type):
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
                             print('Getting club ID... attempt', attempt + 1)
-                            # if club pattern is not found
-                            if club_result is None:
-                                # search for regional pattern
-                                club_result = reg_rgx.search(club_info)
-                            # if regional pattern found
                             if club_result is not None:
-                                # club_result returns reg pattern 'reg-000'
-                                club_result = club_result.group(0)
-                                break
-                            # if reg pattern is not found
-                            if club_result is None:
+                                # club_number returns pattern '000'
+                                club_result = str(club_result.group(0))
+                            # if club pattern is not found
+                            else:
                                 # look for ID in router hostname
                                 raise OSError
 
@@ -1262,23 +1280,27 @@ def club_id(conn, host, device_type):
                                 # look for ID in router hostname
                                 raise OSError
 
-                    except(OSError):
+                    except(OSError,
+                           NetMikoTimeoutException):
                         if attempt == 0:
                             print('Could not send command. Trying again')
                             continue
                         if attempt == 1:
                             print('Getting club_id from nmap hostname')
                             hostname = get_hostnames(host)
+                            print(hostname)
+                            print(hostname['hostnames'])
                             hostname_club = club_rgx.search(hostname['hostnames'])
                             if hostname_club:
                                 club_result = hostname_club.group(0)
+                                print(club_result)
                             if not hostname_club:
                                 print('could not get club_id')
                                 return None
 
                         if attempt > 0:
                             print('could not get club_id')
-
+        club_result = str(club_result)
         club_result = club_result.lower()
 
         return club_result
@@ -1410,3 +1432,4 @@ runtime = end - start
 runtime = str(timedelta(seconds=int(runtime)))
 
 print('\nScript Runtime: {} '.format(runtime))
+
