@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from os import path, listdir
-from json import dumps, load, decoder
+from json import dumps, load, loads, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -104,6 +104,7 @@ def main(ip_list):
             continue
 
 
+        #get_all_snipe()
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
@@ -316,7 +317,6 @@ def get_router_info(conn, host, device_type):
                                     for itm in loc_id_data['rows']:
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
-                                            print(loc_id)
 
                             except KeyError:
                                 loc_id = None
@@ -485,6 +485,46 @@ def write_to_files(results, host):
     else:
         print('No results received from router')
         not_connected.append(host)
+
+
+def get_all_snipe():
+    """Returns all current information for each host.
+    this function returns SNIPE-IT's current device information
+    this device information will be used to have a snapshot of
+    the devices already in snipe-it.
+
+    Args:
+        None
+
+    Returns:
+        Everything from snipe-it. still working this out
+
+    """
+
+    try:
+        all_items = []
+        url = cfg.api_url_get_all
+        response = requests.request("GET", url=url, headers=cfg.api_headers)
+        content = response.json()
+        total_record = content['total']
+
+        for offset in range(0, total_record, 500):
+            querystring = {"offset":offset}
+            response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
+            content = response.json()
+            for item in content['rows']:
+                device = {'id':item['id'], 'asset_tag':item['asset_tag']}
+                all_items.append(device)
+                
+        # print(*all_items, sep='\n')
+        return all_items
+
+    except (KeyError,
+            decoder.JSONDecodeError):
+        content = None
+        print('No response')
+        return content
+
 
 
 def csv(results, header_added):
@@ -865,7 +905,6 @@ def diff(results, baseline):
                     check_if_remove(diff_item)
                     if check_if_remove is True:
                         count += 1
-                        print('\nDIFF ITEM', count)
                         remove.append(diff_item)
                         msg7 = ('\nDevice with ID {} and Mac Address {} '
                                 '\nno longer found, '
@@ -877,11 +916,12 @@ def diff(results, baseline):
                         status_file.write(msg7)
 
     # if hostname does not match location in scan, write message in status file
-    if results[0]['Hostname'] != '':
-        if results[0]['Location'] not in results[0]['Hostname']:
+    if results[0]['Hostname']:
+        club_number = str(results[0]['Location'])
+        club_number = club_number[-3:]
+        if club_number not in results[0]['Hostname']:
             msg8 = ('\nLocation {} does not match Hostname {}\n'
                     .format(club, results[0]['Hostname']))
-            print('\nDIFF ITEM', count)
             print(msg8)
             status_file.write(msg8)
 
@@ -950,9 +990,9 @@ def api_payload(all_diff):
 
     for list in diff:
         for item in list:
-            item['_snipeit_mac_address_1'] = item.pop('Mac Address')
-            item['_snipeit_ip_2'] = item.pop('IP')
-            item['_snipeit_hostname_3'] = item.pop('Hostname')
+            item['_snipeit_mac_address_4'] = item.pop('Mac Address')
+            item['_snipeit_ip_1'] = item.pop('IP')
+            item['_snipeit_hostname_5'] = item.pop('Hostname')
             item['model_id'] = item.pop('Model Number')
             item['status_id'] = item.pop('Status ID')
             item['asset_tag'] = item.pop('Asset Tag')
@@ -1084,6 +1124,43 @@ def api_call(club_id, add, remove, update):
                                   'request to update item'
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
+
+
+def get_device_info_snipe(asset_tag):
+    """Returns information for each host.
+    this function returns SNIPE-IT's current device information
+    this device information will be used to have a snapshot of 
+    the devices already in snipe-it.
+
+    Args:
+        Asset Tag =  asset tag of te device
+
+    Returns:
+        ID - get ID from snipe-it
+        IP - get IP from snipe-it
+        Mac Address - get mac address from snipe-it
+
+    """
+
+    try:
+        url = cfg.api_url_get + str(asset_tag)
+
+        response = requests.request("GET", url=url, headers=cfg.api_headers)
+
+        content = response.json()
+        result_id = str(content['id'])
+        result_ip = str(content['custom_fields']['IP'])
+        result_mac = str(content['custom_fields']['Mac Address'])
+
+        print('ID: ', result_id)
+        print('IP: ', result_ip)
+        print('Mac Address: ', result_mac)
+
+    except (KeyError,
+            decoder.JSONDecodeError):
+        result_id = None
+
+    return result_id, result_ip, result_mac
 
 
 def get_id(asset_tag):
@@ -1424,8 +1501,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-main(ip_list)
-
+# main(ip_list)
+get_all_snipe()
 
 end = time()
 runtime = end - start
