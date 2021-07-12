@@ -13,6 +13,7 @@ from ipaddress import ip_address, ip_network
 import requests
 import traceback
 import urllib3
+import pymongo
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -1336,6 +1337,7 @@ def club_id(conn, host, device_type):
                             if club_result is not None:
                                 # club_number returns pattern '000'
                                 club_result = str(club_result.group(0))
+                                break
                             # if club pattern is not found
                             else:
                                 # look for ID in router hostname
@@ -1351,6 +1353,7 @@ def club_id(conn, host, device_type):
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
                                 club_result = 'club' + str(club_number)
+                                break
                             # if pattern is not found
                             if club_result is None:
                                 print('no club ID found')
@@ -1501,8 +1504,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# main(ip_list)
-get_all_snipe()
+main(ip_list)
+# get_all_snipe()
 
 end = time()
 runtime = end - start
