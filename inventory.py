@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from os import path, listdir
-from json import dumps, load, decoder
+from json import dumps, load, loads, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -12,6 +12,8 @@ from pprint import pprint
 from ipaddress import ip_address, ip_network
 import requests
 import traceback
+import urllib3
+import pymongo
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -19,7 +21,6 @@ from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-
 from ips import get_ips
 import config as cfg
 
@@ -67,36 +68,44 @@ def main(ip_list):
             # device_type [1]
             router_connect = connect(str(ip))
 
-        if router_connect:
-            connect_obj = router_connect[0]
-            device_type = router_connect[1]
-            if ip_address:
+        try:
+            if router_connect:
+                connect_obj = router_connect[0]
+                device_type = router_connect[1]
+                if ip_address:
 
-                results = get_router_info(connect_obj, str(ip), device_type)
-            else:
-                results = None
+                    results = get_router_info(connect_obj, str(ip), device_type)
+                else:
+                    results = None
 
-            results_copy = deepcopy(results)
+                results_copy = deepcopy(results)
 
-            for item in results_copy:
-                item['ID'] = get_id(item['Asset Tag'])
+                for item in results_copy:
+                    item['ID'] = get_id(item['Asset Tag'])
 
-            all_diff = diff(results_copy, load_baseline(results_copy))
+                all_diff = diff(results_copy, load_baseline(results_copy))
 
-            if all_diff:
-                all_api_payload = api_payload(all_diff)
+                if all_diff:
+                    all_api_payload = api_payload(all_diff)
 
-                if all_api_payload:
-                    add = all_api_payload[0]
-                    remove = all_api_payload[1]
-                    update = all_api_payload[2]
-                api_call(results[0]['Location'], add, remove, update)
+                    if all_api_payload:
+                        add = all_api_payload[0]
+                        remove = all_api_payload[1]
+                        update = all_api_payload[2]
+                    api_call(results[0]['Location'], add, remove, update)
 
-            write_to_files(results_copy, str(ip))
+                write_to_files(results_copy, str(ip))
 
-            csv(results, header_added)
-            connect_obj.disconnect()
+                csv(results, header_added)
+                connect_obj.disconnect()
 
+        except(urllib3.exceptions.ProtocolError):
+            print('Remote end closed connection without response')
+            print('Scanning next club....')
+            continue
+
+
+        #get_all_snipe()
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
@@ -122,9 +131,6 @@ def main(ip_list):
 
 def connect(ip):
     """Connects to router using .1 address from each ip router from ip_list.
-
-    Args:
-        ip - Router IP in x.x.x.1.
 
     Returns:
         Netmiko connection object.
@@ -165,7 +171,7 @@ def connect(ip):
                    ValueError,
                    EOFError):
 
-                traceback.print_exc()
+                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan ip to see if port 22 is open,
                 # if it is open try to connect again
@@ -228,6 +234,7 @@ def get_router_info(conn, host, device_type):
     f_results = []  # list of failed results
     mac_regex = compile(r'([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})')
     ip_regex = compile(r'(?:\d+\.){3}\d+')
+    fortext_regex = compile(cfg.fortext)
     not_added = []
     ip_ranges = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
 
@@ -258,13 +265,20 @@ def get_router_info(conn, host, device_type):
                                     arp_list_upd.append(item)
 
                     ip_count = int(len(arp_list_upd)) - 1
+                    # ARP table does not include main router mac, adding to list of devices
+                    mac_addr_inf = conn.send_command('get hardware nic wan1 | grep Permanent_HWaddr')
+                    router_info = (str(host) + ' ' + str(mac_addr_inf))
+                    arp_list_upd.insert(0, router_info)
 
                     for item in arp_list_upd:
                         ip_result = ip_regex.search(item)
                         mac_result = mac_regex.search(item)
+                        fortext_result = fortext_regex.search(item)
                         if ip_result is not None and mac_result is not None:
                             ip_result = ip_result.group(0)
                             mac_result = mac_result.group(0)
+                            if fortext_result is not None:
+                                fortext_result = fortext_result.group(0)
                             mac_result = cfg.mac_address_format(mac_result)
                             vendor = cfg.get_oui_vendor(mac_result)
                             device_type = cfg.get_device_type(
@@ -272,6 +286,9 @@ def get_router_info(conn, host, device_type):
                                 club_result,
                                 vendor
                             )
+                            fortext = cfg.is_fortext(fortext_result)
+                            if fortext is not None:
+                                device_type = fortext
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
@@ -471,6 +488,46 @@ def write_to_files(results, host):
         not_connected.append(host)
 
 
+def get_all_snipe():
+    """Returns all current information for each host.
+    this function returns SNIPE-IT's current device information
+    this device information will be used to have a snapshot of
+    the devices already in snipe-it.
+
+    Args:
+        None
+
+    Returns:
+        Everything from snipe-it. still working this out
+
+    """
+
+    try:
+        all_items = []
+        url = cfg.api_url_get_all
+        response = requests.request("GET", url=url, headers=cfg.api_headers)
+        content = response.json()
+        total_record = content['total']
+
+        for offset in range(0, total_record, 500):
+            querystring = {"offset":offset}
+            response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
+            content = response.json()
+            for item in content['rows']:
+                device = {'id':item['id'], 'asset_tag':item['asset_tag']}
+                all_items.append(device)
+                
+        # print(*all_items, sep='\n')
+        return all_items
+
+    except (KeyError,
+            decoder.JSONDecodeError):
+        content = None
+        print('No response')
+        return content
+
+
+
 def csv(results, header_added):
     """ Write results to csv"""
 
@@ -499,6 +556,61 @@ def check_if_remove(diff_item):
 
     if baselines is None:
         return False
+
+    baseline_1 = baselines[0]
+    baseline_2 = baselines[1]
+    baseline_3 = baselines[2]
+    baseline_4 = baselines[3]
+
+    id_found = next((itm for itm in baseline_1 if
+                     diff_item['ID'] == itm['ID']), None)
+
+    mac_found = next((item for item in baseline_1 if
+                      diff_item['Mac Address'] ==
+                      item['Mac Address']), None)
+    if id_found is not None and mac_found is not None:
+        return False
+
+    id_found_2 = next((itm for itm in baseline_2 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_2 = next((item for item in baseline_2 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+    if id_found_2 is not None and mac_found_2 is not None:
+        return False
+
+    id_found_3 = next((itm for itm in baseline_3 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_3 = next((item for item in baseline_3 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+
+    if id_found_3 is not None and mac_found_3 is not None:
+        return False
+
+    id_found_4 = next((itm for itm in baseline_4 if
+                       diff_item['ID'] == itm['ID']), None)
+
+    mac_found_4 = next((item for item in baseline_4 if
+                        diff_item['Mac Address'] ==
+                        item['Mac Address']), None)
+    if id_found_4 is not None and mac_found_4 is not None:
+        return False
+
+    else:
+        return True
+
+
+def check_if_add(diff_item):
+    """ Check if record has been in baseline for last 4 scans (weeks)
+    if record is found within the last 4 baselines, return False
+    if record is not found within the last 4 baselines, return True"""
+    baselines = last_4_baselines(diff_item)
+
+    if baselines is None:
+        return True
 
     baseline_1 = baselines[0]
     baseline_2 = baselines[1]
@@ -642,7 +754,6 @@ def diff(results, baseline):
     if not_in_baseline:
         for diff_item in not_in_baseline:
             count += 1
-            print('\nDIFF ITEM', count)
             # find id of different item in baseline,
             # returns dict, otherwise None
 
@@ -658,13 +769,17 @@ def diff(results, baseline):
             if not id_in_baseline:
                 # if Mac Address is not found elsewhere in baseline
                 if not mac_in_baseline:
-                    add.append(diff_item)
-                    msg1 = ('\nNew device with ID {} and Mac Address {} '
-                            'added\n'
-                            .format(diff_item['ID'],
-                                    diff_item['Mac Address']))
-                    print(msg1)
-                    status_file.write(msg1)
+                    check_add = check_if_add(diff_item)
+                    #  if device is not found within the last 4 scans...
+                    if check_add is True:
+                        add.append(diff_item)
+                        msg1 = ('\nNew device with ID {} and Mac Address {} '
+                                'added\n'
+                                .format(diff_item['ID'],
+                                        diff_item['Mac Address']))
+                        print('\nDIFF ITEM', count)
+                        print(msg1)
+                        status_file.write(msg1)
 
                 # if mac address is found in baseline with another ID
                 if mac_in_baseline:
@@ -676,6 +791,17 @@ def diff(results, baseline):
                                 .format(mac_in_baseline['ID'],
                                         diff_item['Mac Address'],
                                         diff_item['ID']))
+                    if diff_item['ID'] is None:
+                        if diff_item['IP'] == mac_in_baseline['IP']:
+                            update.append(diff_item)
+                            msg2 = ('\nDevice with ID {} and Mac Address {} '
+                                    '\nupdated to ID {}, Mac Address {} '
+                                    'and Asset Tag {}, '
+                                    .format(mac_in_baseline['ID'],
+                                            mac_in_baseline['Mac Address'],
+                                            diff_item['ID'],
+                                            diff_item['Mac Address'],
+                                            diff_item['Asset Tag']))
 
                     else:
                         review.append(diff_item)
@@ -684,8 +810,9 @@ def diff(results, baseline):
                                     '\nchanged to a different ID {}, '
                                     '\nneeds review\n'
                                     .format(mac_in_baseline['ID'],
-                                            diff_item['Mac Address'],
+                                            mac_in_baseline['Mac Address'],
                                             diff_item['ID']))
+                    print('\nDIFF ITEM', count)
                     print(msg2)
                     status_file.write(msg2)
 
@@ -707,6 +834,7 @@ def diff(results, baseline):
                                     .format(diff_item['ID'],
                                             diff_item['Mac Address'],
                                             diff_item['IP']))
+                            print('\nDIFF ITEM', count)
                             print(msg3)
                             status_file.write(msg3)
 
@@ -715,6 +843,7 @@ def diff(results, baseline):
                                     '\nhas been updated\n '
                                     .format(id_in_baseline['ID'],
                                             id_in_baseline['Mac Address']))
+                            print('\nDIFF ITEM', count)
                             print(msg4)
                             status_file.write(msg4)
 
@@ -732,24 +861,31 @@ def diff(results, baseline):
                                         diff_item['Mac Address'],
                                         mac_in_baseline['Mac Address'],
                                         mac_in_baseline['ID']))
+                        print('\nDIFF ITEM', count)
                         print(msg5)
                         status_file.write(msg5)
                 # if mac is not found in baseline (new device)
                 else:
                     if diff_item['ID'] is None:
-                        add.append(diff_item)
-                        msg6 = ('\nNew device with ID {} and Mac Address {} '
-                                'added\n'
-                                .format(diff_item['ID'],
-                                        diff_item['Mac Address']))
+                        check_add = check_if_add(diff_item)
+                        if check_add is True:
+                            add.append(diff_item)
+                            msg6 = ('\nNew device with ID {} and Mac Address {} '
+                                    'added\n'
+                                    .format(diff_item['ID'],
+                                            diff_item['Mac Address']))
+                            print('\nDIFF ITEM', count)
+                            print(msg6)
+                            status_file.write(msg6)                            
                     else:
                         review.append(diff_item)
                         msg6 = ('\nDevice with ID {} and Mac Address {} '
                                 '\nneeds review\n'
                                 .format(diff_item['ID'],
                                         diff_item['Mac Address']))
-                    print(msg6)
-                    status_file.write(msg6)
+                        print('\nDIFF ITEM', count)
+                        print(msg6)
+                        status_file.write(msg6)
     # devices from baseline not found in results
     if not_in_results:
         for diff_item in not_in_results:
@@ -770,19 +906,21 @@ def diff(results, baseline):
                     check_if_remove(diff_item)
                     if check_if_remove is True:
                         count += 1
-                        print('\nDIFF ITEM', count)
                         remove.append(diff_item)
                         msg7 = ('\nDevice with ID {} and Mac Address {} '
                                 '\nno longer found, '
                                 'has been removed\n'
                                 .format(diff_item['ID'],
                                         diff_item['Mac Address']))
+                        print('\nDIFF ITEM', count)
                         print(msg7)
                         status_file.write(msg7)
 
     # if hostname does not match location in scan, write message in status file
-    if results[0]['Hostname'] != '':
-        if results[0]['Location'] not in results[0]['Hostname']:
+    if results[0]['Hostname']:
+        club_number = str(results[0]['Location'])
+        club_number = club_number[-3:]
+        if club_number not in results[0]['Hostname']:
             msg8 = ('\nLocation {} does not match Hostname {}\n'
                     .format(club, results[0]['Hostname']))
             print(msg8)
@@ -853,9 +991,9 @@ def api_payload(all_diff):
 
     for list in diff:
         for item in list:
-            item['_snipeit_mac_address_1'] = item.pop('Mac Address')
-            item['_snipeit_ip_2'] = item.pop('IP')
-            item['_snipeit_hostname_3'] = item.pop('Hostname')
+            item['_snipeit_mac_address_4'] = item.pop('Mac Address')
+            item['_snipeit_ip_1'] = item.pop('IP')
+            item['_snipeit_hostname_5'] = item.pop('Hostname')
             item['model_id'] = item.pop('Model Number')
             item['status_id'] = item.pop('Status ID')
             item['asset_tag'] = item.pop('Asset Tag')
@@ -885,13 +1023,13 @@ def api_call(club_id, add, remove, update):
                        .format(today.strftime('%m-%d-%Y')), 'a+')
     if club_id:
         club = str(club_id)
-    # possible bug -line below. When club is none, sends error
-    # baseline_dir = path.join('./scans/baselines/', club)
+        # possible bug -line below. When club is none, sends error
+        # baseline_dir = path.join('./scans/baselines/', club)
 
-    if club:
-        status_file.write('\n\n')
-        status_file.write(club.upper())
-        status_file.write('\n')
+        if club:
+            status_file.write('\n\n')
+            status_file.write(club.upper())
+            status_file.write('\n')
 
     if add:
         for item in add:
@@ -904,6 +1042,7 @@ def api_call(club_id, add, remove, update):
 
                 content = response.json()
                 tag = str(content['asset_tag'])
+                print(item)
                 if tag:
                     status_file.write('Cannot add item, asset_tag {} already exists '
                                       'in Snipe-IT, review item\n{}'
@@ -921,15 +1060,12 @@ def api_call(club_id, add, remove, update):
             url = cfg.api_url
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
-
+            print(payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
                                         headers=cfg.api_headers)
-            print(response)
-            if 'error' in response['status']:
-                print('Error Sending API Call\n', payload)
-                pprint(response.text)
+            pprint(response.text)
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
                                   'with asset-tag {} to Snipe-IT'
@@ -972,6 +1108,7 @@ def api_call(club_id, add, remove, update):
             item_str = item_str.replace('\'', '\"')
             url = cfg.api_url + str(item['id'])
             payload = item_str
+            print(payload)
             response = requests.request("PUT",
                                         url=url,
                                         data=payload,
@@ -988,6 +1125,43 @@ def api_call(club_id, add, remove, update):
                                   'request to update item'
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
+
+
+def get_device_info_snipe(asset_tag):
+    """Returns information for each host.
+    this function returns SNIPE-IT's current device information
+    this device information will be used to have a snapshot of 
+    the devices already in snipe-it.
+
+    Args:
+        Asset Tag =  asset tag of te device
+
+    Returns:
+        ID - get ID from snipe-it
+        IP - get IP from snipe-it
+        Mac Address - get mac address from snipe-it
+
+    """
+
+    try:
+        url = cfg.api_url_get + str(asset_tag)
+
+        response = requests.request("GET", url=url, headers=cfg.api_headers)
+
+        content = response.json()
+        result_id = str(content['id'])
+        result_ip = str(content['custom_fields']['IP'])
+        result_mac = str(content['custom_fields']['Mac Address'])
+
+        print('ID: ', result_id)
+        print('IP: ', result_ip)
+        print('Mac Address: ', result_mac)
+
+    except (KeyError,
+            decoder.JSONDecodeError):
+        result_id = None
+
+    return result_id, result_ip, result_mac
 
 
 def get_id(asset_tag):
@@ -1071,7 +1245,8 @@ def load_baseline(results):
 
 
 def last_4_baselines(diff_item):
-    """Opens and loads prior 4 scans as baselines for use in remove_record()
+    """Opens and loads prior 4 scans as baselines for use in check_if_remove()
+        and check_if_add()
 
         Args:
             item from differences that no longer appears in results
@@ -1146,7 +1321,6 @@ def club_id(conn, host, device_type):
         'null' is returned.
     """
     club_rgx = compile(cfg.club_rgx)
-    reg_rgx = compile(cfg.reg_rgx)
     fort_regex = compile(r'([0-9]{3}(?=-fgt-))', IGNORECASE)
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     for _ in range(1):
@@ -1160,17 +1334,12 @@ def club_id(conn, host, device_type):
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
                             print('Getting club ID... attempt', attempt + 1)
-                            # if club pattern is not found
-                            if club_result is None:
-                                # search for regional pattern
-                                club_result = reg_rgx.search(club_info)
-                            # if regional pattern found
                             if club_result is not None:
-                                # club_result returns reg pattern 'reg-000'
-                                club_result = club_result.group(0)
+                                # club_number returns pattern '000'
+                                club_result = str(club_result.group(0))
                                 break
-                            # if reg pattern is not found
-                            if club_result is None:
+                            # if club pattern is not found
+                            else:
                                 # look for ID in router hostname
                                 raise OSError
 
@@ -1184,29 +1353,34 @@ def club_id(conn, host, device_type):
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
                                 club_result = 'club' + str(club_number)
+                                break
                             # if pattern is not found
                             if club_result is None:
                                 print('no club ID found')
                                 # look for ID in router hostname
                                 raise OSError
 
-                    except(OSError):
+                    except(OSError,
+                           NetMikoTimeoutException):
                         if attempt == 0:
                             print('Could not send command. Trying again')
                             continue
                         if attempt == 1:
                             print('Getting club_id from nmap hostname')
                             hostname = get_hostnames(host)
+                            print(hostname)
+                            print(hostname['hostnames'])
                             hostname_club = club_rgx.search(hostname['hostnames'])
                             if hostname_club:
                                 club_result = hostname_club.group(0)
+                                print(club_result)
                             if not hostname_club:
                                 print('could not get club_id')
                                 return None
 
                         if attempt > 0:
                             print('could not get club_id')
-
+        club_result = str(club_result)
         club_result = club_result.lower()
 
         return club_result
@@ -1331,10 +1505,11 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 ip_list = get_ips()
 main(ip_list)
-
+# get_all_snipe()
 
 end = time()
 runtime = end - start
 runtime = str(timedelta(seconds=int(runtime)))
 
 print('\nScript Runtime: {} '.format(runtime))
+
