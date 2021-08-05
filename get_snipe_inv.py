@@ -1,7 +1,6 @@
 import pymongo
-import pprint
 import requests
-from json import dumps, load, loads, decoder
+from json import decoder
 import config as cfg
 
 
@@ -27,20 +26,20 @@ def get_snipe():
         total_record = content['total']
 
         for offset in range(0, total_record, 500):
-            querystring = {"offset":offset}
+            querystring = {"offset": offset}
             response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
             content = response.json()
 
             for item in content['rows']:
-                device = {'ID':item['id'],
-                          'Asset Tag':item['asset_tag'],
-                          'IP':item['custom_fields']['IP']['value'],
-                          'Mac Address':item['custom_fields']['Mac Address']['value'],
-                          'Location':item['location']['name'],
-                          'Category':item['category']['name'],
-                          'Hostname':item['custom_fields']['Hostname']['value'],
-                          'Manufacturer':item['manufacturer']['name'],
-                          'Model Name':item['model']['name']}
+                device = {'ID': item['id'],
+                          'Asset Tag': item['asset_tag'],
+                          'IP': item['custom_fields']['IP']['value'],
+                          'Mac Address': item['custom_fields']['Mac Address']['value'],
+                          'Location': item['location']['name'],
+                          'Category': item['category']['name'],
+                          'Hostname': item['custom_fields']['Hostname']['value'],
+                          'Manufacturer': item['manufacturer']['name'],
+                          'Model Name': item['model']['name']}
                 all_items.append(device)
 
         print(*all_items, sep='\n')
@@ -60,10 +59,8 @@ def get_snipe():
         # insert list of dictionaries
         mycol.insert_many(all_items)
 
-
     except (KeyError,
             decoder.JSONDecodeError):
         content = None
         print('No response')
         return content
-

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from os import path, listdir
-from json import dumps, load, loads, decoder
+from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
@@ -11,7 +11,7 @@ from datetime import timedelta, date
 from pprint import pprint
 from ipaddress import ip_address, ip_network
 import requests
-import traceback
+# import traceback
 import urllib3
 import pymongo
 
@@ -82,7 +82,6 @@ def main(ip_list):
                 else:
                     results = None
 
-
                 for item in results:
                     item['ID'] = get_id(item['Asset Tag'])
 
@@ -96,7 +95,7 @@ def main(ip_list):
                     if all_api_payload:
                         add = all_api_payload[0]
                         remove = all_api_payload[1]
-                        #update = all_api_payload[2]
+                        # update = all_api_payload[2]
                     api_call(results_copy[0]['Location'], add, remove)
                 updated_results = save_results(results, str(ip))
                 add_to_db(updated_results, db_count)
@@ -109,8 +108,6 @@ def main(ip_list):
             print('Scanning next club....')
             continue
 
-
-        #get_all_snipe()
         clb_runtime_end = time()
         clb_runtime = clb_runtime_end - clb_runtime_str
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
@@ -499,7 +496,7 @@ def save_results(results, host):
 
 def add_to_db(results, db_count):
     """ add scan to mongoDB """
-    
+
     client = pymongo.MongoClient("mongodb://localhost:27017/")
 
     # Use database called inventory
@@ -541,13 +538,13 @@ def get_all_snipe():
         total_record = content['total']
 
         for offset in range(0, total_record, 500):
-            querystring = {"offset":offset}
+            querystring = {"offset": offset}
             response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
             content = response.json()
             for item in content['rows']:
-                device = {'id':item['id'], 'asset_tag':item['asset_tag']}
+                device = {'id': item['id'], 'asset_tag': item['asset_tag']}
                 all_items.append(device)
-                
+
         # print(*all_items, sep='\n')
         return all_items
 
@@ -556,7 +553,6 @@ def get_all_snipe():
         content = None
         print('No response')
         return content
-
 
 
 def csv(results, header_added):
@@ -907,7 +903,7 @@ def diff(results, baseline):
                                             diff_item['Mac Address']))
                             print('\nDIFF ITEM', count)
                             print(msg6)
-                            status_file.write(msg6)                            
+                            status_file.write(msg6)
                     else:
                         review.append(diff_item)
                         msg6 = ('\nDevice with ID {} and Mac Address {} '
@@ -1015,17 +1011,14 @@ def mongo_diff(results):
 
     """
 
-    
     if results:
         print('Comparing to Prior Scan, Looking for Differences')
         club = results[0]['Location']
-    club_macs = []
     results_macs = []
     update = []
     remove = []
     review = []
     add = []
-    id_update = []
     all_diff = []
     if not results:
         return None
@@ -1039,16 +1032,15 @@ def mongo_diff(results):
     snipe_coll = db['snipe']
 
     # Use prior scans to check if device was currently in snipe
-    
 
     # if there is no scan in the db, if there are items in snipe get ids
     # if there are no devices in snipe add to "add" list and send api call
 
-    snipe_location = snipe_coll.find({'Location':results[0]['Location']},
-                             {'Location':1, '_id':0})
+    snipe_location = snipe_coll.find({'Location': results[0]['Location']},
+                                     {'Location': 1, '_id': 0})
 
-    snipe_location_amt = snipe_coll.count({'Location':results[0]['Location']})
-    
+    snipe_location_amt = snipe_coll.count({'Location': results[0]['Location']})
+
     if snipe_location_amt == 0:
         print('No prior scan found to compare')
         for item in results:
@@ -1078,7 +1070,6 @@ def mongo_diff(results):
         else:
             return None
 
-
     if results[0]['Location'] != snipe_location[0]['Location']:
         print('Club information cannot be compared')
         return None
@@ -1100,8 +1091,8 @@ def mongo_diff(results):
 
     # Query mongo for all mac addresses in current location
     # location is based on results[0]['Location']
-    snipe_mac = snipe_coll.find({'Location':results[0]['Location']},
-                                {'Mac Address':1, '_id':0})
+    snipe_mac = snipe_coll.find({'Location': results[0]['Location']},
+                                {'Mac Address': 1, '_id': 0})
     # add db query to a list of dictionaries
     snipe_mac = list(snipe_mac)
 
@@ -1115,8 +1106,8 @@ def mongo_diff(results):
     for item in results:
         results_macs.append(item['Mac Address'])
         # query for specific mac address from results in mongodb
-        new_mac = snipe_coll.find({'Mac Address':item['Mac Address']},
-                                  {'Mac Address':1, '_id':0})
+        new_mac = snipe_coll.find({'Mac Address': item['Mac Address']},
+                                  {'Mac Address': 1, '_id': 0})
         # if mac address cannot be found in db, it is new
         if new_mac.count() == 0:
             count += 1
@@ -1125,7 +1116,7 @@ def mongo_diff(results):
             print('check_add')
             print(check_add)
             # if check_add is true, mac not found in prior 4 scans, add new
-            if check_add is True: 
+            if check_add is True:
                 add.append(item)
                 msg1 = ('\nNew device with ID {} and Mac Address {} '
                         'added\n'
@@ -1145,8 +1136,8 @@ def mongo_diff(results):
     print(not_in_results)
 
     for item in not_in_results:
-        itm = snipe_coll.find({'Mac Address':item},
-                              {'_id':0})
+        itm = snipe_coll.find({'Mac Address': item},
+                              {'_id': 0})
         itm = list(itm)
         itm = itm[0]
         check_remove = check_if_remove(itm)
@@ -1188,7 +1179,7 @@ def mongo_diff(results):
     print('REMOVE')
     print(remove)
     return [add, remove]
-    
+
 
 def api_payload(all_diff):
     """Returns a list of strings with " escaped for each club changes,
@@ -1206,14 +1197,12 @@ def api_payload(all_diff):
     diff = deepcopy(all_diff)
     add = []
     remove = []
-    update = []
-    review = []
 
     if not all_diff:
         return None
 
-    #review = all_diff[3]
-    
+    # review = all_diff[3]
+
     for list in diff:
         for item in list:
             item['_snipeit_mac_address_7'] = item.pop('Mac Address')
@@ -1229,11 +1218,10 @@ def api_payload(all_diff):
                 item['rtd_location_id'] = item.pop('Location ID')
             if 'Status' in item:
                 item.pop('Status')
-            
 
     add = diff[0]
     remove = diff[1]
-    #update = diff[2]
+    # update = diff[2]
 
     for item in add:
         item.pop('id')
@@ -1337,36 +1325,11 @@ def api_call(club_id, add, remove):
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
 
-    #if update:
-     #   for item in update:
-      #      item_str = item
-       #     item_str = str(item)
-        #    item_str = item_str.replace('\'', '\"')
-         #   url = cfg.api_url + str(item['id'])
-          #  payload = item_str
-           # print(payload)
-            #response = requests.request("PUT",
-             #                           url=url,
-              #                          data=payload,
-               #                         headers=cfg.api_headers)
-       #     pprint(response.text)
-
-        #    if response.status_code == 200:
-         #       status_file.write('Sent request to update item'
-          #                        'with asset-tag {} from Snipe-IT'
-           #                       .format(item['asset_tag']))
-
-            #if response.status_code == 401:
-             #   status_file.write('Unauthorized. Could not send'
-              #                    'request to update item'
-               #                   'with asset-tag {} from Snipe-IT'
-                #                  .format(item['asset_tag']))
-
 
 def get_device_info_snipe(asset_tag):
     """Returns information for each host.
     this function returns SNIPE-IT's current device information
-    this device information will be used to have a snapshot of 
+    this device information will be used to have a snapshot of
     the devices already in snipe-it.
 
     Args:
@@ -1742,7 +1705,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-#ip_list = ['172.31.0.54']
+# ip_list = ['172.31.0.54']
 main(ip_list)
 
 end = time()
@@ -1750,4 +1713,3 @@ runtime = end - start
 runtime = str(timedelta(seconds=int(runtime)))
 
 print('\nScript Runtime: {} '.format(runtime))
-
