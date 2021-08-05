@@ -22,6 +22,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from ips import get_ips
+from get_snipe_inv import get_snipe
 import config as cfg
 
 
@@ -58,6 +59,9 @@ def main(ip_list):
     print(cfg.intro1)
     print(cfg.intro2)
 
+    db_count = 0
+    get_snipe()
+
     for ip in ip_list:
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
@@ -78,12 +82,13 @@ def main(ip_list):
                 else:
                     results = None
 
-                results_copy = deepcopy(results)
 
-                for item in results_copy:
+                for item in results:
                     item['ID'] = get_id(item['Asset Tag'])
 
-                all_diff = diff(results_copy, load_baseline(results_copy))
+                results_copy = deepcopy(results)
+
+                all_diff = mongo_diff(results_copy)
 
                 if all_diff:
                     all_api_payload = api_payload(all_diff)
@@ -91,11 +96,11 @@ def main(ip_list):
                     if all_api_payload:
                         add = all_api_payload[0]
                         remove = all_api_payload[1]
-                        update = all_api_payload[2]
-                    api_call(results[0]['Location'], add, remove, update)
-
-                write_to_files(results_copy, str(ip))
-
+                        #update = all_api_payload[2]
+                    api_call(results_copy[0]['Location'], add, remove)
+                updated_results = save_results(results, str(ip))
+                add_to_db(updated_results, db_count)
+                db_count += 1
                 csv(results, header_added)
                 connect_obj.disconnect()
 
@@ -111,9 +116,10 @@ def main(ip_list):
         clb_runtime = str(timedelta(seconds=int(clb_runtime)))
         header_added = True
 
-        if connect and results:
-            print('\n{} Scan Runtime: {} '
-                  .format(results[0]['Location'], clb_runtime))
+        if router_connect:
+            if results:
+                print('\n{} Scan Runtime: {} '
+                      .format(results[0]['Location'], clb_runtime))
         else:
             print('\nClub Scan Runtime: {} '.format(clb_runtime))
 
@@ -412,7 +418,7 @@ def get_router_info(conn, host, device_type):
                         # writing full scan to .json
                         club_output = open(
                             './scans/full_scans/full_scan{}.json'.format(
-                                today.strftime('%m-%d-%Y')), 'a+')
+                                today.strftime('%m%d%Y')), 'a+')
 
                         for item in results:
                             club_output.write(dumps(item, indent=4))
@@ -440,7 +446,7 @@ def get_router_info(conn, host, device_type):
     return results
 
 
-def write_to_files(results, host):
+def save_results(results, host):
     """Function to print and add results to .json and .csv files
 
     Args:
@@ -468,7 +474,7 @@ def write_to_files(results, host):
         mydir_obj.mkdir(parents=True, exist_ok=True)
         club_base_file = open(
             mydir + '/{}_{}.json'.format(results[0]['Location'],
-                                         today.strftime('%m-%d-%Y')), 'w+')
+                                         today.strftime('%m%d%Y')), 'w+')
 
         for item in results:
             if item['ID'] is None:
@@ -476,16 +482,41 @@ def write_to_files(results, host):
                 item_id = get_id(item['Asset Tag'])
                 if item_id:
                     item['ID'] = item_id
+                    print('if', item)
                 else:
+                    print('else', item)
                     continue
 
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
+        return results
 
     else:
         print('No results received from router')
         not_connected.append(host)
+
+
+def add_to_db(results, db_count):
+    """ add scan to mongoDB """
+    
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # Use database called inventory
+    db = client['inventory']
+
+    # use collection named by date of scan
+    today_date = today.strftime('%m%d%Y')
+    collection_name = 'scan_' + today_date
+    scan_col = db[collection_name]
+
+    # delete prior scan items
+    if db_count == 0:
+        if scan_col.count() > 0:
+            scan_col.delete_many({})
+
+    # insert full scan into mongodb collection
+    scan_col.insert_many(results)
 
 
 def get_all_snipe():
@@ -540,7 +571,7 @@ def csv(results, header_added):
 
         # create .csv file with full scan
         with open('./scans/full_scans/full_scan{}.csv'
-                  .format(today.strftime('%m-%d-%Y')), 'a') as csvfile:
+                  .format(today.strftime('%m%d%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if header_added is False:
                 csvwriter.writeheader()
@@ -708,7 +739,7 @@ def diff(results, baseline):
 
             # create file for add
             add_file = open(mydir + '/add_{}.json'
-                            .format(today.strftime("%m-%d-%Y")), 'a+')
+                            .format(today.strftime("%m%d%Y")), 'a+')
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
@@ -727,7 +758,7 @@ def diff(results, baseline):
 
     # create file to write status of differences as they happen
     status_file = open('./scans/scan_status/scan_{}'
-                       .format(today.strftime('%m-%d-%Y')), 'a+')
+                       .format(today.strftime('%m%d%Y')), 'a+')
     if club:
         status_file.write('\n\n')
         status_file.write(club.upper())
@@ -930,7 +961,7 @@ def diff(results, baseline):
         print('There are devices to review, check scan_status file')
         # create file for review
         review_file = open(mydir + '/review_{}.json'
-                           .format(today.strftime("%m-%d-%Y")), 'a+')
+                           .format(today.strftime("%m%d%Y")), 'a+')
         review_file.write(dumps(list(review), indent=4))
         review_file.close()
         all_diff.extend(review)
@@ -939,7 +970,7 @@ def diff(results, baseline):
         print('There are devices that need to be updated in DB')
         # create file for update
         update_file = open(mydir + '/update_{}.json'
-                           .format(today.strftime("%m-%d-%Y")), 'a+')
+                           .format(today.strftime("%m%d%Y")), 'a+')
         update_file.write(dumps(list(update), indent=4))
         update_file.close()
         all_diff.extend(update)
@@ -948,7 +979,7 @@ def diff(results, baseline):
         print('There are devices that need to be added to DB')
         # create file for add
         add_file = open(mydir + '/add_{}.json'
-                        .format(today.strftime("%m-%d-%Y")), 'a+')
+                        .format(today.strftime("%m%d%Y")), 'a+')
         add_file.write(dumps(list(add), indent=4))
         add_file.close()
         all_diff.extend(add)
@@ -957,13 +988,207 @@ def diff(results, baseline):
         print('There are devices that need to be removed from DB')
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
-                           .format(today.strftime("%m-%d-%Y")), 'a+')
+                           .format(today.strftime("%m%d%Y")), 'a+')
         remove_file.write(dumps(list(remove), indent=4))
         remove_file.close()
         all_diff.extend(remove)
 
     return [add, remove, update, review]
 
+
+def mongo_diff(results):
+    """ Function to get differences between current and prior scans
+    by date of scan.
+    Function returns a list of all differences.
+
+    Args:
+        results - current scan device information by location
+
+    Returns:
+        all_diff - all differences between scans,
+                   to include additions, removals and updated information
+
+    Raises:
+        does not raise an error, if there is no scan to compare to,
+        or there is a problem getting difference,
+        function returns None
+
+    """
+
+    
+    if results:
+        print('Comparing to Prior Scan, Looking for Differences')
+        club = results[0]['Location']
+    club_macs = []
+    results_macs = []
+    update = []
+    remove = []
+    review = []
+    add = []
+    id_update = []
+    all_diff = []
+    if not results:
+        return None
+
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # Use database called inventory
+    db = client['inventory']
+
+    # Use database "snipe" to compare
+    snipe_coll = db['snipe']
+
+    # Use prior scans to check if device was currently in snipe
+    
+
+    # if there is no scan in the db, if there are items in snipe get ids
+    # if there are no devices in snipe add to "add" list and send api call
+
+    snipe_location = snipe_coll.find({'Location':results[0]['Location']},
+                             {'Location':1, '_id':0})
+
+    snipe_location_amt = snipe_coll.count({'Location':results[0]['Location']})
+    
+    if snipe_location_amt == 0:
+        print('No prior scan found to compare')
+        for item in results:
+            if item['ID'] is None:
+                print('Checking snipe-it for record')
+                item_id = get_id(item['Asset Tag'])
+                if item_id:
+                    item['ID'] = item_id
+                else:
+                    add.append(item)
+            else:
+                continue
+        if add:
+            print('There are devices that need to be added to DB')
+            # make directory that will contain all scan statuses by date
+            mydir = path.join('./scans/scan_status')
+            mydir_obj = Path(mydir)
+            mydir_obj.mkdir(parents=True, exist_ok=True)
+
+            # create file for add
+            add_file = open(mydir + '/add_{}.json'
+                            .format(today.strftime("%m%d%Y")), 'a+')
+            add_file.write(dumps(list(add), indent=4))
+            add_file.close()
+            all_diff.extend(add)
+            return [add, remove, update, review]
+        else:
+            return None
+
+
+    if results[0]['Location'] != snipe_location[0]['Location']:
+        print('Club information cannot be compared')
+        return None
+
+    # make directory that will contain all scan statuses by date
+    mydir = path.join('./scans/scan_status')
+    mydir_obj = Path(mydir)
+    mydir_obj.mkdir(parents=True, exist_ok=True)
+
+    # create file to write status of differences as they happen
+    status_file = open('./scans/scan_status/scan_{}'
+                       .format(today.strftime('%m%d%Y')), 'a+')
+    if club:
+        status_file.write('\n\n')
+        status_file.write(club.upper())
+        status_file.write('\n')
+
+    count = 0
+
+    # Query mongo for all mac addresses in current location
+    # location is based on results[0]['Location']
+    snipe_mac = snipe_coll.find({'Location':results[0]['Location']},
+                                {'Mac Address':1, '_id':0})
+    # add db query to a list of dictionaries
+    snipe_mac = list(snipe_mac)
+
+    # list comprehension to get mac address values from snipe db
+    # from list of dictionaries to just a list of mac addresses
+    snipe_mac_list = [item['Mac Address'] for item in snipe_mac]
+    print('snipe_mac_list')
+    print(snipe_mac_list)
+
+    # loop through results and append all results mac addr values to a list
+    for item in results:
+        results_macs.append(item['Mac Address'])
+        # query for specific mac address from results in mongodb
+        new_mac = snipe_coll.find({'Mac Address':item['Mac Address']},
+                                  {'Mac Address':1, '_id':0})
+        # if mac address cannot be found in db, it is new
+        if new_mac.count() == 0:
+            count += 1
+            # if device is not found in 4 prior scans
+            check_add = check_if_add(item)
+            print('check_add')
+            print(check_add)
+            # if check_add is true, mac not found in prior 4 scans, add new
+            if check_add is True: 
+                add.append(item)
+                msg1 = ('\nNew device with ID {} and Mac Address {} '
+                        'added\n'
+                        .format(item['ID'],
+                                item['Mac Address']))
+                print('\nDIFF ITEM', count)
+                print(msg1)
+                status_file.write(msg1)
+
+    print('results macs')
+    print(results_macs)
+
+    # check if each mac address in snipedb is in results mac address list
+    not_in_results = list(filter(lambda item: item not in results_macs, snipe_mac_list))
+
+    print('not_in_results')
+    print(not_in_results)
+
+    for item in not_in_results:
+        itm = snipe_coll.find({'Mac Address':item},
+                              {'_id':0})
+        itm = list(itm)
+        itm = itm[0]
+        check_remove = check_if_remove(itm)
+        print('check_remove')
+        print(check_remove)
+        # if check_remove is true, remove device from snipeit
+        if check_remove is True:
+            count += 1
+            remove.append(itm)
+            msg7 = ('\nDevice with ID {} and Mac Address {} '
+                    '\nno longer found, '
+                    'has been removed\n'
+                    .format(itm['ID'],
+                            itm['Mac Address']))
+            print('\nDIFF ITEM', count)
+            print(msg7)
+            status_file.write(msg7)
+
+    if add:
+        print('There are devices that need to be added to DB')
+        # create file for add
+        add_file = open(mydir + '/add_{}.json'
+                        .format(today.strftime("%m%d%Y")), 'a+')
+        add_file.write(dumps(list(add), indent=4))
+        add_file.close()
+        all_diff.extend(add)
+
+    if remove:
+        print('There are devices that need to be removed from DB')
+        # create file for remove
+        remove_file = open(mydir + '/remove_{}.json'
+                           .format(today.strftime("%m%d%Y")), 'a+')
+        remove_file.write(dumps(list(remove), indent=4))
+        remove_file.close()
+        all_diff.extend(remove)
+
+    print('ADD')
+    print(add)
+    print('REMOVE')
+    print(remove)
+    return [add, remove]
+    
 
 def api_payload(all_diff):
     """Returns a list of strings with " escaped for each club changes,
@@ -987,31 +1212,42 @@ def api_payload(all_diff):
     if not all_diff:
         return None
 
-    review = all_diff[3]
-
+    #review = all_diff[3]
+    
     for list in diff:
         for item in list:
-            item['_snipeit_mac_address_4'] = item.pop('Mac Address')
-            item['_snipeit_ip_1'] = item.pop('IP')
-            item['_snipeit_hostname_5'] = item.pop('Hostname')
-            item['model_id'] = item.pop('Model Number')
-            item['status_id'] = item.pop('Status ID')
+            item['_snipeit_mac_address_7'] = item.pop('Mac Address')
+            item['_snipeit_ip_6'] = item.pop('IP')
+            item['_snipeit_hostname_8'] = item.pop('Hostname')
             item['asset_tag'] = item.pop('Asset Tag')
-            item['rtd_location_id'] = item.pop('Location ID')
-            item.pop('Status')
             item['id'] = item.pop('ID')
+            if 'Model Number' in item:
+                item['model_id'] = item.pop('Model Number')
+            if 'Status ID' in item:
+                item['status_id'] = item.pop('Status ID')
+            if 'Location ID' in item:
+                item['rtd_location_id'] = item.pop('Location ID')
+            if 'Status' in item:
+                item.pop('Status')
+            
 
     add = diff[0]
     remove = diff[1]
-    update = diff[2]
+    #update = diff[2]
 
     for item in add:
         item.pop('id')
 
-    return [add, remove, update, review]
+    if add:
+        print('ADD\n')
+        print(*add, sep='\n')
+    if remove:
+        print('REMOVE\n')
+        print(*remove, sep='\n')
+    return [add, remove]
 
 
-def api_call(club_id, add, remove, update):
+def api_call(club_id, add, remove):
 
     # make directory that will contain all scan statuses by date
     mydir = path.join('./scans/api_status')
@@ -1020,7 +1256,7 @@ def api_call(club_id, add, remove, update):
 
     # create file to write status of differences as they happen
     status_file = open('./scans/api_status/scan_{}'
-                       .format(today.strftime('%m-%d-%Y')), 'a+')
+                       .format(today.strftime('%m%d%Y')), 'a+')
     if club_id:
         club = str(club_id)
         # possible bug -line below. When club is none, sends error
@@ -1101,30 +1337,30 @@ def api_call(club_id, add, remove, update):
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
 
-    if update:
-        for item in update:
-            item_str = item
-            item_str = str(item)
-            item_str = item_str.replace('\'', '\"')
-            url = cfg.api_url + str(item['id'])
-            payload = item_str
-            print(payload)
-            response = requests.request("PUT",
-                                        url=url,
-                                        data=payload,
-                                        headers=cfg.api_headers)
-            pprint(response.text)
+    #if update:
+     #   for item in update:
+      #      item_str = item
+       #     item_str = str(item)
+        #    item_str = item_str.replace('\'', '\"')
+         #   url = cfg.api_url + str(item['id'])
+          #  payload = item_str
+           # print(payload)
+            #response = requests.request("PUT",
+             #                           url=url,
+              #                          data=payload,
+               #                         headers=cfg.api_headers)
+       #     pprint(response.text)
 
-            if response.status_code == 200:
-                status_file.write('Sent request to update item'
-                                  'with asset-tag {} from Snipe-IT'
-                                  .format(item['asset_tag']))
+        #    if response.status_code == 200:
+         #       status_file.write('Sent request to update item'
+          #                        'with asset-tag {} from Snipe-IT'
+           #                       .format(item['asset_tag']))
 
-            if response.status_code == 401:
-                status_file.write('Unauthorized. Could not send'
-                                  'request to update item'
-                                  'with asset-tag {} from Snipe-IT'
-                                  .format(item['asset_tag']))
+            #if response.status_code == 401:
+             #   status_file.write('Unauthorized. Could not send'
+              #                    'request to update item'
+               #                   'with asset-tag {} from Snipe-IT'
+                #                  .format(item['asset_tag']))
 
 
 def get_device_info_snipe(asset_tag):
@@ -1221,7 +1457,7 @@ def load_baseline(results):
             last_baseline = sorted_list_dir[-1]
             # if scan is perfomed more than once in a day, make sure baseline
             # still the prior scan performed in an earlier date
-            if today.strftime("%m-%d-%Y") in last_baseline:
+            if today.strftime("%m%d%Y") in last_baseline:
                 if len(list_dir) >= 2:
                     last_baseline = sorted_list_dir[-2]
                 else:
@@ -1257,6 +1493,7 @@ def last_4_baselines(diff_item):
         Raises:
             Does not raise an error. If there is no baseline, returns None
     """
+    print('diff_item last 4 baselines', diff_item)
     if diff_item:
         club = diff_item['Location']
     else:
@@ -1337,13 +1574,13 @@ def club_id(conn, host, device_type):
                             if club_result is not None:
                                 # club_number returns pattern '000'
                                 club_result = str(club_result.group(0))
-                                break
                             # if club pattern is not found
                             else:
                                 # look for ID in router hostname
+                                print('error raised cisco')
                                 raise OSError
 
-                        if device_type == 'fortinet':
+                        elif device_type == 'fortinet':
                             club_info = conn.send_command('show system snmp sysinfo')
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
@@ -1358,6 +1595,7 @@ def club_id(conn, host, device_type):
                             if club_result is None:
                                 print('no club ID found')
                                 # look for ID in router hostname
+                                print('error raised fortinet')
                                 raise OSError
 
                     except(OSError,
@@ -1415,9 +1653,9 @@ def get_hostnames(ip):
         if 'status' in scanner[ip]:
             host['status'] = scanner[ip]['status']['state']
         if host['status'] == 'up':
-            host['status ID'] = '5'
+            host['status ID'] = '6'
         if host['status'] == 'down':
-            host['status ID'] = '3'
+            host['status ID'] = '8'
 
         return host
 
@@ -1504,8 +1742,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
+#ip_list = ['172.31.0.54']
 main(ip_list)
-# get_all_snipe()
 
 end = time()
 runtime = end - start
