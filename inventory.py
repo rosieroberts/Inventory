@@ -70,7 +70,7 @@ def main(ip_list):
                                             url=url_loc,
                                             headers=cfg.api_headers)
             loc_id_data = response_loc.json()
-        except JSONDecodeError:
+        except decoder.JSONDecodeError:
             loc_id_data = None
             print('Cannot get location information from API. Stopping Script')
             exit()
@@ -320,7 +320,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 vendor
                             )
                             if hostname is None:
-                                continue 
+                                continue
 
                             loc_id = 'null'
                             try:
