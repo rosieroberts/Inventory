@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from os import path, listdir
+from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
@@ -62,6 +63,18 @@ def main(ip_list):
     db_count = 0
     get_snipe()
 
+    for attempt in range(3):
+        try:
+            url_loc = cfg.api_url_get_locations
+            response_loc = requests.request("GET",
+                                            url=url_loc,
+                                            headers=cfg.api_headers)
+            loc_id_data = response_loc.json()
+        except JSONDecodeError:
+            loc_id_data = None
+            print('Cannot get location information from API. Stopping Script')
+            exit()
+
     for ip in ip_list:
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
@@ -78,7 +91,7 @@ def main(ip_list):
                 device_type = router_connect[1]
                 if ip_address:
 
-                    results = get_router_info(connect_obj, str(ip), device_type)
+                    results = get_router_info(connect_obj, str(ip), device_type, loc_id_data)
                 else:
                     results = None
 
@@ -204,7 +217,7 @@ def connect(ip):
         return None
 
 
-def get_router_info(conn, host, device_type):
+def get_router_info(conn, host, device_type, loc_id_data):
     """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
     information in a list of dictionaries per location.
@@ -307,14 +320,8 @@ def get_router_info(conn, host, device_type):
                                 vendor
                             )
                             if hostname is None:
-                                continue
+                                continue 
 
-                            url_loc = cfg.api_url_get_locations
-
-                            response_loc = requests.request("GET",
-                                                            url=url_loc,
-                                                            headers=cfg.api_headers)
-                            loc_id_data = response_loc.json()
                             loc_id = 'null'
                             try:
                                 if loc_id_data.get('total') != 0:
@@ -1398,7 +1405,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.0.54']
+# ip_list = ['172.31.0.180']
 main(ip_list)
 
 end = time()
