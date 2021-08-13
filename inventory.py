@@ -596,12 +596,14 @@ def check_if_remove(diff_item):
     baseline_3 = baselines[2]
     baseline_4 = baselines[3]
 
+
     id_found = next((itm for itm in baseline_1 if
                      diff_item['ID'] == itm['ID']), None)
 
     mac_found = next((item for item in baseline_1 if
                       diff_item['Mac Address'] ==
                       item['Mac Address']), None)
+    
     if id_found is not None and mac_found is not None:
         return False
 
@@ -840,6 +842,7 @@ def mongo_diff(results):
                               {'_id': 0})
         itm = list(itm)
         itm = itm[0]
+        itm['ID'] = str(itm['ID'])
         check_remove = check_if_remove(itm)
         print('check_remove')
         print(check_remove)
@@ -1405,11 +1408,11 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.0.180']
-main(ip_list)
+# ip_list = ['172.31.0.4']
 
-end = time()
-runtime = end - start
-runtime = str(timedelta(seconds=int(runtime)))
-
-print('\nScript Runtime: {} '.format(runtime))
+if __name__ == '__main__':
+    main(ip_list)
+    end = time()
+    runtime = end - start
+    runtime = str(timedelta(seconds=int(runtime)))
+    print('\nScript Runtime: {} '.format(runtime))
