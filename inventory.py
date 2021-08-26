@@ -64,7 +64,7 @@ def main(ip_list):
     db_count = 0
     get_snipe()
 
-    # truncating csv file if it was ran a prior time on same day to 
+    # truncating csv file if it was ran a prior time on same day to
     # avoid duplicate values
     full_csv = ('./scans/full_scans/full_scan{}.csv'
                 .format(today.strftime('%m%d%Y')))
@@ -608,14 +608,13 @@ def check_if_remove(diff_item):
     baseline_3 = baselines[2]
     baseline_4 = baselines[3]
 
-
     id_found = next((itm for itm in baseline_1 if
                      diff_item['ID'] == itm['ID']), None)
 
     mac_found = next((item for item in baseline_1 if
                       diff_item['Mac Address'] ==
                       item['Mac Address']), None)
-    
+
     if id_found is not None and mac_found is not None:
         return False
 
@@ -729,9 +728,9 @@ def mongo_diff(results):
         print('Comparing to Prior Scan, Looking for Differences')
         club = results[0]['Location']
     results_macs = []
-    update = []
-    remove = []
-    review = []
+    # update = []
+    # remove = []
+    # review = []
     add = []
     all_diff = []
     if not results:
@@ -991,7 +990,6 @@ def api_call(club_id, add, remove):
                       .format(item['asset_tag']))
                 continue
 
-
             # checking if item was previously deleted so it can be restored and not create
             # a new entry since it is not necessary and will prevent duplicate entries
 
@@ -1017,7 +1015,7 @@ def api_call(club_id, add, remove):
                 del_item_mac = None
 
             # if id found in "deleted" collection
-            if del_item_mac:
+            if del_item_mac or del_item_id:
                 try:
                     url = cfg.api_url_restore_deleted.format(item['id'])
 
@@ -1038,7 +1036,7 @@ def api_call(club_id, add, remove):
                     item_id = None
                     print('Item has never been previously deleted, creating new item')
 
-            # adding brand new item to snipe-it            
+            # adding brand new item to snipe-it
             url = cfg.api_url
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
