@@ -24,6 +24,11 @@ def get_snipe():
         response = requests.request("GET", url=url, headers=cfg.api_headers)
         content = response.json()
         total_record = content['total']
+        
+        if total_record == 0:
+            print('No data in Snipe-IT')
+            content = None
+            return content 
 
         for offset in range(0, total_record, 500):
             querystring = {"offset": offset}
@@ -42,7 +47,7 @@ def get_snipe():
                           'Model Name': item['model']['name']}
                 all_items.append(device)
 
-        print(*all_items, sep='\n')
+        # print(*all_items, sep='\n')
 
         myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 

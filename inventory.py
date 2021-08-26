@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from os import path, listdir
+from os import path, listdir, remove
 from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
@@ -18,6 +18,7 @@ import pymongo
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
+from paramiko.buffered_pipe import PipeTimeout
 from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
@@ -62,6 +63,14 @@ def main(ip_list):
 
     db_count = 0
     get_snipe()
+
+    # truncating csv file if it was ran a prior time on same day to 
+    # avoid duplicate values
+    full_csv = ('./scans/full_scans/full_scan{}.csv'
+                .format(today.strftime('%m%d%Y')))
+    if (path.exists(full_csv) and path.isfile(full_csv)):
+        f = open(full_csv, "w+")
+        f.close()
 
     for attempt in range(3):
         try:
@@ -429,7 +438,9 @@ def get_router_info(conn, host, device_type, loc_id_data):
                         club_output.close()
                     break
 
-                except(OSError):
+                except(OSError,
+                       PipeTimeout):
+
                     if attempt2 == 0:
                         print('Could not send command, trying again')
                         continue
@@ -571,6 +582,7 @@ def csv(results, header_added):
             item.pop('ID')
             item.pop('Status ID')
             item.pop('Location ID')
+            item.pop('_id')
 
         # create .csv file with full scan
         with open('./scans/full_scans/full_scan{}.csv'
@@ -744,19 +756,13 @@ def mongo_diff(results):
     snipe_location_amt = snipe_coll.count({'Location': results[0]['Location']})
 
     if snipe_location_amt == 0:
-        print('No prior scan found to compare')
+        # this needs to be tested
+        print('No prior scan found to compare, adding all items to snipe-it')
         for item in results:
-            if item['ID'] is None:
-                print('Checking snipe-it for record')
-                item_id = get_id(item['Asset Tag'])
-                if item_id:
-                    item['ID'] = item_id
-                else:
-                    add.append(item)
-            else:
-                continue
+            add.append(item)
+
         if add:
-            print('There are devices that need to be added to DB')
+            print('Adding devices to Scan Files')
             # make directory that will contain all scan statuses by date
             mydir = path.join('./scans/scan_status')
             mydir_obj = Path(mydir)
@@ -768,7 +774,7 @@ def mongo_diff(results):
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
-            return [add, remove, update, review]
+            return [add, remove]
         else:
             return None
 
@@ -860,7 +866,7 @@ def mongo_diff(results):
             status_file.write(msg7)
 
     if add:
-        print('There are devices that need to be added to DB')
+        print('There are devices that need to be added')
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m%d%Y")), 'a+')
@@ -869,7 +875,7 @@ def mongo_diff(results):
         all_diff.extend(add)
 
     if remove:
-        print('There are devices that need to be removed from DB')
+        print('There are devices that need to be removed')
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
                            .format(today.strftime("%m%d%Y")), 'a+')
@@ -962,6 +968,7 @@ def api_call(club_id, add, remove):
         for item in add:
             asset_tag = item['asset_tag']
 
+            # checking if item is already in snipe_it to prevent duplicates
             try:
                 url = cfg.api_url_get + str(asset_tag)
 
@@ -984,6 +991,54 @@ def api_call(club_id, add, remove):
                       .format(item['asset_tag']))
                 continue
 
+
+            # checking if item was previously deleted so it can be restored and not create
+            # a new entry since it is not necessary and will prevent duplicate entries
+
+            # looking for id in mongo "deleted" collection
+            client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+            # Use database called inventory
+            db = client['inventory']
+
+            # Use database "deleted"
+            del_coll = db['deleted']
+
+            cursor = del_coll.find()
+            if cursor.count() != 0:
+                del_item_id = del_coll.find({'id': item['id']},
+                                            {'id': 1, '_id': 0})
+
+                del_item_mac = del_coll.find({'mac_address': item['id']},
+                                             {'mac_address': 1, '_id': 0})
+
+            else:
+                del_item_id = None
+                del_item_mac = None
+
+            # if id found in "deleted" collection
+            if del_item_mac:
+                try:
+                    url = cfg.api_url_restore_deleted.format(item['id'])
+
+                    response = requests.request("POST", url=url, headers=cfg.api_headers)
+                    content = response.json()
+                    tag = str(content['asset_tag'])
+                    item_id = str(content['id'])
+                    pprint(response.text)
+
+                    if item_id:
+                        status_file.write('Restored item with asset_tag {} '
+                                          'and id {} in Snipe-IT'
+                                          .format(item['asset_tag'], item['id']))
+                        continue
+
+                except (KeyError,
+                        decoder.JSONDecodeError):
+                    item_id = None
+                    print('Item has never been previously deleted, creating new item')
+
+            # adding brand new item to snipe-it            
             url = cfg.api_url
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
@@ -1021,6 +1076,17 @@ def api_call(club_id, add, remove):
                 status_file.write('Sent request to remove item'
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
+                # add remove item to mongo colletion -deleted
+                client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+                # Use database called inveentory
+                db = client['inventory']
+
+                # use collection named deleted
+                del_col = db['deleted']
+
+                # add item to collection
+                del_col.insert_one(item)
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send'
@@ -1408,7 +1474,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.0.4']
+# ip_list = ['172.31.1.153']
 
 if __name__ == '__main__':
     main(ip_list)
