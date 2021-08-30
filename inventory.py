@@ -729,7 +729,7 @@ def mongo_diff(results):
         club = results[0]['Location']
     results_macs = []
     # update = []
-    # remove = []
+    remove = []
     # review = []
     add = []
     all_diff = []
@@ -839,30 +839,28 @@ def mongo_diff(results):
     # check if each mac address in snipedb is in results mac address list
     not_in_results = list(filter(lambda item: item not in results_macs, snipe_mac_list))
 
-    print('not_in_results')
-    print(not_in_results)
-
-    for item in not_in_results:
-        itm = snipe_coll.find({'Mac Address': item},
-                              {'_id': 0})
-        itm = list(itm)
-        itm = itm[0]
-        itm['ID'] = str(itm['ID'])
-        check_remove = check_if_remove(itm)
-        print('check_remove')
-        print(check_remove)
-        # if check_remove is true, remove device from snipeit
-        if check_remove is True:
-            count += 1
-            remove.append(itm)
-            msg7 = ('\nDevice with ID {} and Mac Address {} '
-                    '\nno longer found, '
-                    'has been removed\n'
-                    .format(itm['ID'],
-                            itm['Mac Address']))
-            print('\nDIFF ITEM', count)
-            print(msg7)
-            status_file.write(msg7)
+    if not_in_results:
+        for item in not_in_results:
+            itm = snipe_coll.find({'Mac Address': item},
+                                  {'_id': 0})
+            itm = list(itm)
+            itm = itm[0]
+            itm['ID'] = str(itm['ID'])
+            check_remove = check_if_remove(itm)
+            print('check_remove')
+            print(check_remove)
+            # if check_remove is true, remove device from snipeit
+            if check_remove is True:
+                count += 1
+                remove.append(itm)
+                msg7 = ('\nDevice with ID {} and Mac Address {} '
+                        '\nno longer found, '
+                        'has been removed\n'
+                        .format(itm['ID'],
+                                itm['Mac Address']))
+                print('\nDIFF ITEM', count)
+                print(msg7)
+                status_file.write(msg7)
 
     if add:
         print('There are devices that need to be added')
