@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from os import path, listdir, remove
+from os import path, listdir
 from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
