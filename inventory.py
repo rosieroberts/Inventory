@@ -534,45 +534,6 @@ def add_to_db(results, db_count):
     scan_col.insert_many(results)
 
 
-def get_all_snipe():
-    """Returns all current information for each host.
-    this function returns SNIPE-IT's current device information
-    this device information will be used to have a snapshot of
-    the devices already in snipe-it.
-
-    Args:
-        None
-
-    Returns:
-        Everything from snipe-it. still working this out
-
-    """
-
-    try:
-        all_items = []
-        url = cfg.api_url_get_all
-        response = requests.request("GET", url=url, headers=cfg.api_headers)
-        content = response.json()
-        total_record = content['total']
-
-        for offset in range(0, total_record, 500):
-            querystring = {"offset": offset}
-            response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
-            content = response.json()
-            for item in content['rows']:
-                device = {'id': item['id'], 'asset_tag': item['asset_tag']}
-                all_items.append(device)
-
-        # print(*all_items, sep='\n')
-        return all_items
-
-    except (KeyError,
-            decoder.JSONDecodeError):
-        content = None
-        print('No response')
-        return content
-
-
 def csv(results, header_added):
     """ Write results to csv"""
 
@@ -1091,43 +1052,6 @@ def api_call(club_id, add, remove):
                                   .format(item['asset_tag']))
 
 
-def get_device_info_snipe(asset_tag):
-    """Returns information for each host.
-    this function returns SNIPE-IT's current device information
-    this device information will be used to have a snapshot of
-    the devices already in snipe-it.
-
-    Args:
-        Asset Tag =  asset tag of te device
-
-    Returns:
-        ID - get ID from snipe-it
-        IP - get IP from snipe-it
-        Mac Address - get mac address from snipe-it
-
-    """
-
-    try:
-        url = cfg.api_url_get + str(asset_tag)
-
-        response = requests.request("GET", url=url, headers=cfg.api_headers)
-
-        content = response.json()
-        result_id = str(content['id'])
-        result_ip = str(content['custom_fields']['IP'])
-        result_mac = str(content['custom_fields']['Mac Address'])
-
-        print('ID: ', result_id)
-        print('IP: ', result_ip)
-        print('Mac Address: ', result_mac)
-
-    except (KeyError,
-            decoder.JSONDecodeError):
-        result_id = None
-
-    return result_id, result_ip, result_mac
-
-
 def get_id(asset_tag):
     """Returns a ID for each host.
     This function returns a generated ID after it compares it to ID's
@@ -1155,57 +1079,6 @@ def get_id(asset_tag):
         result_id = None
 
     return result_id
-
-
-def load_baseline(results):
-    """Opens and loads prior scan as baseline for use in diff()
-    and id_compare_update()
-
-        Args:
-            results = list of results
-
-        Returns:
-            baseline - list of dictionary items from baseline in prior scans
-
-        Raises:
-            Does not raise an error. If there is no baseline, returns None
-    """
-    if len(results) != 0:
-        club = results[0]['Location']
-    else:
-        return None
-
-    try:
-        club_bsln_path = './scans/baselines/{}'.format(club)
-        # get list of all files in club baseline directory
-        list_dir = listdir(club_bsln_path)
-        if len(list_dir) > 1:
-            # sort list to find latest
-            sorted_list_dir = sorted(list_dir)
-            last_baseline = sorted_list_dir[-1]
-            # if scan is perfomed more than once in a day, make sure baseline
-            # still the prior scan performed in an earlier date
-            if today.strftime("%m%d%Y") in last_baseline:
-                if len(list_dir) >= 2:
-                    last_baseline = sorted_list_dir[-2]
-                else:
-                    return None
-            # full path of baseline to use for difference
-            baseline_path = path.join(club_bsln_path, str(last_baseline))
-        elif len(list_dir) == 1:
-            baseline_path = path.join(club_bsln_path, str(list_dir[0]))
-        else:
-            return None
-
-        output = open(baseline_path)
-        baseline = load(output)
-        output.close()
-        for item in baseline:
-            item['ID'] = get_id(item['Asset Tag'])
-        return baseline
-
-    except FileNotFoundError:
-        return None
 
 
 def last_4_baselines(diff_item):
