@@ -18,6 +18,7 @@ import pymongo
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
+from paramiko.buffered_pipe import PipeTimeout
 from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
@@ -62,6 +63,14 @@ def main(ip_list):
 
     db_count = 0
     get_snipe()
+
+    # truncating csv file if it was ran a prior time on same day to
+    # avoid duplicate values
+    full_csv = ('./scans/full_scans/full_scan{}.csv'
+                .format(today.strftime('%m%d%Y')))
+    if (path.exists(full_csv) and path.isfile(full_csv)):
+        f = open(full_csv, "w+")
+        f.close()
 
     for attempt in range(3):
         try:
@@ -429,7 +438,9 @@ def get_router_info(conn, host, device_type, loc_id_data):
                         club_output.close()
                     break
 
-                except(OSError):
+                except(OSError,
+                       PipeTimeout):
+
                     if attempt2 == 0:
                         print('Could not send command, trying again')
                         continue
@@ -523,45 +534,6 @@ def add_to_db(results, db_count):
     scan_col.insert_many(results)
 
 
-def get_all_snipe():
-    """Returns all current information for each host.
-    this function returns SNIPE-IT's current device information
-    this device information will be used to have a snapshot of
-    the devices already in snipe-it.
-
-    Args:
-        None
-
-    Returns:
-        Everything from snipe-it. still working this out
-
-    """
-
-    try:
-        all_items = []
-        url = cfg.api_url_get_all
-        response = requests.request("GET", url=url, headers=cfg.api_headers)
-        content = response.json()
-        total_record = content['total']
-
-        for offset in range(0, total_record, 500):
-            querystring = {"offset": offset}
-            response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
-            content = response.json()
-            for item in content['rows']:
-                device = {'id': item['id'], 'asset_tag': item['asset_tag']}
-                all_items.append(device)
-
-        # print(*all_items, sep='\n')
-        return all_items
-
-    except (KeyError,
-            decoder.JSONDecodeError):
-        content = None
-        print('No response')
-        return content
-
-
 def csv(results, header_added):
     """ Write results to csv"""
 
@@ -571,6 +543,7 @@ def csv(results, header_added):
             item.pop('ID')
             item.pop('Status ID')
             item.pop('Location ID')
+            item.pop('_id')
 
         # create .csv file with full scan
         with open('./scans/full_scans/full_scan{}.csv'
@@ -602,6 +575,7 @@ def check_if_remove(diff_item):
     mac_found = next((item for item in baseline_1 if
                       diff_item['Mac Address'] ==
                       item['Mac Address']), None)
+
     if id_found is not None and mac_found is not None:
         return False
 
@@ -715,9 +689,9 @@ def mongo_diff(results):
         print('Comparing to Prior Scan, Looking for Differences')
         club = results[0]['Location']
     results_macs = []
-    update = []
+    # update = []
     remove = []
-    review = []
+    # review = []
     add = []
     all_diff = []
     if not results:
@@ -742,19 +716,13 @@ def mongo_diff(results):
     snipe_location_amt = snipe_coll.count({'Location': results[0]['Location']})
 
     if snipe_location_amt == 0:
-        print('No prior scan found to compare')
+        # this needs to be tested
+        print('No prior scan found to compare, adding all items to snipe-it')
         for item in results:
-            if item['ID'] is None:
-                print('Checking snipe-it for record')
-                item_id = get_id(item['Asset Tag'])
-                if item_id:
-                    item['ID'] = item_id
-                else:
-                    add.append(item)
-            else:
-                continue
+            add.append(item)
+
         if add:
-            print('There are devices that need to be added to DB')
+            print('Adding devices to Scan Files')
             # make directory that will contain all scan statuses by date
             mydir = path.join('./scans/scan_status')
             mydir_obj = Path(mydir)
@@ -766,7 +734,7 @@ def mongo_diff(results):
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
-            return [add, remove, update, review]
+            return [add, remove]
         else:
             return None
 
@@ -832,32 +800,31 @@ def mongo_diff(results):
     # check if each mac address in snipedb is in results mac address list
     not_in_results = list(filter(lambda item: item not in results_macs, snipe_mac_list))
 
-    print('not_in_results')
-    print(not_in_results)
-
-    for item in not_in_results:
-        itm = snipe_coll.find({'Mac Address': item},
-                              {'_id': 0})
-        itm = list(itm)
-        itm = itm[0]
-        check_remove = check_if_remove(itm)
-        print('check_remove')
-        print(check_remove)
-        # if check_remove is true, remove device from snipeit
-        if check_remove is True:
-            count += 1
-            remove.append(itm)
-            msg7 = ('\nDevice with ID {} and Mac Address {} '
-                    '\nno longer found, '
-                    'has been removed\n'
-                    .format(itm['ID'],
-                            itm['Mac Address']))
-            print('\nDIFF ITEM', count)
-            print(msg7)
-            status_file.write(msg7)
+    if not_in_results:
+        for item in not_in_results:
+            itm = snipe_coll.find({'Mac Address': item},
+                                  {'_id': 0})
+            itm = list(itm)
+            itm = itm[0]
+            itm['ID'] = str(itm['ID'])
+            check_remove = check_if_remove(itm)
+            print('check_remove')
+            print(check_remove)
+            # if check_remove is true, remove device from snipeit
+            if check_remove is True:
+                count += 1
+                remove.append(itm)
+                msg7 = ('\nDevice with ID {} and Mac Address {} '
+                        '\nno longer found, '
+                        'has been removed\n'
+                        .format(itm['ID'],
+                                itm['Mac Address']))
+                print('\nDIFF ITEM', count)
+                print(msg7)
+                status_file.write(msg7)
 
     if add:
-        print('There are devices that need to be added to DB')
+        print('There are devices that need to be added')
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m%d%Y")), 'a+')
@@ -866,7 +833,7 @@ def mongo_diff(results):
         all_diff.extend(add)
 
     if remove:
-        print('There are devices that need to be removed from DB')
+        print('There are devices that need to be removed')
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
                            .format(today.strftime("%m%d%Y")), 'a+')
@@ -959,6 +926,7 @@ def api_call(club_id, add, remove):
         for item in add:
             asset_tag = item['asset_tag']
 
+            # checking if item is already in snipe_it to prevent duplicates
             try:
                 url = cfg.api_url_get + str(asset_tag)
 
@@ -981,6 +949,53 @@ def api_call(club_id, add, remove):
                       .format(item['asset_tag']))
                 continue
 
+            # checking if item was previously deleted so it can be restored and not create
+            # a new entry since it is not necessary and will prevent duplicate entries
+
+            # looking for id in mongo "deleted" collection
+            client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+            # Use database called inventory
+            db = client['inventory']
+
+            # Use database "deleted"
+            del_coll = db['deleted']
+
+            cursor = del_coll.find()
+            if cursor.count() != 0:
+                del_item_id = del_coll.find({'id': item['id']},
+                                            {'id': 1, '_id': 0})
+
+                del_item_mac = del_coll.find({'mac_address': item['id']},
+                                             {'mac_address': 1, '_id': 0})
+
+            else:
+                del_item_id = None
+                del_item_mac = None
+
+            # if id found in "deleted" collection
+            if del_item_mac or del_item_id:
+                try:
+                    url = cfg.api_url_restore_deleted.format(item['id'])
+
+                    response = requests.request("POST", url=url, headers=cfg.api_headers)
+                    content = response.json()
+                    tag = str(content['asset_tag'])
+                    item_id = str(content['id'])
+                    pprint(response.text)
+
+                    if item_id:
+                        status_file.write('Restored item with asset_tag {} '
+                                          'and id {} in Snipe-IT'
+                                          .format(item['asset_tag'], item['id']))
+                        continue
+
+                except (KeyError,
+                        decoder.JSONDecodeError):
+                    item_id = None
+                    print('Item has never been previously deleted, creating new item')
+
+            # adding brand new item to snipe-it
             url = cfg.api_url
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
@@ -1018,49 +1033,23 @@ def api_call(club_id, add, remove):
                 status_file.write('Sent request to remove item'
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
+                # add remove item to mongo colletion -deleted
+                client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+                # Use database called inveentory
+                db = client['inventory']
+
+                # use collection named deleted
+                del_col = db['deleted']
+
+                # add item to collection
+                del_col.insert_one(item)
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send'
                                   'request to remove item'
                                   'with asset-tag {} from Snipe-IT'
                                   .format(item['asset_tag']))
-
-
-def get_device_info_snipe(asset_tag):
-    """Returns information for each host.
-    this function returns SNIPE-IT's current device information
-    this device information will be used to have a snapshot of
-    the devices already in snipe-it.
-
-    Args:
-        Asset Tag =  asset tag of te device
-
-    Returns:
-        ID - get ID from snipe-it
-        IP - get IP from snipe-it
-        Mac Address - get mac address from snipe-it
-
-    """
-
-    try:
-        url = cfg.api_url_get + str(asset_tag)
-
-        response = requests.request("GET", url=url, headers=cfg.api_headers)
-
-        content = response.json()
-        result_id = str(content['id'])
-        result_ip = str(content['custom_fields']['IP'])
-        result_mac = str(content['custom_fields']['Mac Address'])
-
-        print('ID: ', result_id)
-        print('IP: ', result_ip)
-        print('Mac Address: ', result_mac)
-
-    except (KeyError,
-            decoder.JSONDecodeError):
-        result_id = None
-
-    return result_id, result_ip, result_mac
 
 
 def get_id(asset_tag):
@@ -1090,57 +1079,6 @@ def get_id(asset_tag):
         result_id = None
 
     return result_id
-
-
-def load_baseline(results):
-    """Opens and loads prior scan as baseline for use in diff()
-    and id_compare_update()
-
-        Args:
-            results = list of results
-
-        Returns:
-            baseline - list of dictionary items from baseline in prior scans
-
-        Raises:
-            Does not raise an error. If there is no baseline, returns None
-    """
-    if len(results) != 0:
-        club = results[0]['Location']
-    else:
-        return None
-
-    try:
-        club_bsln_path = './scans/baselines/{}'.format(club)
-        # get list of all files in club baseline directory
-        list_dir = listdir(club_bsln_path)
-        if len(list_dir) > 1:
-            # sort list to find latest
-            sorted_list_dir = sorted(list_dir)
-            last_baseline = sorted_list_dir[-1]
-            # if scan is perfomed more than once in a day, make sure baseline
-            # still the prior scan performed in an earlier date
-            if today.strftime("%m%d%Y") in last_baseline:
-                if len(list_dir) >= 2:
-                    last_baseline = sorted_list_dir[-2]
-                else:
-                    return None
-            # full path of baseline to use for difference
-            baseline_path = path.join(club_bsln_path, str(last_baseline))
-        elif len(list_dir) == 1:
-            baseline_path = path.join(club_bsln_path, str(list_dir[0]))
-        else:
-            return None
-
-        output = open(baseline_path)
-        baseline = load(output)
-        output.close()
-        for item in baseline:
-            item['ID'] = get_id(item['Asset Tag'])
-        return baseline
-
-    except FileNotFoundError:
-        return None
 
 
 def last_4_baselines(diff_item):
@@ -1405,11 +1343,11 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.0.180']
-main(ip_list)
+# ip_list = ['172.31.1.153']
 
-end = time()
-runtime = end - start
-runtime = str(timedelta(seconds=int(runtime)))
-
-print('\nScript Runtime: {} '.format(runtime))
+if __name__ == '__main__':
+    main(ip_list)
+    end = time()
+    runtime = end - start
+    runtime = str(timedelta(seconds=int(runtime)))
+    print('\nScript Runtime: {} '.format(runtime))
