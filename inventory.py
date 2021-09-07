@@ -963,20 +963,16 @@ def api_call(club_id, add, remove):
 
             cursor = del_coll.find()
             if cursor.count() != 0:
-                del_item_id = del_coll.find({'id': item['id']},
-                                            {'id': 1, '_id': 0})
-
-                del_item_mac = del_coll.find({'mac_address': item['id']},
-                                             {'mac_address': 1, '_id': 0})
+                del_item = del_coll.find({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
+                                         {'_snipeit_mac_address_7': 1, 'id': 1, '_id': 0})
 
             else:
-                del_item_id = None
-                del_item_mac = None
+                del_item = None
 
             # if id found in "deleted" collection
-            if del_item_mac or del_item_id:
+            if del_item:
                 try:
-                    url = cfg.api_url_restore_deleted.format(item['id'])
+                    url = cfg.api_url_restore_deleted.format(del_item['id'])
 
                     response = requests.request("POST", url=url, headers=cfg.api_headers)
                     content = response.json()
@@ -987,7 +983,7 @@ def api_call(club_id, add, remove):
                     if item_id:
                         status_file.write('Restored item with asset_tag {} '
                                           'and id {} in Snipe-IT'
-                                          .format(item['asset_tag'], item['id']))
+                                          .format(content['asset_tag'], item_id))
                         continue
 
                 except (KeyError,
@@ -1343,7 +1339,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.1.153']
+ip_list = ['172.31.0.57']
 
 if __name__ == '__main__':
     main(ip_list)
