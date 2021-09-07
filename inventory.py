@@ -964,7 +964,7 @@ def api_call(club_id, add, remove):
             cursor = del_coll.find()
             if cursor.count() != 0:
                 del_item = del_coll.find({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
-                                         {'_snipeit_mac_address_7': 1, 'id': 1, '_id': 0})
+                                         {'id': 1, '_id': 0})
 
             else:
                 del_item = None
