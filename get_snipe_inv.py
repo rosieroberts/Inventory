@@ -63,9 +63,12 @@ def get_snipe():
 
         # insert list of dictionaries
         mycol.insert_many(all_items)
+        print('snipe db updated')
 
     except (KeyError,
             decoder.JSONDecodeError):
         content = None
         print('No response')
         return content
+
+

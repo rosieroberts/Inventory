@@ -34,10 +34,7 @@ today = date.today()
 
 class Run:
 
-    def __init__(self, ip):
-        self.ip = ip
-
-    def main(self):
+    def main():
         """main function to run script, using get_ip_list from ips.py
         or using a specific list of ips
 
@@ -59,7 +56,7 @@ class Run:
         update = []
         connect_obj = None
 
-        ips = RouterInfo.get_ips()
+        ips = RouterInfo().get_ips()
 
         header_added = False
         ip_regex = compile(r'(?:\d+\.){3}\d+')
@@ -68,7 +65,7 @@ class Run:
         print(cfg.intro2)
 
         db_count = 0
-        ApiConn.get_snipe()
+        ApiConn().get_snipe()
 
         # truncating csv file if it was ran a prior time on same day to
         # avoid duplicate values
@@ -93,7 +90,7 @@ class Run:
         for ip in ips:
             ip_address = ip_regex.search(ip)
             clb_runtime_str = time()
-
+            print(ip)
             if ip_address:
                 # connect to router and get connect object and device type
                 # item returned [0]
@@ -186,10 +183,6 @@ class Assets:
 
 
 class RouterInfo:
-
-    def __init__(self, ip, conn_obj):
-        self.ip = ip
-        self.conn_obj = conn_obj
 
     def get_ips(self):
         """ Get IPs from snmp walk"""

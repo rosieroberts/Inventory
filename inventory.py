@@ -15,6 +15,9 @@ import requests
 import traceback
 import urllib3
 import pymongo
+from logging import getLogger, basicConfig, INFO
+from configparser import ConfigParser
+from argparse import ArgumentParser
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -33,6 +36,17 @@ today = date.today()
 not_connected = []
 clubs = []
 additional_ids = []
+
+#a_parse = ArgumentParser(description='Asset Inventory')
+#a_parse.add_argument('club', type=str, help='Help???')
+#args = a_parse.parse_args()
+
+log = getLogger('Asset_Inventory')
+basicConfig(
+    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+    datefmt='%m/%d/%Y %H:%M:%S',
+    level=INFO,
+    filename='asset_inventory.log')
 
 
 def main(ip_list):
@@ -81,7 +95,7 @@ def main(ip_list):
             loc_id_data = response_loc.json()
         except decoder.JSONDecodeError:
             loc_id_data = None
-            print('Cannot get location information from API. Stopping Script')
+            log.info('Cannot get location information from API. Stopping Script')
             exit()
 
     for ip in ip_list:
@@ -1240,6 +1254,17 @@ def get_hostnames(ip):
             host['status ID'] = '8'
 
         return host
+
+def send_mail():
+    config = ConfigParser()
+    config.read('inv.cnf')
+    mail_info = {
+        'sender': str(), 'recipients': str(),
+        'subject': str(), 'body': str()}
+
+    mail_info['sender'] = config['mail']['sender']
+    mail_info['recipients'] = config['mail']['recipient']
+
 
 
 def club_num(club_result):
