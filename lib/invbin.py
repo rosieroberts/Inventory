@@ -75,15 +75,20 @@ class ClubDevice(Device):
         self.model_name = model_name
         self.model_number = model_number
         super().__init__(id, ip, asset_tag, category,
-                 hostname, mac_address, status, status_id)
+                         hostname, mac_address, status, status_id)
 
 
 class ClubRouter(ClubDevice):
     """ Defining attributes for the routers
         either Cisco or Fortigate """
 
-    def __init__(self, host):
+    def __init__(self, host, location, location_id, manufacturer, model_name,
+                 model_number, ip, asset_tag, category, hostname,
+                 mac_address, status, status_id):
         self.host = host
+        super().__init__(location, location_id, manufacturer, model_name,
+                         model_number, ip, asset_tag, category, hostname,
+                         mac_address, status, status_id)
 
 
 class RouterInfo:
