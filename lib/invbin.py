@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 
 from easysnmp import Session
-import re
 from os import path, listdir
-from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time
 from re import compile, IGNORECASE
 from copy import deepcopy
-from datetime import timedelta, date
+from datetime import date
 from pprint import pprint
 from ipaddress import ip_address, ip_network
 import pymongo
 import requests
 # import traceback
-import urllib3
-
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
 from paramiko.buffered_pipe import PipeTimeout
@@ -27,169 +23,67 @@ from netmiko.ssh_exception import (
     NetMikoAuthenticationException)
 import config as cfg
 
-not_connected = []
-clubs = []
-today = date.today()
-
-
-class Run:
-
-    def __init__(self, ip):
-        self.ip = ip
-
-    def main(self):
-        """main function to run script, using get_ip_list from ips.py
-        or using a specific list of ips
-
-        Args:
-            None
-
-        Returns:
-            None
-
-        Raises:
-            Does not raise an error.
-        """
-
-        start = time()
-        all_diff = []
-        all_api_payload = []
-        add = []
-        remove = []
-        update = []
-        connect_obj = None
-
-        ips = RouterInfo.get_ips()
-
-        header_added = False
-        ip_regex = compile(r'(?:\d+\.){3}\d+')
-
-        print(cfg.intro1)
-        print(cfg.intro2)
-
-        db_count = 0
-        ApiConn.get_snipe()
-
-        # truncating csv file if it was ran a prior time on same day to
-        # avoid duplicate values
-        full_csv = ('./scans/full_scans/full_scan{}.csv'
-                    .format(today.strftime('%m%d%Y')))
-        if (path.exists(full_csv) and path.isfile(full_csv)):
-            f = open(full_csv, "w+")
-            f.close()
-
-        for attempt in range(3):
-            try:
-                url_loc = cfg.api_url_get_locations
-                response_loc = requests.request("GET",
-                                                url=url_loc,
-                                                headers=cfg.api_headers)
-                loc_id_data = response_loc.json()
-            except decoder.JSONDecodeError:
-                loc_id_data = None
-                print('Cannot get location information from API. Stopping Script')
-                exit()
-
-        for ip in ips:
-            ip_address = ip_regex.search(ip)
-            clb_runtime_str = time()
-
-            if ip_address:
-                # connect to router and get connect object and device type
-                # item returned [0]
-                # device_type [1]
-                router_connect = RouterInfo.connect(str(ip))
-
-            try:
-                if router_connect:
-                    connect_obj = router_connect[0]
-                    device_type = router_connect[1]
-                    if ip_address:
-
-                        results = DeviceInfo.get_router_info(connect_obj, str(ip), device_type, loc_id_data)
-                    else:
-                        results = None
-
-                    for item in results:
-                        item['ID'] = ApiConn.get_id(item['Asset Tag'])
-
-                    results_copy = deepcopy(results)
-
-                    all_diff = Comparisons.diff(results_copy)
-
-                    if all_diff:
-                        all_api_payload = ApiConn.api_payload(all_diff)
-
-                        if all_api_payload:
-                            add = all_api_payload[0]
-                            remove = all_api_payload[1]
-                            # update = all_api_payload[2]
-                        ApiConn.api_call(results_copy[0]['Location'], add, remove)
-                    updated_results = SaveResults.save_results(results, str(ip))
-                    SaveResults.add_to_db(updated_results, db_count)
-                    db_count += 1
-                    SaveResults.csv(results, header_added)
-                    connect_obj.disconnect()
-
-            except(urllib3.exceptions.ProtocolError):
-                print('Remote end closed connection without response')
-                print('Scanning next club....')
-                continue
-
-            clb_runtime_end = time()
-            clb_runtime = clb_runtime_end - clb_runtime_str
-            clb_runtime = str(timedelta(seconds=int(clb_runtime)))
-            header_added = True
-
-            if router_connect:
-                if results:
-                    print('\n{} Scan Runtime: {} '
-                          .format(results[0]['Location'], clb_runtime))
-            else:
-                print('\nClub Scan Runtime: {} '.format(clb_runtime))
-
-        print('\nThe following {} hosts were not scanned:'
-              .format(len(not_connected)))
-        for item in not_connected:
-            print(item)
-
-        print('\nThe following {} clubs were scanned:'.format(len(clubs)))
-        for item in clubs:
-            print(item)
-
-        end = time()
-        runtime = end - start
-        runtime = str(timedelta(seconds=int(runtime)))
-        print('\nScript Runtime: {} '.format(runtime))
-
-        return [add, remove, update]
-
 
 class Assets:
+    """ Defining Global variables"""
 
-    def __init__(self, id, asset_tag, ip, location, location_id, category,
-                 manufacturer, model_name, model_number, hostname, mac_address,
-                 status, status_id):
+    def __init__(self):
+        self.not_connected = []
+        self.clubs = []
+        self.today = date.today()
+
+
+class Device:
+    """Parent Class to define Device objects
+       to include club and server devices
+        Attributes:
+            id
+            ip
+            asset_tag
+            category
+            hostname (optional)
+            mac_address
+            status
+            status_id
+            """
+    def __init__(self, id, ip, asset_tag, category,
+                 hostname, mac_address, status, status_id):
         self.id = id
-        self.assetTag = asset_tag
         self.ip = ip
-        self.location = location
-        self.locationID = location_id
+        self.assetTag = asset_tag
         self.category = category
-        self.manufacturer = manufacturer
-        self.model_name = model_name
-        self.model_number = model_number
         self.hostname = hostname
         self.mac_address = mac_address
         self.status = status
         self.statusID = status_id
 
 
-class RouterInfo:
+class ClubDevice(Device):
+    """ Defining Object " Club Device" Specific Attributes:
+            location
+            location_id
+            manufacturer
+            model_name
+            model_number"""
 
-    def __init__(self, ip, conn_obj):
-        self.ip = ip
-        self.conn_obj = conn_obj
+    def __init__(self, location, location_id,
+                 manufacturer, model_name, model_number):
+        self.location = location
+        self.locationID = location_id
+        self.manufacturer = manufacturer
+        self.model_name = model_name
+        self.model_number = model_number
+
+
+class ClubRouter(ClubDevice):
+    """ Defining attributes for the routers
+        either Cisco or Fortigate """
+
+    def __init__(self, host):
+        self.host = host
+
+
+class RouterInfo:
 
     def get_ips(self):
         """ Get IPs from snmp walk"""
@@ -210,7 +104,7 @@ class RouterInfo:
         # for subnet mask to extract IPs and subnet masks and add to ful_ip_list
         subnet_masks = session.walk(oid)
         # regex to get ip address from oid value
-        ip_regex = re.compile(r'(?:\d+\.){3}\d+$')
+        ip_regex = compile(r'(?:\d+\.){3}\d+$')
         # add values to list in format: ['ip/subnet mask']
         full_ip_list = []
         for item in subnet_masks:
@@ -233,7 +127,7 @@ class RouterInfo:
             split_list.append(item)
 
         # regex to search for IPs to include clubs and regional offices
-        regex_ip = re.compile(r'(^172\.([3][0-1])\.)')
+        regex_ip = compile(r'(^172\.([3][0-1])\.)')
         # search for included IPs in list
         for item in split_list:
             regex_value = regex_ip.search(item[0])
@@ -304,7 +198,7 @@ class RouterInfo:
                         if scanner[ip].has_tcp(22):
                             if scanner[ip]['tcp'][22]['state'] == 'closed':
                                 print('port 22 is showing closed for ' + (ip))
-                                not_connected.append(ip)
+                                Assets.not_connected.append(ip)
                                 return None
                             else:
                                 print('Port 22 is open ')
@@ -317,7 +211,7 @@ class RouterInfo:
                         print('Error, Trying to connect to {} again '.format(ip))
             # exhausted all tries to connect, return None and exit
             print('Connection to {} is not possible: '.format(ip))
-            not_connected.append(ip)
+            Assets.not_connected.append(ip)
             return None
 
 
@@ -514,7 +408,7 @@ class DeviceInfo(RouterInfo):
                                         if updated_id is not None:
                                             results[-1]['ID'] = updated_id
                         if club_result:
-                            clubs.append(club_result)
+                            Assets.clubs.append(club_result)
 
                         # make directory that will contain all full scans by date
                         full_scan_dir = path.join('./scans/full_scans')
@@ -528,7 +422,7 @@ class DeviceInfo(RouterInfo):
                             # writing full scan to .json
                             club_output = open(
                                 './scans/full_scans/full_scan{}.json'.format(
-                                    today.strftime('%m%d%Y')), 'a+')
+                                    Assets.today.strftime('%m%d%Y')), 'a+')
 
                             for item in results:
                                 club_output.write(dumps(item, indent=4))
@@ -543,7 +437,7 @@ class DeviceInfo(RouterInfo):
                             continue
                         else:
                             print('Could not get arp table ' + (host))
-                            not_connected.append(host)
+                            Assets.not_connected.append(host)
                             failed_results = {'Host': host,
                                               'Location': club_result,
                                               'Status': 'could not get arp table'}
@@ -846,7 +740,7 @@ class ApiConn:
 
         # create file to write status of differences as they happen
         status_file = open('./scans/api_status/scan_{}'
-                           .format(today.strftime('%m%d%Y')), 'a+')
+                           .format(Assets.today.strftime('%m%d%Y')), 'a+')
         if club_id:
             club = str(club_id)
             # possible bug -line below. When club is none, sends error
@@ -1119,7 +1013,7 @@ class Comparisons:
 
                 # create file for add
                 add_file = open(mydir + '/add_{}.json'
-                                .format(today.strftime("%m%d%Y")), 'a+')
+                                .format(Assets.today.strftime("%m%d%Y")), 'a+')
                 add_file.write(dumps(list(add), indent=4))
                 add_file.close()
                 all_diff.extend(add)
@@ -1138,7 +1032,7 @@ class Comparisons:
 
         # create file to write status of differences as they happen
         status_file = open('./scans/scan_status/scan_{}'
-                           .format(today.strftime('%m%d%Y')), 'a+')
+                           .format(Assets.today.strftime('%m%d%Y')), 'a+')
         if club:
             status_file.write('\n\n')
             status_file.write(club.upper())
@@ -1216,7 +1110,7 @@ class Comparisons:
             print('There are devices that need to be added')
             # create file for add
             add_file = open(mydir + '/add_{}.json'
-                            .format(today.strftime("%m%d%Y")), 'a+')
+                            .format(Assets.today.strftime("%m%d%Y")), 'a+')
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
@@ -1225,7 +1119,7 @@ class Comparisons:
             print('There are devices that need to be removed')
             # create file for remove
             remove_file = open(mydir + '/remove_{}.json'
-                               .format(today.strftime("%m%d%Y")), 'a+')
+                               .format(Assets.today.strftime("%m%d%Y")), 'a+')
             remove_file.write(dumps(list(remove), indent=4))
             remove_file.close()
             all_diff.extend(remove)
@@ -1420,7 +1314,7 @@ class SaveResults:
 
             # create .csv file with full scan
             with open('./scans/full_scans/full_scan{}.csv'
-                      .format(today.strftime('%m%d%Y')), 'a') as csvfile:
+                      .format(Assets.today.strftime('%m%d%Y')), 'a') as csvfile:
                 csvwriter = DictWriter(csvfile, keys)
                 if header_added is False:
                     csvwriter.writeheader()
@@ -1438,7 +1332,7 @@ class SaveResults:
         db = client['inventory']
 
         # use collection named by date of scan
-        today_date = today.strftime('%m%d%Y')
+        today_date = Assets.today.strftime('%m%d%Y')
         collection_name = 'scan_' + today_date
         scan_col = db[collection_name]
 
@@ -1478,7 +1372,7 @@ class SaveResults:
             mydir_obj.mkdir(parents=True, exist_ok=True)
             club_base_file = open(
                 mydir + '/{}_{}.json'.format(results[0]['Location'],
-                                             today.strftime('%m%d%Y')), 'w+')
+                                             Assets.today.strftime('%m%d%Y')), 'w+')
 
             for item in results:
                 if item['ID'] is None:
@@ -1498,8 +1392,4 @@ class SaveResults:
 
         else:
             print('No results received from router')
-            Run.not_connected.append(host)
-
-
-if __name__ == '__main__':
-    Run.main()
+            Assets.not_connected.append(host)

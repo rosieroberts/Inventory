@@ -12,9 +12,12 @@ from datetime import timedelta, date
 from pprint import pprint
 from ipaddress import ip_address, ip_network
 import requests
-# import traceback
+import traceback
 import urllib3
 import pymongo
+from logging import getLogger, basicConfig, INFO
+from configparser import ConfigParser
+# from argparse import ArgumentParser
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -23,9 +26,9 @@ from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-from ips import get_ips
-from get_snipe_inv import get_snipe
-import config as cfg
+from lib.ips import get_ips
+from lib.get_snipe_inv import get_snipe
+import lib.config as cfg
 
 
 start = time()
@@ -33,6 +36,17 @@ today = date.today()
 not_connected = []
 clubs = []
 additional_ids = []
+
+# a_parse = ArgumentParser(description='Asset Inventory')
+# a_parse.add_argument('club', type=str, help='Help???')
+# args = a_parse.parse_args()
+
+log = getLogger('Asset_Inventory')
+basicConfig(
+    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+    datefmt='%m/%d/%Y %H:%M:%S',
+    level=INFO,
+    filename='asset_inventory.log')
 
 
 def main(ip_list):
@@ -81,7 +95,7 @@ def main(ip_list):
             loc_id_data = response_loc.json()
         except decoder.JSONDecodeError:
             loc_id_data = None
-            print('Cannot get location information from API. Stopping Script')
+            log.info('Cannot get location information from API. Stopping Script')
             exit()
 
     for ip in ip_list:
@@ -497,9 +511,7 @@ def save_results(results, host):
                 item_id = get_id(item['Asset Tag'])
                 if item_id:
                     item['ID'] = item_id
-                    print('if', item)
                 else:
-                    print('else', item)
                     continue
 
         # dump .json file for each raw club scan in directory
@@ -767,8 +779,6 @@ def mongo_diff(results):
     # list comprehension to get mac address values from snipe db
     # from list of dictionaries to just a list of mac addresses
     snipe_mac_list = [item['Mac Address'] for item in snipe_mac]
-    print('snipe_mac_list')
-    print(snipe_mac_list)
 
     # loop through results and append all results mac addr values to a list
     for item in results:
@@ -781,8 +791,6 @@ def mongo_diff(results):
             count += 1
             # if device is not found in 4 prior scans
             check_add = check_if_add(item)
-            print('check_add')
-            print(check_add)
             # if check_add is true, mac not found in prior 4 scans, add new
             if check_add is True:
                 add.append(item)
@@ -793,9 +801,6 @@ def mongo_diff(results):
                 print('\nDIFF ITEM', count)
                 print(msg1)
                 status_file.write(msg1)
-
-    print('results macs')
-    print(results_macs)
 
     # check if each mac address in snipedb is in results mac address list
     not_in_results = list(filter(lambda item: item not in results_macs, snipe_mac_list))
@@ -808,8 +813,6 @@ def mongo_diff(results):
             itm = itm[0]
             itm['ID'] = str(itm['ID'])
             check_remove = check_if_remove(itm)
-            print('check_remove')
-            print(check_remove)
             # if check_remove is true, remove device from snipeit
             if check_remove is True:
                 count += 1
@@ -934,7 +937,6 @@ def api_call(club_id, add, remove):
 
                 content = response.json()
                 tag = str(content['asset_tag'])
-                print(item)
                 if tag:
                     status_file.write('Cannot add item, asset_tag {} already exists '
                                       'in Snipe-IT, review item\n{}'
@@ -963,35 +965,35 @@ def api_call(club_id, add, remove):
 
             cursor = del_coll.find()
             if cursor.count() != 0:
-                del_item_id = del_coll.find({'id': item['id']},
-                                            {'id': 1, '_id': 0})
-
-                del_item_mac = del_coll.find({'mac_address': item['id']},
-                                             {'mac_address': 1, '_id': 0})
+                del_item = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
+                                             {'id': 1, 'asset_tag': 1, '_id': 0})
 
             else:
-                del_item_id = None
-                del_item_mac = None
+                del_item = None
 
             # if id found in "deleted" collection
-            if del_item_mac or del_item_id:
+            if del_item:
                 try:
-                    url = cfg.api_url_restore_deleted.format(item['id'])
-
+                    url = cfg.api_url_restore_deleted.format(del_item['id'])
                     response = requests.request("POST", url=url, headers=cfg.api_headers)
-                    content = response.json()
-                    tag = str(content['asset_tag'])
-                    item_id = str(content['id'])
-                    pprint(response.text)
+                    print(response.text)
+                    tag = str(del_item['asset_tag'])
+                    item_id = str(del_item['id'])
 
                     if item_id:
                         status_file.write('Restored item with asset_tag {} '
                                           'and id {} in Snipe-IT'
-                                          .format(item['asset_tag'], item['id']))
+                                          .format(tag, item_id))
+
+                        print('Restored item with asset_tag {} '
+                              'and id {} in Snipe-IT'
+                              .format(tag, item_id))
+
                         continue
 
                 except (KeyError,
                         decoder.JSONDecodeError):
+                    traceback.print_exc()
                     item_id = None
                     print('Item has never been previously deleted, creating new item')
 
@@ -999,7 +1001,6 @@ def api_call(club_id, add, remove):
             url = cfg.api_url
             item_str = str(item)
             payload = item_str.replace('\'', '\"')
-            print(payload)
             response = requests.request("POST",
                                         url=url,
                                         data=payload,
@@ -1094,7 +1095,6 @@ def last_4_baselines(diff_item):
         Raises:
             Does not raise an error. If there is no baseline, returns None
     """
-    print('diff_item last 4 baselines', diff_item)
     if diff_item:
         club = diff_item['Location']
     else:
@@ -1178,7 +1178,6 @@ def club_id(conn, host, device_type):
                             # if club pattern is not found
                             else:
                                 # look for ID in router hostname
-                                print('error raised cisco')
                                 raise OSError
 
                         elif device_type == 'fortinet':
@@ -1196,7 +1195,6 @@ def club_id(conn, host, device_type):
                             if club_result is None:
                                 print('no club ID found')
                                 # look for ID in router hostname
-                                print('error raised fortinet')
                                 raise OSError
 
                     except(OSError,
@@ -1207,12 +1205,9 @@ def club_id(conn, host, device_type):
                         if attempt == 1:
                             print('Getting club_id from nmap hostname')
                             hostname = get_hostnames(host)
-                            print(hostname)
-                            print(hostname['hostnames'])
                             hostname_club = club_rgx.search(hostname['hostnames'])
                             if hostname_club:
                                 club_result = hostname_club.group(0)
-                                print(club_result)
                             if not hostname_club:
                                 print('could not get club_id')
                                 return None
@@ -1259,6 +1254,17 @@ def get_hostnames(ip):
             host['status ID'] = '8'
 
         return host
+
+
+def send_mail():
+    config = ConfigParser()
+    config.read('inv.cnf')
+    mail_info = {
+        'sender': str(), 'recipients': str(),
+        'subject': str(), 'body': str()}
+
+    mail_info['sender'] = config['mail']['sender']
+    mail_info['recipients'] = config['mail']['recipient']
 
 
 def club_num(club_result):
@@ -1343,7 +1349,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-# ip_list = ['172.31.1.153']
+# ip_list = ['172.31.0.57']
 
 if __name__ == '__main__':
     main(ip_list)
