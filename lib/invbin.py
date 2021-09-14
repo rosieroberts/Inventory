@@ -349,8 +349,6 @@ class DeviceInfo(RouterInfo):
                                     'Status': hostname['status'],
                                     'Status ID': hostname['status ID']
                                 }
-
-                                
                                 # The first value added to 'results'
                                 # is the router value. This is only added if the
                                 # host IP is 10.x.x.1.

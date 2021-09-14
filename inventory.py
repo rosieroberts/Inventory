@@ -17,7 +17,7 @@ import urllib3
 import pymongo
 from logging import getLogger, basicConfig, INFO
 from configparser import ConfigParser
-from argparse import ArgumentParser
+# from argparse import ArgumentParser
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -26,9 +26,9 @@ from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-from ips import get_ips
-from get_snipe_inv import get_snipe
-import config as cfg
+from lib.ips import get_ips
+from lib.get_snipe_inv import get_snipe
+import lib.config as cfg
 
 
 start = time()
@@ -37,9 +37,9 @@ not_connected = []
 clubs = []
 additional_ids = []
 
-#a_parse = ArgumentParser(description='Asset Inventory')
-#a_parse.add_argument('club', type=str, help='Help???')
-#args = a_parse.parse_args()
+# a_parse = ArgumentParser(description='Asset Inventory')
+# a_parse.add_argument('club', type=str, help='Help???')
+# args = a_parse.parse_args()
 
 log = getLogger('Asset_Inventory')
 basicConfig(
@@ -1255,6 +1255,7 @@ def get_hostnames(ip):
 
         return host
 
+
 def send_mail():
     config = ConfigParser()
     config.read('inv.cnf')
@@ -1264,7 +1265,6 @@ def send_mail():
 
     mail_info['sender'] = config['mail']['sender']
     mail_info['recipients'] = config['mail']['recipient']
-
 
 
 def club_num(club_result):
@@ -1349,7 +1349,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = get_ips()
-#ip_list = ['172.31.0.57']
+# ip_list = ['172.31.0.57']
 
 if __name__ == '__main__':
     main(ip_list)
