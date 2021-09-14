@@ -1,8 +1,8 @@
+from lib.invbin import RouterInfo
 from re import compile
 import random
-from Inventory import config as cfg
-from Inventory import ips
-from Inventory import inventory
+# from lib import config as cfg
+# import inv
 
 # tests for ips.py
 # tests for length of get_ips() to make sure ips are retrieved from snmpwalk
@@ -19,24 +19,20 @@ class IPTest:
     """Test class for IPs"""
 
     def __init__(self):
-        
-    ip_list = ips.get_ips()
-    random_ip = random.choice(ip_list)
-
-    results = []
+        ip_list = RouterInfo.get_ips()
+        random_ip = random.choice(ip_list)
+        results = []
 
     def test1_ips():
-        assert len(ip_list) > 200
-
+        assert len(IPTest.ip_list) > 200
 
     def test2_ips():
-        for item in ip_list:
+        for item in IPTest.ip_list:
             re_value = ip_w_mask.search(item)
             assert re_value is not None
 
-
     def test3_ips():
-        ip_value = ip_regex.search(random_ip)
+        ip_value = ip_regex.search(IPTest.random_ip)
         assert ip_value is not None
 
 
@@ -45,29 +41,27 @@ class InventoryTest:
 
     # tests for inventory.py
     def test1_inv():
-        assert inventory.connect(random_ip) is not None
-
+        assert RouterInfo.connect(IPTest.random_ip) is not None
 
     def test2_inv():
-        assert len(results) > 0
-        assert results[0]['IP'] == random_ip
+        assert len(IPTest.results) > 0
+        assert IPTest.results[0]['IP'] == IPTest.random_ip
 
-        mac_value = mac_regex.search(results[0]['Mac Address'])
+        mac_value = mac_regex.search(IPTest.results[0]['Mac Address'])
         assert mac_value is not None
 
-
-    #def test3_inv():
+    # def test3_inv():
     #   assert random.choice(results)['Model Name'] in cfg.models
 
     def test4_inv():
-        conn = inventory.connect(random_ip)
+        conn = RouterInfo.connect(IPTest.random_ip)
         print(conn)
-        results = inventory.get_router_info(conn,
-                                            random_ip,
-                                            device_type='fortinet',
-                                            loc_id_data=None)
+        IPTest.results = RouterInfo.get_router_info(conn,
+                                                    IPTest.random_ip,
+                                                    device_type='fortinet',
+                                                    loc_id_data=None)
 
 
 if __name__ == "__main__":
-    test1_ips()
+    IPTest.test1_ips()
     print("Everything passed")
