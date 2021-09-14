@@ -67,12 +67,15 @@ class ClubDevice(Device):
             model_number"""
 
     def __init__(self, location, location_id,
-                 manufacturer, model_name, model_number):
+                 manufacturer, model_name, model_number, ip, asset_tag, category,
+                 hostname, mac_address, status, status_id):
         self.location = location
         self.locationID = location_id
         self.manufacturer = manufacturer
         self.model_name = model_name
         self.model_number = model_number
+        super().__init__(id, ip, asset_tag, category,
+                 hostname, mac_address, status, status_id)
 
 
 class ClubRouter(ClubDevice):
