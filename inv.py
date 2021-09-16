@@ -11,9 +11,8 @@ import requests
 # import traceback
 import urllib3
 
-import lib.config as cfg
 from lib import invbin
-
+from lib import config as cfg
 
 def main():
     """main function to run script, using get_ip_list from ips.py
