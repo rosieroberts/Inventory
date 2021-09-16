@@ -148,3 +148,12 @@ def main():
     print('\nScript Runtime: {} '.format(runtime))
 
     return [add, remove, update]
+
+
+if __name__ == '__main__':
+    ip_list = invbin.RouterInfo.get_ips()
+    main(ip_list)
+    end = time()
+    runtime = end - main.start
+    runtime = str(timedelta(seconds=int(runtime)))
+    print('\nScript Runtime: {} '.format(runtime))
