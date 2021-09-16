@@ -24,7 +24,7 @@ from netmiko.ssh_exception import (
 import config as cfg
 
 
-class Assets:
+class Variables:  # need to add global variables to main I think
     """ Defining Global variables"""
 
     def __init__(self):
@@ -33,7 +33,7 @@ class Assets:
         self.today = date.today()
 
 
-class Device:
+class Asset:
     """Parent Class to define Device objects
        to include club and server devices
         Attributes:
@@ -45,8 +45,15 @@ class Device:
             mac_address
             status
             status_id
-            """
-    def __init__(self, id, ip, asset_tag, category,
+            location
+            location_id
+            manufacturer
+            model_name
+            model_number
+    """
+
+    def __init__(self, location, location_id,
+                 manufacturer, model_name, model_number, ip, asset_tag, category,
                  hostname, mac_address, status, status_id):
         self.id = id
         self.ip = ip
@@ -56,39 +63,21 @@ class Device:
         self.mac_address = mac_address
         self.status = status
         self.statusID = status_id
-
-
-class ClubDevice(Device):
-    """ Defining Object " Club Device" Specific Attributes:
-            location
-            location_id
-            manufacturer
-            model_name
-            model_number"""
-
-    def __init__(self, location, location_id,
-                 manufacturer, model_name, model_number, ip, asset_tag, category,
-                 hostname, mac_address, status, status_id):
         self.location = location
         self.locationID = location_id
         self.manufacturer = manufacturer
         self.model_name = model_name
         self.model_number = model_number
-        super().__init__(id, ip, asset_tag, category,
-                         hostname, mac_address, status, status_id)
 
 
-class ClubRouter(ClubDevice):
+class ClubRouter():
     """ Defining attributes for the routers
         either Cisco or Fortigate """
 
-    def __init__(self, host, location, location_id, manufacturer, model_name,
-                 model_number, ip, asset_tag, category, hostname,
-                 mac_address, status, status_id):
+    def __init__(self, host, conn_obj, vendor):
         self.host = host
-        super().__init__(location, location_id, manufacturer, model_name,
-                         model_number, ip, asset_tag, category, hostname,
-                         mac_address, status, status_id)
+        self.vendor = vendor
+        self.conn_obj = conn_obj
 
 
 class RouterInfo:
@@ -206,7 +195,7 @@ class RouterInfo:
                         if scanner[ip].has_tcp(22):
                             if scanner[ip]['tcp'][22]['state'] == 'closed':
                                 print('port 22 is showing closed for ' + (ip))
-                                Assets.not_connected.append(ip)
+                                Variables.not_connected.append(ip)
                                 return None
                             else:
                                 print('Port 22 is open ')
@@ -219,7 +208,7 @@ class RouterInfo:
                         print('Error, Trying to connect to {} again '.format(ip))
             # exhausted all tries to connect, return None and exit
             print('Connection to {} is not possible: '.format(ip))
-            Assets.not_connected.append(ip)
+            Variables.not_connected.append(ip)
             return None
 
 
@@ -416,7 +405,7 @@ class DeviceInfo(RouterInfo):
                                         if updated_id is not None:
                                             results[-1]['ID'] = updated_id
                         if club_result:
-                            Assets.clubs.append(club_result)
+                            Variables.clubs.append(club_result)
 
                         # make directory that will contain all full scans by date
                         full_scan_dir = path.join('./scans/full_scans')
@@ -430,7 +419,7 @@ class DeviceInfo(RouterInfo):
                             # writing full scan to .json
                             club_output = open(
                                 './scans/full_scans/full_scan{}.json'.format(
-                                    Assets.today.strftime('%m%d%Y')), 'a+')
+                                    Variables.today.strftime('%m%d%Y')), 'a+')
 
                             for item in results:
                                 club_output.write(dumps(item, indent=4))
@@ -445,7 +434,7 @@ class DeviceInfo(RouterInfo):
                             continue
                         else:
                             print('Could not get arp table ' + (host))
-                            Assets.not_connected.append(host)
+                            Variables.not_connected.append(host)
                             failed_results = {'Host': host,
                                               'Location': club_result,
                                               'Status': 'could not get arp table'}
@@ -748,7 +737,7 @@ class ApiConn:
 
         # create file to write status of differences as they happen
         status_file = open('./scans/api_status/scan_{}'
-                           .format(Assets.today.strftime('%m%d%Y')), 'a+')
+                           .format(Variables.today.strftime('%m%d%Y')), 'a+')
         if club_id:
             club = str(club_id)
             # possible bug -line below. When club is none, sends error
@@ -1021,7 +1010,7 @@ class Comparisons:
 
                 # create file for add
                 add_file = open(mydir + '/add_{}.json'
-                                .format(Assets.today.strftime("%m%d%Y")), 'a+')
+                                .format(Variables.today.strftime("%m%d%Y")), 'a+')
                 add_file.write(dumps(list(add), indent=4))
                 add_file.close()
                 all_diff.extend(add)
@@ -1040,7 +1029,7 @@ class Comparisons:
 
         # create file to write status of differences as they happen
         status_file = open('./scans/scan_status/scan_{}'
-                           .format(Assets.today.strftime('%m%d%Y')), 'a+')
+                           .format(Variables.today.strftime('%m%d%Y')), 'a+')
         if club:
             status_file.write('\n\n')
             status_file.write(club.upper())
@@ -1118,7 +1107,7 @@ class Comparisons:
             print('There are devices that need to be added')
             # create file for add
             add_file = open(mydir + '/add_{}.json'
-                            .format(Assets.today.strftime("%m%d%Y")), 'a+')
+                            .format(Variables.today.strftime("%m%d%Y")), 'a+')
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
@@ -1127,7 +1116,7 @@ class Comparisons:
             print('There are devices that need to be removed')
             # create file for remove
             remove_file = open(mydir + '/remove_{}.json'
-                               .format(Assets.today.strftime("%m%d%Y")), 'a+')
+                               .format(Variables.today.strftime("%m%d%Y")), 'a+')
             remove_file.write(dumps(list(remove), indent=4))
             remove_file.close()
             all_diff.extend(remove)
@@ -1322,7 +1311,7 @@ class SaveResults:
 
             # create .csv file with full scan
             with open('./scans/full_scans/full_scan{}.csv'
-                      .format(Assets.today.strftime('%m%d%Y')), 'a') as csvfile:
+                      .format(Variables.today.strftime('%m%d%Y')), 'a') as csvfile:
                 csvwriter = DictWriter(csvfile, keys)
                 if header_added is False:
                     csvwriter.writeheader()
@@ -1340,7 +1329,7 @@ class SaveResults:
         db = client['inventory']
 
         # use collection named by date of scan
-        today_date = Assets.today.strftime('%m%d%Y')
+        today_date = Variables.today.strftime('%m%d%Y')
         collection_name = 'scan_' + today_date
         scan_col = db[collection_name]
 
@@ -1380,7 +1369,7 @@ class SaveResults:
             mydir_obj.mkdir(parents=True, exist_ok=True)
             club_base_file = open(
                 mydir + '/{}_{}.json'.format(results[0]['Location'],
-                                             Assets.today.strftime('%m%d%Y')), 'w+')
+                                             Variables.today.strftime('%m%d%Y')), 'w+')
 
             for item in results:
                 if item['ID'] is None:
@@ -1400,4 +1389,4 @@ class SaveResults:
 
         else:
             print('No results received from router')
-            Assets.not_connected.append(host)
+            Variables.not_connected.append(host)

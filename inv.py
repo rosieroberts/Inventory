@@ -68,6 +68,8 @@ def main():
             print('Cannot get location information from API. Stopping Script')
             exit()
 
+    host_count = 0
+
     for ip in ips:
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
@@ -80,8 +82,14 @@ def main():
 
         try:
             if router_connect:
+                host_count += 1
                 connect_obj = router_connect[0]
                 device_type = router_connect[1]
+                host = ip
+                host = invbin.ClubRouter(ip, connect_obj, device_type)
+                print(host.vendor())
+                print(host.conn_obj())
+
                 if ip_address:
                     results = invbin.DeviceInfo.get_router_info(connect_obj, str(ip), device_type, loc_id_data)
                 else:
