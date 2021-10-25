@@ -212,9 +212,7 @@ def connect(ip):
                    OSError,
                    ValueError,
                    EOFError):
-                print('Traceback ------------------------------------------------------------------')
-                traceback.print_exc()
-                print('END Traceback --------------------------------------------------------------')
+                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan ip to see if port 22 is open,
                 # if it is open try to connect again
