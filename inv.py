@@ -14,6 +14,7 @@ import urllib3
 from lib import invbin
 from lib import config as cfg
 
+
 def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
     or using a specific list of ips
@@ -65,7 +66,7 @@ def main(ip_list):
             print('Cannot get location information from API. Stopping Script')
             exit()
 
-    host_count = 0
+    # host_count = 0
 
     for ip in ip_list:
         ip_address = ip_regex.search(ip)
@@ -76,7 +77,7 @@ def main(ip_list):
             # item returned [0]
             # device_type [1]
             router_connect_ = invbin.RouterInfo()
-            router_connect = router_connect_.connect(ip)      
+            router_connect = router_connect_.connect(ip)
             print('...', router_connect)
             print('___', router_connect_)
 
