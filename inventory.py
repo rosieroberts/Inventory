@@ -975,7 +975,7 @@ def api_call(club_id, add, remove):
             else:
                 del_item = None
 
-            print(item['_snipeit_mac_address_7'], item['asset_tag'], item['_snipeit_ip_6']) # remove line
+            print(item['_snipeit_mac_address_7'], item['asset_tag'], item['_snipeit_ip_6'])  # remove line
 
             # if id found in "deleted" collection
             if del_item:
@@ -987,7 +987,7 @@ def api_call(club_id, add, remove):
                     item_id = str(del_item['id'])
                     mac_address = str(del_item['_snipeit_mac_address_7'])
                     item_ip = str(del_item['_snipeit_ip_6'])
-                    print(item_id, tag, item_ip) # remove line
+                    print(item_id, tag, item_ip)  # remove line
                     print(mac_address)  # remove line
                     if item_id:
                         if tag:

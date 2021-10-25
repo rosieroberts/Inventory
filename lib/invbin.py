@@ -24,8 +24,6 @@ from netmiko.ssh_exception import (
 
 from lib import config as cfg
 
-
-
 not_connected = []
 clubs = []
 today = date.today()
@@ -76,7 +74,6 @@ class ClubRouter():
         self.host = host
         self.vendor = vendor
         self.conn_obj = conn_obj
-
 
 
 class Ips():
@@ -142,12 +139,10 @@ class Ips():
         return final_ip_list
 
 
-
 class RouterInfo():
 
     def __init__(self):
         pass
-
 
     def connect(self, ip):
         """Connects to router using .1 address from each ip router from ip_list.
@@ -205,7 +200,7 @@ class RouterInfo():
                         if scanner[ip].has_tcp(22):
                             if scanner[ip]['tcp'][22]['state'] == 'closed':
                                 print('port 22 is showing closed for ' + (ip))
-                                Variables.not_connected.append(ip)
+                                not_connected.append(ip)
                                 return None
                             else:
                                 print('Port 22 is open ')
@@ -218,7 +213,7 @@ class RouterInfo():
                         print('Error, Trying to connect to {} again '.format(ip))
             # exhausted all tries to connect, return None and exit
             print('Connection to {} is not possible: '.format(ip))
-            Variables.not_connected.append(ip)
+            not_connected.append(ip)
             return None
 
 
@@ -418,7 +413,7 @@ class DeviceInfo(RouterInfo):
                                         if updated_id is not None:
                                             results[-1]['ID'] = updated_id
                         if club_result:
-                            Variables.clubs.append(club_result)
+                            clubs.append(club_result)
 
                         # make directory that will contain all full scans by date
                         full_scan_dir = path.join('./scans/full_scans')
@@ -447,7 +442,7 @@ class DeviceInfo(RouterInfo):
                             continue
                         else:
                             print('Could not get arp table ' + (host))
-                            Variables.not_connected.append(host)
+                            not_connected.append(host)
                             failed_results = {'Host': host,
                                               'Location': club_result,
                                               'Status': 'could not get arp table'}
@@ -1402,4 +1397,4 @@ class SaveResults:
 
         else:
             print('No results received from router')
-            Variables.not_connected.append(host)
+            not_connected.append(host)
