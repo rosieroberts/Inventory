@@ -21,16 +21,14 @@ from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-import config as cfg
+
+from lib import config as cfg
 
 
-class Variables:  # need to add global variables to main I think
-    """ Defining Global variables"""
 
-    def __init__(self):
-        self.not_connected = []
-        self.clubs = []
-        self.today = date.today()
+not_connected = []
+clubs = []
+today = date.today()
 
 
 class Asset:
@@ -80,7 +78,11 @@ class ClubRouter():
         self.conn_obj = conn_obj
 
 
-class RouterInfo:
+
+class Ips():
+
+    def __init__(self):
+        pass
 
     def get_ips(self):
         """ Get IPs from snmp walk"""
@@ -138,6 +140,14 @@ class RouterInfo:
         final_ip_list = [item for item in f_list if item not in cfg.exclude_ips]
 
         return final_ip_list
+
+
+
+class RouterInfo():
+
+    def __init__(self):
+        pass
+
 
     def connect(self, ip):
         """Connects to router using .1 address from each ip router from ip_list.
@@ -213,6 +223,9 @@ class RouterInfo:
 
 
 class DeviceInfo(RouterInfo):
+
+    def __init__(self):
+        pass
 
     def get_router_info(self, conn_obj, host, device_type, loc_id_data):
         """Sends command to router to retrieve its arp-table, extracting all
@@ -419,7 +432,7 @@ class DeviceInfo(RouterInfo):
                             # writing full scan to .json
                             club_output = open(
                                 './scans/full_scans/full_scan{}.json'.format(
-                                    Variables.today.strftime('%m%d%Y')), 'a+')
+                                    today.strftime('%m%d%Y')), 'a+')
 
                             for item in results:
                                 club_output.write(dumps(item, indent=4))
@@ -737,7 +750,7 @@ class ApiConn:
 
         # create file to write status of differences as they happen
         status_file = open('./scans/api_status/scan_{}'
-                           .format(Variables.today.strftime('%m%d%Y')), 'a+')
+                           .format(today.strftime('%m%d%Y')), 'a+')
         if club_id:
             club = str(club_id)
             # possible bug -line below. When club is none, sends error
@@ -1010,7 +1023,7 @@ class Comparisons:
 
                 # create file for add
                 add_file = open(mydir + '/add_{}.json'
-                                .format(Variables.today.strftime("%m%d%Y")), 'a+')
+                                .format(today.strftime("%m%d%Y")), 'a+')
                 add_file.write(dumps(list(add), indent=4))
                 add_file.close()
                 all_diff.extend(add)
@@ -1029,7 +1042,7 @@ class Comparisons:
 
         # create file to write status of differences as they happen
         status_file = open('./scans/scan_status/scan_{}'
-                           .format(Variables.today.strftime('%m%d%Y')), 'a+')
+                           .format(today.strftime('%m%d%Y')), 'a+')
         if club:
             status_file.write('\n\n')
             status_file.write(club.upper())
@@ -1107,7 +1120,7 @@ class Comparisons:
             print('There are devices that need to be added')
             # create file for add
             add_file = open(mydir + '/add_{}.json'
-                            .format(Variables.today.strftime("%m%d%Y")), 'a+')
+                            .format(today.strftime("%m%d%Y")), 'a+')
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
@@ -1116,7 +1129,7 @@ class Comparisons:
             print('There are devices that need to be removed')
             # create file for remove
             remove_file = open(mydir + '/remove_{}.json'
-                               .format(Variables.today.strftime("%m%d%Y")), 'a+')
+                               .format(today.strftime("%m%d%Y")), 'a+')
             remove_file.write(dumps(list(remove), indent=4))
             remove_file.close()
             all_diff.extend(remove)
@@ -1311,7 +1324,7 @@ class SaveResults:
 
             # create .csv file with full scan
             with open('./scans/full_scans/full_scan{}.csv'
-                      .format(Variables.today.strftime('%m%d%Y')), 'a') as csvfile:
+                      .format(today.strftime('%m%d%Y')), 'a') as csvfile:
                 csvwriter = DictWriter(csvfile, keys)
                 if header_added is False:
                     csvwriter.writeheader()
@@ -1329,7 +1342,7 @@ class SaveResults:
         db = client['inventory']
 
         # use collection named by date of scan
-        today_date = Variables.today.strftime('%m%d%Y')
+        today_date = today.strftime('%m%d%Y')
         collection_name = 'scan_' + today_date
         scan_col = db[collection_name]
 
@@ -1369,7 +1382,7 @@ class SaveResults:
             mydir_obj.mkdir(parents=True, exist_ok=True)
             club_base_file = open(
                 mydir + '/{}_{}.json'.format(results[0]['Location'],
-                                             Variables.today.strftime('%m%d%Y')), 'w+')
+                                             today.strftime('%m%d%Y')), 'w+')
 
             for item in results:
                 if item['ID'] is None:

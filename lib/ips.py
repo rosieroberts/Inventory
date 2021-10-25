@@ -2,7 +2,8 @@
 
 from easysnmp import Session
 import re
-import config as cfg
+from lib import config as cfg
+
 
 # Core router
 session = Session(hostname=cfg.snmp['hostname'],
