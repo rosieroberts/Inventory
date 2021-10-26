@@ -769,7 +769,8 @@ def mongo_diff(results):
         status_file.write(club.upper())
         status_file.write('\n')
 
-    count = 0
+    count_add = 0
+    count_remove = 0
 
     # Query mongo for all mac addresses in current location
     # location is based on results[0]['Location']
@@ -790,7 +791,7 @@ def mongo_diff(results):
                                   {'Mac Address': 1, '_id': 0})
         # if mac address cannot be found in db, it is new
         if new_mac.count() == 0:
-            count += 1
+            count_add += 1
             # if device is not found in 4 prior scans
             check_add = check_if_add(item)
             # if check_add is true, mac not found in prior 4 scans, add new
@@ -800,7 +801,7 @@ def mongo_diff(results):
                         'added\n'
                         .format(item['ID'],
                                 item['Mac Address']))
-                print('\nDIFF ITEM', count)
+                print('\nNEW ASSET', count_add)
                 print(msg1)
                 status_file.write(msg1)
 
@@ -817,19 +818,18 @@ def mongo_diff(results):
             check_remove = check_if_remove(itm)
             # if check_remove is true, remove device from snipeit
             if check_remove is True:
-                count += 1
+                count_remove += 1
                 remove.append(itm)
                 msg7 = ('\nDevice with ID {} and Mac Address {} '
                         '\nno longer found, '
                         'has been removed\n'
                         .format(itm['ID'],
                                 itm['Mac Address']))
-                print('\nDIFF ITEM', count)
+                print('\nREMOVED ASSET', count_remove)
                 print(msg7)
                 status_file.write(msg7)
 
     if add:
-        print('There are devices that need to be added')
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m%d%Y")), 'a+')
@@ -838,7 +838,6 @@ def mongo_diff(results):
         all_diff.extend(add)
 
     if remove:
-        print('There are devices that need to be removed')
         # create file for remove
         remove_file = open(mydir + '/remove_{}.json'
                            .format(today.strftime("%m%d%Y")), 'a+')
@@ -846,10 +845,10 @@ def mongo_diff(results):
         remove_file.close()
         all_diff.extend(remove)
 
-    print('ADD')
-    print(add)
-    print('REMOVE')
-    print(remove)
+    # print('ADD')
+    # print(add)
+    # print('REMOVE')
+    # print(remove)
     return [add, remove]
 
 
@@ -969,53 +968,63 @@ def api_call(club_id, add, remove):
             if cursor.count() != 0:
                 del_item = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
                                               '_snipeit_ip_6': item['_snipeit_ip_6']},
-                                             {'id': 1, 'asset_tag': 1, '_id': 0})
-                print(del_item)
+                                             {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
+                                              '_snipeit_ip_6': 1, '_id': 0})
 
             else:
                 del_item = None
 
-            print(item['_snipeit_mac_address_7'], item['asset_tag'], item['_snipeit_ip_6'])  # remove line
+            print(item['_snipeit_mac_address_7'],
+                  item['asset_tag'],
+                  item['_snipeit_ip_6'])  # remove line
 
-            # if id found in "deleted" collection
-            if del_item:
-                try:
-                    url = cfg.api_url_restore_deleted.format(del_item['id'])
-                    response = requests.request("POST", url=url, headers=cfg.api_headers)
-                    print(response.text)
-                    tag = str(del_item['asset_tag'])
+            # if mac address and ip for item found in "deleted" collection
+            try:
+                if del_item:
+                    item_tag = str(del_item['asset_tag'])
                     item_id = str(del_item['id'])
-                    mac_address = str(del_item['_snipeit_mac_address_7'])
+                    item_mac = str(del_item['_snipeit_mac_address_7'])
                     item_ip = str(del_item['_snipeit_ip_6'])
-                    print(item_id, tag, item_ip)  # remove line
-                    print(mac_address)  # remove line
-                    if item_id:
-                        if tag:
-                            status_file.write('Restored item with asset_tag {} '
-                                              'and id {} in Snipe-IT'
-                                              .format(tag, item_id))
 
-                            print('Restored item with asset_tag {} '
-                                  'and id {} in Snipe-IT'
-                                  .format(tag, item_id))
+                    if item_ip and item_mac:
+                        url = cfg.api_url_restore_deleted.format(del_item['id'])
+                        response = requests.request("POST",
+                                                    url=url,
+                                                    headers=cfg.api_headers)
+                        print('----------------------------------------------')
+                        pprint(response.text)
+                        msg = ('Restored item with asset_tag {} '
+                               'and id {} in Snipe-IT')
 
-                            continue
+                        status_file.write(msg.format(item_tag, item_id))
+                        print(msg.format(item_tag, item_id))
 
-                except (KeyError,
-                        decoder.JSONDecodeError):
-                    traceback.print_exc()
+                        continue
+
+                else:
+                    print('Item has never been previously deleted,'
+                          ' creating new item')
+                    # adding brand new item to snipe-it
                     item_id = None
-                    print('Item has never been previously deleted, creating new item')
+                    url = cfg.api_url
+                    item_str = str(item)
+                    payload = item_str.replace('\'', '\"')
+                    response = requests.request("POST",
+                                                url=url,
+                                                data=payload,
+                                                headers=cfg.api_headers)
+                    pprint(response.text)
 
-            # adding brand new item to snipe-it
-            url = cfg.api_url
-            item_str = str(item)
-            payload = item_str.replace('\'', '\"')
-            response = requests.request("POST",
-                                        url=url,
-                                        data=payload,
-                                        headers=cfg.api_headers)
-            pprint(response.text)
+            except (KeyError,
+                    decoder.JSONDecodeError):
+                print('There was an error adding the asset '
+                      'to Snipe-IT, check:\n'
+                      '{}, ip {}, mac address {}'
+                      .format(item['Location'],
+                              item['_snipeit_ip_6'],
+                              item['_snipeit_mac_address_7']))
+                traceback.print_exc()
+
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
                                   'with asset-tag {} to Snipe-IT'
@@ -1192,6 +1201,7 @@ def club_id(conn, host, device_type):
 
                         elif device_type == 'fortinet':
                             club_info = conn.send_command('show system snmp sysinfo')
+                            print(club_info)
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
                             club_result = None
@@ -1359,7 +1369,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = ips.get_ips()
-# ip_list = ['172.31.15.192']
+ip_list = ['172.31.15.192', '172.30.252.62', '172.30.252.57']
+ip_list = ['172.31.3.208']
 
 if __name__ == '__main__':
     main(ip_list)
