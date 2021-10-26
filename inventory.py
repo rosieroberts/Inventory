@@ -974,9 +974,13 @@ def api_call(club_id, add, remove):
             else:
                 del_item = None
 
+<<<<<<< HEAD
             print(item['_snipeit_mac_address_7'],
                   item['asset_tag'],
                   item['_snipeit_ip_6']) # remove line
+=======
+            print(item['_snipeit_mac_address_7'], item['asset_tag'], item['_snipeit_ip_6'])  # remove line
+>>>>>>> d9d439688861d5b4dc57bb6292087f1be981a481
 
             # if mac address and ip for item found in "deleted" collection
             try:
@@ -985,6 +989,20 @@ def api_call(club_id, add, remove):
                     item_id = str(del_item['id'])
                     item_mac = str(del_item['_snipeit_mac_address_7'])
                     item_ip = str(del_item['_snipeit_ip_6'])
+<<<<<<< HEAD
+=======
+                    print(item_id, tag, item_ip)  # remove line
+                    print(mac_address)  # remove line
+                    if item_id:
+                        if tag:
+                            status_file.write('Restored item with asset_tag {} '
+                                              'and id {} in Snipe-IT'
+                                              .format(tag, item_id))
+
+                            print('Restored item with asset_tag {} '
+                                  'and id {} in Snipe-IT'
+                                  .format(tag, item_id))
+>>>>>>> d9d439688861d5b4dc57bb6292087f1be981a481
 
                     if item_ip and item_mac:
                         url = cfg.api_url_restore_deleted.format(del_item['id'])
