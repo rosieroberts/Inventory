@@ -11,11 +11,11 @@ import requests
 # import traceback
 import urllib3
 
-import lib.config as cfg
 from lib import invbin
+from lib import config as cfg
 
 
-def main():
+def main(ip_list):
     """main function to run script, using get_ip_list from ips.py
     or using a specific list of ips
 
@@ -37,8 +37,6 @@ def main():
     update = []
     connect_obj = None
 
-    ips = invbin.RouterInfo().get_ips()
-
     header_added = False
     ip_regex = compile(r'(?:\d+\.){3}\d+')
 
@@ -51,7 +49,7 @@ def main():
     # truncating csv file if it was ran a prior time on same day to
     # avoid duplicate values
     full_csv = ('./scans/full_scans/full_scan{}.csv'
-                .format(invbin.Assets.today.strftime('%m%d%Y')))
+                .format(invbin.today.strftime('%m%d%Y')))
     if (path.exists(full_csv) and path.isfile(full_csv)):
         f = open(full_csv, "w+")
         f.close()
@@ -68,7 +66,9 @@ def main():
             print('Cannot get location information from API. Stopping Script')
             exit()
 
-    for ip in ips:
+    # host_count = 0
+
+    for ip in ip_list:
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
         print(ip)
@@ -76,12 +76,19 @@ def main():
             # connect to router and get connect object and device type
             # item returned [0]
             # device_type [1]
-            router_connect = invbin.RouterInfo.connect(str(ip))
+            router_connect_ = invbin.RouterInfo()
+            router_connect = router_connect_.connect(ip)
+            print('...', router_connect)
+            print('___', router_connect_)
 
         try:
             if router_connect:
                 connect_obj = router_connect[0]
                 device_type = router_connect[1]
+                host = invbin.ClubRouter(ip, connect_obj, device_type)
+                print('host', host)
+                print('conn_obj', host.conn_obj())
+
                 if ip_address:
                     results = invbin.DeviceInfo.get_router_info(connect_obj, str(ip), device_type, loc_id_data)
                 else:
@@ -140,3 +147,12 @@ def main():
     print('\nScript Runtime: {} '.format(runtime))
 
     return [add, remove, update]
+
+
+if __name__ == '__main__':
+    ip = invbin.Ips()
+    main(ip.get_ips())
+    end = time()
+    runtime = end - main.start
+    runtime = str(timedelta(seconds=int(runtime)))
+    print('\nScript Runtime: {} '.format(runtime))

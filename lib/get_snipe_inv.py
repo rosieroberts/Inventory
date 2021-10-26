@@ -1,7 +1,8 @@
 import pymongo
 import requests
 from json import decoder
-import config as cfg
+from lib import config as cfg
+
 
 
 def get_snipe():

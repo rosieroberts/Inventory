@@ -26,9 +26,9 @@ from netmiko import ConnectHandler
 from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
-from lib.ips import get_ips
+from lib import ips
 from lib.get_snipe_inv import get_snipe
-import lib.config as cfg
+from lib import config as cfg
 
 
 start = time()
@@ -190,6 +190,9 @@ def connect(ip):
                 else:
                     device_type = 'fortinet'
 
+                print(device_type)
+                print(ip)
+
                 net_connect = ConnectHandler(device_type=device_type,
                                              host=ip,
                                              username=cfg.ssh['username'],
@@ -209,7 +212,6 @@ def connect(ip):
                    OSError,
                    ValueError,
                    EOFError):
-
                 # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan ip to see if port 22 is open,
@@ -507,13 +509,13 @@ def save_results(results, host):
 
         for item in results:
             if item['ID'] is None:
-                print('Updating new entries with ID from snipe-IT')
                 item_id = get_id(item['Asset Tag'])
                 if item_id:
                     item['ID'] = item_id
                 else:
                     continue
 
+        print('Updated new entries in mongodb with IDs from snipe-IT')
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
@@ -965,11 +967,15 @@ def api_call(club_id, add, remove):
 
             cursor = del_coll.find()
             if cursor.count() != 0:
-                del_item = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
+                del_item = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                              '_snipeit_ip_6': item['_snipeit_ip_6']},
                                              {'id': 1, 'asset_tag': 1, '_id': 0})
+                print(del_item)
 
             else:
                 del_item = None
+
+            print(item['_snipeit_mac_address_7'], item['asset_tag'], item['_snipeit_ip_6'])  # remove line
 
             # if id found in "deleted" collection
             if del_item:
@@ -979,17 +985,21 @@ def api_call(club_id, add, remove):
                     print(response.text)
                     tag = str(del_item['asset_tag'])
                     item_id = str(del_item['id'])
-
+                    mac_address = str(del_item['_snipeit_mac_address_7'])
+                    item_ip = str(del_item['_snipeit_ip_6'])
+                    print(item_id, tag, item_ip)  # remove line
+                    print(mac_address)  # remove line
                     if item_id:
-                        status_file.write('Restored item with asset_tag {} '
-                                          'and id {} in Snipe-IT'
-                                          .format(tag, item_id))
+                        if tag:
+                            status_file.write('Restored item with asset_tag {} '
+                                              'and id {} in Snipe-IT'
+                                              .format(tag, item_id))
 
-                        print('Restored item with asset_tag {} '
-                              'and id {} in Snipe-IT'
-                              .format(tag, item_id))
+                            print('Restored item with asset_tag {} '
+                                  'and id {} in Snipe-IT'
+                                  .format(tag, item_id))
 
-                        continue
+                            continue
 
                 except (KeyError,
                         decoder.JSONDecodeError):
@@ -1348,8 +1358,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-ip_list = get_ips()
-# ip_list = ['172.31.0.57']
+ip_list = ips.get_ips()
+# ip_list = ['172.31.15.192']
 
 if __name__ == '__main__':
     main(ip_list)
