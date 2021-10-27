@@ -876,8 +876,6 @@ def api_payload(all_diff):
 
     for list in diff:
         for item in list:
-            print('API PAYLOAD ______________________________________________')
-            print(item)
             item['_snipeit_mac_address_7'] = item.pop('Mac Address')
             item['_snipeit_ip_6'] = item.pop('IP')
             item['_snipeit_hostname_8'] = item.pop('Hostname')
@@ -891,9 +889,6 @@ def api_payload(all_diff):
                 item['rtd_location_id'] = item.pop('Location ID')
             if 'Status' in item:
                 item.pop('Status')
-            print('API PAYLOAD_2 ______________________________________________')
-            print(item)
-
 
     add = diff[0]
     remove = diff[1]
@@ -980,7 +975,6 @@ def api_call(club_id, add, remove):
             else:
                 del_item = None
 
-            print('*******************************************************')
             print(item['_snipeit_mac_address_7'],
                   item['asset_tag'],
                   item['_snipeit_ip_6'])  # remove line
@@ -998,7 +992,6 @@ def api_call(club_id, add, remove):
                         response = requests.request("POST",
                                                     url=url,
                                                     headers=cfg.api_headers)
-                        print('----------------------------------------------')
                         pprint(response.text)
                         msg = ('Restored item with asset_tag {} '
                                'and id {} in Snipe-IT')
@@ -1201,7 +1194,7 @@ def club_id(conn, host, device_type):
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
                             print('Getting club ID... attempt', attempt + 1)
-                            # if club pattern is not found              
+                            # if club pattern is not found
                             if club_result is None:
                                 # search for regional pattern
                                 club_result = reg_rgx.search(club_info)
@@ -1387,7 +1380,7 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 ip_list = ips.get_ips()
 ip_list = ['172.30.252.62', '172.30.252.57']
-#ip_list = ['172.31.1.92', '172.31.2.121', '172.31.3.93'] 
+# ip_list = ['172.31.1.92', '172.31.2.121', '172.31.3.93']
 
 if __name__ == '__main__':
     main(ip_list)
