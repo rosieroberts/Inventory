@@ -903,6 +903,7 @@ def api_payload(all_diff):
     if remove:
         print('REMOVE\n')
         print(*remove, sep='\n')
+        pprint(remove)
     return [add, remove]
 
 
@@ -991,7 +992,6 @@ def api_call(club_id, add, remove):
                         response = requests.request("POST",
                                                     url=url,
                                                     headers=cfg.api_headers)
-                        print('----------------------------------------------')
                         pprint(response.text)
                         msg = ('Restored item with asset_tag {} '
                                'and id {} in Snipe-IT')
@@ -1009,6 +1009,7 @@ def api_call(club_id, add, remove):
                     url = cfg.api_url
                     item_str = str(item)
                     payload = item_str.replace('\'', '\"')
+                    print(payload)
                     response = requests.request("POST",
                                                 url=url,
                                                 data=payload,
@@ -1047,6 +1048,7 @@ def api_call(club_id, add, remove):
             response = requests.request("DELETE",
                                         url=url,
                                         headers=cfg.api_headers)
+            print('\n')
             pprint(response.text)
 
             if response.status_code == 200:
@@ -1178,6 +1180,7 @@ def club_id(conn, host, device_type):
         'null' is returned.
     """
     club_rgx = compile(cfg.club_rgx)
+    reg_rgx = compile(cfg.reg_rgx)
     fort_regex = compile(r'([0-9]{3}(?=-fgt-))', IGNORECASE)
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     for _ in range(1):
@@ -1191,11 +1194,18 @@ def club_id(conn, host, device_type):
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
                             print('Getting club ID... attempt', attempt + 1)
-                            if club_result is not None:
-                                # club_number returns pattern '000'
-                                club_result = str(club_result.group(0))
                             # if club pattern is not found
-                            else:
+                            if club_result is None:
+                                # search for regional pattern
+                                club_result = reg_rgx.search(club_info)
+                            # if regional pattern found
+                            if club_result is not None:
+                                # club_result returns reg pattern 'reg-000'
+                                club_result = str(club_result.group(0))
+                                print(club_result)
+                                break
+                            # if reg pattern is not found
+                            if club_result is None:
                                 # look for ID in router hostname
                                 raise OSError
 
@@ -1369,8 +1379,8 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
 
 
 ip_list = ips.get_ips()
-ip_list = ['172.31.15.192', '172.30.252.62', '172.30.252.57']
-ip_list = ['172.31.3.208']
+ip_list = ['172.30.252.62', '172.30.252.57']
+# ip_list = ['172.31.1.92', '172.31.2.121', '172.31.3.93']
 
 if __name__ == '__main__':
     main(ip_list)
