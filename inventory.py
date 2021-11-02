@@ -1,8 +1,8 @@
-# This program scans the network to get an inventory of all assets 
+# This program scans the network to get an inventory of all assets
 # from all clubs.
 
 
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 
 from os import path, listdir
 from sys import exit
@@ -41,12 +41,12 @@ not_connected = []
 clubs = []
 additional_ids = []
 
-#log = getLogger('Asset_Inventory')
-#basicConfig(
-#    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-#    datefmt='%m/%d/%Y %H:%M:%S',
-#    level=INFO,
-#    filename='asset_inventory.log')
+log = getLogger('Asset_Inventory')
+basicConfig(
+    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+    datefmt='%m/%d/%Y %H:%M:%S',
+    level=INFO,
+    filename='asset_inventory.log')
 
 
 def main(ip_list):
@@ -1376,7 +1376,6 @@ def get_club_ips(club):
     ''' Get ip address for club number in command line argument
     args: club in 'club000' format
     '''
-    
     myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
     # use database named "inventory"
@@ -1406,11 +1405,11 @@ def club_ips(club_list):
             club_ = club_rgx.search(item)
             ip_ = ip_rgx.search(item)
 
-            if club_ is not None: 
+            if club_ is not None:
                 club_ = str(club_.group(0))
                 club_ip = get_club_ips(club_)
                 club_ip_list.append(club_ip)
-            
+
             elif ip_ is not None:
                 ip_ = str(ip_.group(0))
                 club_ip_list.append(ip_)
@@ -1422,6 +1421,7 @@ def club_ips(club_list):
         return club_ip_list
 
     except:
+        # Not sure what kinds of errors, will update except soon
         traceback.print_exc()
         print('There was a problem getting IPs for clubs. Try again')
         return club_ip_list
