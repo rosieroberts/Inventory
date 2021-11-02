@@ -1,3 +1,7 @@
+# This program scans the network to get an inventory of all assets 
+# from all clubs.
+
+
 #!/usr/bin/env python3
 
 from os import path, listdir
@@ -17,7 +21,7 @@ import urllib3
 import pymongo
 from logging import getLogger, basicConfig, INFO
 from configparser import ConfigParser
-# from argparse import ArgumentParser
+from argparse import ArgumentParser
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -37,16 +41,12 @@ not_connected = []
 clubs = []
 additional_ids = []
 
-# a_parse = ArgumentParser(description='Asset Inventory')
-# a_parse.add_argument('club', type=str, help='Help???')
-# args = a_parse.parse_args()
-
-log = getLogger('Asset_Inventory')
-basicConfig(
-    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-    datefmt='%m/%d/%Y %H:%M:%S',
-    level=INFO,
-    filename='asset_inventory.log')
+#log = getLogger('Asset_Inventory')
+#basicConfig(
+#    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
+#    datefmt='%m/%d/%Y %H:%M:%S',
+#    level=INFO,
+#    filename='asset_inventory.log')
 
 
 def main(ip_list):
@@ -74,7 +74,6 @@ def main(ip_list):
 
     print(cfg.intro1)
     print(cfg.intro2)
-
     db_count = 0
     get_snipe()
 
@@ -102,12 +101,12 @@ def main(ip_list):
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
 
+        print(str(ip))
         if ip_address:
             # connect to router and get connect object and device type
             # item returned [0]
             # device_type [1]
             router_connect = connect(str(ip))
-
         try:
             if router_connect:
                 connect_obj = router_connect[0]
@@ -190,9 +189,6 @@ def connect(ip):
                 else:
                     device_type = 'fortinet'
 
-                print(device_type)
-                print(ip)
-
                 net_connect = ConnectHandler(device_type=device_type,
                                              host=ip,
                                              username=cfg.ssh['username'],
@@ -273,8 +269,8 @@ def get_router_info(conn, host, device_type, loc_id_data):
     club_result = club_id(conn, host, device_type)
     results = []  # main inventory results
     f_results = []  # list of failed results
-    mac_regex = compile(r'([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})')
-    ip_regex = compile(r'(?:\d+\.){3}\d+')
+    mac_regex = compile(cfg.mac_rgx)
+    ip_regex = compile(cfg.ip_rgx)
     fortext_regex = compile(cfg.fortext)
     not_added = []
     ip_ranges = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
@@ -1202,7 +1198,6 @@ def club_id(conn, host, device_type):
                             if club_result is not None:
                                 # club_result returns reg pattern 'reg-000'
                                 club_result = str(club_result.group(0))
-                                print(club_result)
                                 break
                             # if reg pattern is not found
                             if club_result is None:
@@ -1211,7 +1206,6 @@ def club_id(conn, host, device_type):
 
                         elif device_type == 'fortinet':
                             club_info = conn.send_command('show system snmp sysinfo')
-                            print(club_info)
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
                             club_result = None
@@ -1378,12 +1372,83 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     return asset_tag
 
 
-ip_list = ips.get_ips()
-ip_list = ['172.30.252.62', '172.30.252.57']
-# ip_list = ['172.31.1.92', '172.31.2.121', '172.31.3.93']
+def get_club_ips(club):
+    ''' Get ip address for club number in command line argument
+    args: club in 'club000' format
+    '''
+    
+    myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # use database named "inventory"
+    mydb = myclient['inventory']
+
+    # use collection 'club_list'
+    club_list = mydb['club_list']
+
+    # query IP
+    ip = club_list.find_one({'Location': club}, {'IP': 1, '_id': 0})
+
+    ip = ip.get('IP')
+
+    return ip
+
+
+def club_ips(club_list):
+    ''' takes list of clubs to scan, and converts them to list of ips'''
+
+    club_ip_list = []
+    club_rgx = compile(cfg.club_rgx)
+    ip_rgx = compile(cfg.ip_rgx)
+
+    try:
+        for item in club_list:
+            print(item)
+            club_ = club_rgx.search(item)
+            ip_ = ip_rgx.search(item)
+
+            if club_ is not None: 
+                club_ = str(club_.group(0))
+                club_ip = get_club_ips(club_)
+                club_ip_list.append(club_ip)
+            
+            elif ip_ is not None:
+                ip_ = str(ip_.group(0))
+                club_ip_list.append(ip_)
+
+            else:
+                print('{} is not in the right format, try again.'.format(item))
+                continue
+
+        return club_ip_list
+
+    except:
+        traceback.print_exc()
+        print('There was a problem getting IPs for clubs. Try again')
+        return club_ip_list
+
+
+def inv_args(ip_list):
+
+    parser = ArgumentParser(description='Asset Inventory Script')
+    parser.add_argument(
+        '-club', '-c',
+        nargs='*',
+        help='Club Number in "club000" format or club IP')
+    parser.add_argument(
+        '-clubList', '-l',
+        help='Club List in list of "club000" format or club IP')
+    inv_args = parser.parse_args()
+
+    if inv_args.club is not None:
+        ips = club_ips(inv_args.club)
+    else:
+        ips = ip_list
+
+    return ips
+
 
 if __name__ == '__main__':
-    main(ip_list)
+    main(inv_args(ips.get_ips()))
     end = time()
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))

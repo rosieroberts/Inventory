@@ -33,7 +33,10 @@ def get_snipe():
 
         for offset in range(0, total_record, 500):
             querystring = {"offset": offset}
-            response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
+            response = requests.request("GET",
+                                        url=url,
+                                        headers=cfg.api_headers,
+                                        params=querystring)
             content = response.json()
 
             for item in content['rows']:
@@ -47,6 +50,7 @@ def get_snipe():
                           'Manufacturer': item['manufacturer']['name'],
                           'Model Name': item['model']['name']}
                 all_items.append(device)
+
 
         # print(*all_items, sep='\n')
 
@@ -65,6 +69,24 @@ def get_snipe():
         # insert list of dictionaries
         mycol.insert_many(all_items)
         print('snipe db updated')
+
+        full_club_list = mycol.find({'Category': 'Router'},
+                                    {'Location': 1,
+                                     'IP': 1,
+                                     '_id': 0})
+        club_list = []
+        for item in full_club_list:
+            club_list.append(item)
+
+        # use collection 'club_list'
+        club_list_coll = mydb['club_list']
+
+        # delete prior scan items
+        club_list_coll.delete_many({})
+
+        # insert full club list into mongodb collection
+        club_list_coll.insert_many(club_list)
+
 
     except (KeyError,
             decoder.JSONDecodeError):
