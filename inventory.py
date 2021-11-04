@@ -13,13 +13,12 @@ from time import time
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
-from pprint import pprint
+from pprint import pformat
 from ipaddress import ip_address, ip_network
 import requests
-import traceback
 import urllib3
 import pymongo
-from logging import getLogger, basicConfig, INFO
+from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from configparser import ConfigParser
 from argparse import ArgumentParser
 
@@ -41,12 +40,23 @@ not_connected = []
 clubs = []
 additional_ids = []
 
-log = getLogger('Asset_Inventory')
-basicConfig(
-    format='%(asctime)s %(name)s %(levelname)s: %(message)s',
-    datefmt='%m/%d/%Y %H:%M:%S',
-    level=INFO,
-    filename='asset_inventory.log')
+logger = getLogger(__name__)
+# TODO: set to ERROR later on after setup
+logger.setLevel(INFO)
+
+formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
+
+# logfile
+file_handler = FileHandler('asset_inventory.log')
+file_handler.setLevel(INFO)
+file_handler.setFormatter(formatter)
+
+# console
+stream_handler = StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
 
 
 def main(ip_list):
@@ -94,14 +104,14 @@ def main(ip_list):
             loc_id_data = response_loc.json()
         except decoder.JSONDecodeError:
             loc_id_data = None
-            log.info('Cannot get location information from API. Stopping Script')
+            logger.exception('Cannot get location information from API. Stopping Script')
             exit()
 
     for ip in ip_list:
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
 
-        print(str(ip))
+        logger.info('Scanning {}'.format(str(ip)))
         if ip_address:
             # connect to router and get connect object and device type
             # item returned [0]
@@ -139,8 +149,8 @@ def main(ip_list):
                 connect_obj.disconnect()
 
         except(urllib3.exceptions.ProtocolError):
-            print('Remote end closed connection without response')
-            print('Scanning next club....')
+            logger.exception('Remote end closed connection without response')
+            logger.info('Scanning next club....')
             continue
 
         clb_runtime_end = time()
@@ -150,19 +160,19 @@ def main(ip_list):
 
         if router_connect:
             if results:
-                print('\n{} Scan Runtime: {} '
-                      .format(results[0]['Location'], clb_runtime))
+                logger.info('\n{} Scan Runtime: {} '
+                            .format(results[0]['Location'], clb_runtime))
         else:
-            print('\nClub Scan Runtime: {} '.format(clb_runtime))
+            logger.info('\nClub Scan Runtime: {} '.format(clb_runtime))
 
-    print('\nThe following {} hosts were not scanned:'
-          .format(len(not_connected)))
+    logger.info('\nThe following {} hosts were not scanned:'
+                .format(len(not_connected)))
     for item in not_connected:
-        print(item)
+        logger.info(item)
 
-    print('\nThe following {} clubs were scanned:'.format(len(clubs)))
+    logger.info('\nThe following {} clubs were scanned:'.format(len(clubs)))
     for item in clubs:
-        print(item)
+        logger.info(item)
 
     return [add, remove, update]
 
@@ -177,12 +187,12 @@ def connect(ip):
         Does not raise an error. If connection is unsuccessful,
         None is returned.
     """
-    print('\n\nScanning IP {}'.format(ip))
+    logger.info('\n\nScanning IP {}'.format(ip))
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
             try:
-                print('\nConnecting... attempt', attempt + 1)
+                logger.info('\nConnecting... attempt', attempt + 1)
                 if ip in cfg.routers_cisco:
                     device_type = 'cisco_ios'
 
@@ -197,8 +207,8 @@ def connect(ip):
 
                 endconn = time()
                 time_elapsed = endconn - startconn
-                print('Connection achieved in {} seconds'
-                      .format(int(time_elapsed)))
+                logger.info('Connection achieved in {} seconds'
+                            .format(int(time_elapsed)))
 
                 return net_connect, device_type
 
@@ -208,7 +218,6 @@ def connect(ip):
                    OSError,
                    ValueError,
                    EOFError):
-                # traceback.print_exc()
                 # if connection fails and an Exception is raised,
                 # scan ip to see if port 22 is open,
                 # if it is open try to connect again
@@ -220,20 +229,22 @@ def connect(ip):
                 for ip in scanner.all_hosts():
                     if scanner[ip].has_tcp(22):
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
-                            print('port 22 is showing closed for ' + (ip))
+                            logger.info('port 22 is showing closed for ' + (ip))
                             not_connected.append(ip)
                             return None
                         else:
-                            print('Port 22 is open ')
+                            logger.info('Port 22 is open ')
                             break
                     else:
-                        print('port 22 is closed for ' + (ip))
+                        logger.info('port 22 is closed for ' + (ip))
                         continue
-                print('Connecting... attempt', attempt + 1)
+                logger.info('Connecting... attempt', attempt + 1)
                 if attempt == 0:
-                    print('Error, Trying to connect to {} again '.format(ip))
+                    logger.info('Error, Trying to connect to {} again '.format(ip))
+                else:
+                    logger.exception()
         # exhausted all tries to connect, return None and exit
-        print('Connection to {} is not possible: '.format(ip))
+        logger.error('Connection to {} is not possible: '.format(ip))
         not_connected.append(ip)
         return None
 
@@ -281,7 +292,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                 try:
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
-                        print('Sending command to router... attempt', attempt2 + 1)
+                        logger.info('Sending command to router... attempt', attempt2 + 1)
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
                         elif device_type == 'cisco_ios':
@@ -351,6 +362,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                             loc_id = str(itm['id'])
 
                             except KeyError:
+                                logger.exception()
                                 loc_id = None
                                 loc_id = str(loc_id)
 
@@ -437,9 +449,9 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
 
                     if results:
-                        print('Results complete...')
-                        print('\nWriting {} results to files...'
-                              .format(results[0]['Location']))
+                        logger.info('Results complete...')
+                        logger.info('\nWriting {} results to files...'
+                                    .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
                             './scans/full_scans/full_scan{}.json'.format(
@@ -454,10 +466,10 @@ def get_router_info(conn, host, device_type, loc_id_data):
                        PipeTimeout):
 
                     if attempt2 == 0:
-                        print('Could not send command, trying again')
+                        logger.exception('Could not send command, trying again')
                         continue
                     else:
-                        print('Could not get arp table ' + (host))
+                        logger.exception('Could not get arp table ' + (host))
                         not_connected.append(host)
                         failed_results = {'Host': host,
                                           'Location': club_result,
@@ -466,15 +478,15 @@ def get_router_info(conn, host, device_type, loc_id_data):
 
     end2 = time()
     runtime2 = end2 - start2
-    print('Club devices information was received in', runtime2)
-    print('--------------------------SCAN RESULTS------------------------------')
-    pprint(results)
-    print('--------------------------------------------------------------------')
+    logger.info('Club devices information was received in', runtime2)
+    logger.info('--------------------------SCAN RESULTS------------------------------')
+    logger.info(pformat(results))
+    logger.info('--------------------------------------------------------------------')
     return results
 
 
 def save_results(results, host):
-    """Function to print and add results to .json and .csv files
+    """Function to add results to .json and .csv files
 
     Args:
         results - list returned from get_router_info() for each location
@@ -511,14 +523,14 @@ def save_results(results, host):
                 else:
                     continue
 
-        print('Updated new entries in mongodb with IDs from snipe-IT')
+        logger.info('Updated new entries in mongodb with IDs from snipe-IT')
         # dump .json file for each raw club scan in directory
         club_base_file.write(dumps(results, indent=4))
         club_base_file.close()
         return results
 
     else:
-        print('No results received from router')
+        logger.error('No results received from router')
         not_connected.append(host)
 
 
@@ -562,9 +574,9 @@ def csv(results, header_added):
             if header_added is False:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
-            print('results written to .csv file')
+            logger.info('results written to .csv file')
     else:
-        print('No results written to .csv file')
+        logger.error('No results written to .csv file')
 
 
 def check_if_remove(diff_item):
@@ -696,7 +708,7 @@ def mongo_diff(results):
     """
 
     if results:
-        print('Comparing to Prior Scan, Looking for Differences')
+        logger.info('Comparing to Prior Scan, Looking for Differences')
         club = results[0]['Location']
     results_macs = []
     # update = []
@@ -727,12 +739,12 @@ def mongo_diff(results):
 
     if snipe_location_amt == 0:
         # this needs to be tested
-        print('No prior scan found to compare, adding all items to snipe-it')
+        logger.info('No prior scan found to compare, adding all items to snipe-it')
         for item in results:
             add.append(item)
 
         if add:
-            print('Adding devices to Scan Files')
+            logger.info('Adding devices to Scan Files')
             # make directory that will contain all scan statuses by date
             mydir = path.join('./scans/scan_status')
             mydir_obj = Path(mydir)
@@ -749,7 +761,7 @@ def mongo_diff(results):
             return None
 
     if results[0]['Location'] != snipe_location[0]['Location']:
-        print('Club information cannot be compared')
+        logger.error('Club information cannot be compared')
         return None
 
     # make directory that will contain all scan statuses by date
@@ -797,8 +809,8 @@ def mongo_diff(results):
                         'added\n'
                         .format(item['ID'],
                                 item['Mac Address']))
-                print('\nNEW ASSET', count_add)
-                print(msg1)
+                logger.info('\nNEW ASSET', count_add)
+                logger.info(msg1)
                 status_file.write(msg1)
 
     # check if each mac address in snipedb is in results mac address list
@@ -821,8 +833,8 @@ def mongo_diff(results):
                         'has been removed\n'
                         .format(itm['ID'],
                                 itm['Mac Address']))
-                print('\nREMOVED ASSET', count_remove)
-                print(msg7)
+                logger.info('\nREMOVED ASSET', count_remove)
+                logger.info(msg7)
                 status_file.write(msg7)
 
     if add:
@@ -841,10 +853,6 @@ def mongo_diff(results):
         remove_file.close()
         all_diff.extend(remove)
 
-    # print('ADD')
-    # print(add)
-    # print('REMOVE')
-    # print(remove)
     return [add, remove]
 
 
@@ -894,12 +902,12 @@ def api_payload(all_diff):
         item.pop('id')
 
     if add:
-        print('ADD\n')
-        print(*add, sep='\n')
+        logger.info('ADD\n')
+        logger.info(*add, sep='\n')
     if remove:
-        print('REMOVE\n')
-        print(*remove, sep='\n')
-        pprint(remove)
+        logger.info('REMOVE\n')
+        logger.info(*remove, sep='\n')
+        logger.info(pformat(remove))
     return [add, remove]
 
 
@@ -945,8 +953,8 @@ def api_call(club_id, add, remove):
                 tag = None
 
             if tag is not None:
-                print('Cannot add item to Snipe-IT, asset tag {} already exists.'
-                      .format(item['asset_tag']))
+                logger.exception('Cannot add item to Snipe-IT, asset tag {} already exists.'
+                                 .format(item['asset_tag']))
                 continue
 
             # checking if item was previously deleted so it can be restored and not create
@@ -971,9 +979,9 @@ def api_call(club_id, add, remove):
             else:
                 del_item = None
 
-            print(item['_snipeit_mac_address_7'],
-                  item['asset_tag'],
-                  item['_snipeit_ip_6'])  # remove line
+            logger.info(item['_snipeit_mac_address_7'],
+                        item['asset_tag'],
+                        item['_snipeit_ip_6'])  # remove line
 
             # if mac address and ip for item found in "deleted" collection
             try:
@@ -988,39 +996,38 @@ def api_call(club_id, add, remove):
                         response = requests.request("POST",
                                                     url=url,
                                                     headers=cfg.api_headers)
-                        pprint(response.text)
+                        logger.info(pformat(response.text))
                         msg = ('Restored item with asset_tag {} '
                                'and id {} in Snipe-IT')
 
                         status_file.write(msg.format(item_tag, item_id))
-                        print(msg.format(item_tag, item_id))
+                        logger.info(msg.format(item_tag, item_id))
 
                         continue
 
                 else:
-                    print('Item has never been previously deleted,'
-                          ' creating new item')
+                    logger.info('Item has never been previously deleted,'
+                                ' creating new item')
                     # adding brand new item to snipe-it
                     item_id = None
                     url = cfg.api_url
                     item_str = str(item)
                     payload = item_str.replace('\'', '\"')
-                    print(payload)
+                    logger.info(payload)
                     response = requests.request("POST",
                                                 url=url,
                                                 data=payload,
                                                 headers=cfg.api_headers)
-                    pprint(response.text)
+                    logger.info(pformat(response.text))
 
             except (KeyError,
                     decoder.JSONDecodeError):
-                print('There was an error adding the asset '
-                      'to Snipe-IT, check:\n'
-                      '{}, ip {}, mac address {}'
-                      .format(item['Location'],
-                              item['_snipeit_ip_6'],
-                              item['_snipeit_mac_address_7']))
-                traceback.print_exc()
+                logger.exception('There was an error adding the asset '
+                                 'to Snipe-IT, check:\n'
+                                 '{}, ip {}, mac address {}'
+                                 .format(item['Location'],
+                                         item['_snipeit_ip_6'],
+                                         item['_snipeit_mac_address_7']))
 
             if response.status_code == 200:
                 status_file.write('Sent request to add new item'
@@ -1044,8 +1051,7 @@ def api_call(club_id, add, remove):
             response = requests.request("DELETE",
                                         url=url,
                                         headers=cfg.api_headers)
-            print('\n')
-            pprint(response.text)
+            logger.info(pformat(response.text))
 
             if response.status_code == 200:
                 status_file.write('Sent request to remove item'
@@ -1189,7 +1195,7 @@ def club_id(conn, host, device_type):
                             club_info = conn.send_command('sh run | inc hostname')
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
-                            print('Getting club ID... attempt', attempt + 1)
+                            logger.info('Getting club ID... attempt', attempt + 1)
                             # if club pattern is not found
                             if club_result is None:
                                 # search for regional pattern
@@ -1209,7 +1215,7 @@ def club_id(conn, host, device_type):
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
                             club_result = None
-                            print('Getting club ID... attempt', attempt + 1)
+                            logger.info('Getting club ID... attempt', attempt + 1)
                             if club_number is not None:
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
@@ -1217,27 +1223,27 @@ def club_id(conn, host, device_type):
                                 break
                             # if pattern is not found
                             if club_result is None:
-                                print('no club ID found')
+                                logger.error('no club ID found')
                                 # look for ID in router hostname
                                 raise OSError
 
                     except(OSError,
                            NetMikoTimeoutException):
                         if attempt == 0:
-                            print('Could not send command. Trying again')
+                            logger.exception('Could not send command. Trying again')
                             continue
                         if attempt == 1:
-                            print('Getting club_id from nmap hostname')
+                            logger.exception('Getting club_id from nmap hostname')
                             hostname = get_hostnames(host)
                             hostname_club = club_rgx.search(hostname['hostnames'])
                             if hostname_club:
                                 club_result = hostname_club.group(0)
                             if not hostname_club:
-                                print('could not get club_id')
+                                logger.error('could not get club_id')
                                 return None
 
                         if attempt > 0:
-                            print('could not get club_id')
+                            logger.exception('could not get club_id')
         club_result = str(club_result)
         club_result = club_result.lower()
 
@@ -1401,7 +1407,6 @@ def club_ips(club_list):
 
     try:
         for item in club_list:
-            print(item)
             club_ = club_rgx.search(item)
             ip_ = ip_rgx.search(item)
 
@@ -1415,15 +1420,13 @@ def club_ips(club_list):
                 club_ip_list.append(ip_)
 
             else:
-                print('{} is not in the right format, try again.'.format(item))
+                logger.warning('{} is not in the right format, try again.'.format(item))
                 continue
 
         return club_ip_list
 
-    except:
-        # Not sure what kinds of errors, will update except soon
-        traceback.print_exc()
-        print('There was a problem getting IPs for clubs. Try again')
+    except(OSError):
+        logger.exception('There was a problem getting IPs for clubs. Try again')
         return club_ip_list
 
 
@@ -1452,4 +1455,4 @@ if __name__ == '__main__':
     end = time()
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))
-    print('\nScript Runtime: {} '.format(runtime))
+    logger.info('\nScript Runtime: {} '.format(runtime))
