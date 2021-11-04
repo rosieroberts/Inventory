@@ -160,17 +160,17 @@ def main(ip_list):
 
         if router_connect:
             if results:
-                logger.info('\n{} Scan Runtime: {} '
+                logger.info('{} Scan Runtime: {} '
                             .format(results[0]['Location'], clb_runtime))
         else:
-            logger.info('\nClub Scan Runtime: {} '.format(clb_runtime))
+            logger.info('Club Scan Runtime: {} '.format(clb_runtime))
 
-    logger.info('\nThe following {} hosts were not scanned:'
+    logger.info('The following {} hosts were not scanned:'
                 .format(len(not_connected)))
     for item in not_connected:
         logger.info(item)
 
-    logger.info('\nThe following {} clubs were scanned:'.format(len(clubs)))
+    logger.info('The following {} clubs were scanned:'.format(len(clubs)))
     for item in clubs:
         logger.info(item)
 
@@ -187,12 +187,12 @@ def connect(ip):
         Does not raise an error. If connection is unsuccessful,
         None is returned.
     """
-    logger.info('\n\nScanning IP {}'.format(ip))
+    logger.info('Scanning IP {}'.format(ip))
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
             try:
-                logger.info('\nConnecting... attempt', attempt + 1)
+                logger.info('Connecting... attempt', attempt + 1)
                 if ip in cfg.routers_cisco:
                     device_type = 'cisco_ios'
 
@@ -450,7 +450,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
 
                     if results:
                         logger.info('Results complete...')
-                        logger.info('\nWriting {} results to files...'
+                        logger.info('Writing {} results to files...'
                                     .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
@@ -805,11 +805,11 @@ def mongo_diff(results):
             # if check_add is true, mac not found in prior 4 scans, add new
             if check_add is True:
                 add.append(item)
-                msg1 = ('\nNew device with ID {} and Mac Address {} '
-                        'added\n'
+                msg1 = ('New device with ID {} and Mac Address {} '
+                        'added'
                         .format(item['ID'],
                                 item['Mac Address']))
-                logger.info('\nNEW ASSET', count_add)
+                logger.info('NEW ASSET', count_add)
                 logger.info(msg1)
                 status_file.write(msg1)
 
@@ -828,12 +828,12 @@ def mongo_diff(results):
             if check_remove is True:
                 count_remove += 1
                 remove.append(itm)
-                msg7 = ('\nDevice with ID {} and Mac Address {} '
-                        '\nno longer found, '
-                        'has been removed\n'
+                msg7 = ('Device with ID {} and Mac Address {} '
+                        'no longer found, '
+                        'has been removed'
                         .format(itm['ID'],
                                 itm['Mac Address']))
-                logger.info('\nREMOVED ASSET', count_remove)
+                logger.info('REMOVED ASSET', count_remove)
                 logger.info(msg7)
                 status_file.write(msg7)
 
@@ -902,10 +902,10 @@ def api_payload(all_diff):
         item.pop('id')
 
     if add:
-        logger.info('ADD\n')
+        logger.info('ADD')
         logger.info(*add, sep='\n')
     if remove:
-        logger.info('REMOVE\n')
+        logger.info('REMOVE')
         logger.info(*remove, sep='\n')
         logger.info(pformat(remove))
     return [add, remove]
@@ -1023,7 +1023,7 @@ def api_call(club_id, add, remove):
             except (KeyError,
                     decoder.JSONDecodeError):
                 logger.exception('There was an error adding the asset '
-                                 'to Snipe-IT, check:\n'
+                                 'to Snipe-IT, check: '
                                  '{}, ip {}, mac address {}'
                                  .format(item['Location'],
                                          item['_snipeit_ip_6'],
@@ -1455,4 +1455,4 @@ if __name__ == '__main__':
     end = time()
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))
-    logger.info('\nScript Runtime: {} '.format(runtime))
+    logger.info('Script Runtime: {} '.format(runtime))
