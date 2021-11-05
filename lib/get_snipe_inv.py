@@ -25,7 +25,6 @@ logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 
 
-
 def get_snipe():
     """Returns all current information for each host.
     this function returns SNIPE-IT's current device information
@@ -72,7 +71,6 @@ def get_snipe():
                           'Model Name': item['model']['name']}
                 all_items.append(device)
 
-
         # print(*all_items, sep='\n')
 
         myclient = pymongo.MongoClient("mongodb://localhost:27017/")
@@ -108,11 +106,8 @@ def get_snipe():
         # insert full club list into mongodb collection
         club_list_coll.insert_many(club_list)
 
-
     except (KeyError,
             decoder.JSONDecodeError):
         content = None
         logger.exception('No response')
         return content
-
-
