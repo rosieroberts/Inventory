@@ -1408,6 +1408,7 @@ def get_club_ips(club):
 
     return ip
 
+
 def get_club(ip):
     ''' Get club name for ip address
     args: ip
@@ -1453,7 +1454,7 @@ def club_ips(club_list):
 
             elif reg_ is not None:
                 reg_ = str(reg_.group(0))
-                club_ip_list.append(reg)
+                club_ip_list.append(reg_)
 
             elif ip_ is not None:
                 ip_ = str(ip_.group(0))
