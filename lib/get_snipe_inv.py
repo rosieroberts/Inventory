@@ -1,8 +1,28 @@
 import pymongo
 import requests
+from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from json import decoder
 from lib import config as cfg
 
+
+logger = getLogger('get_snipe')
+# TODO: set to ERROR later on after setup
+logger.setLevel(INFO)
+
+file_formatter = Formatter('{asctime} {name} {levelname}: {message}', style='{')
+stream_formatter = Formatter('{message}', style='{')
+
+# logfile
+file_handler = FileHandler('asset_inventory.log')
+file_handler.setLevel(INFO)
+file_handler.setFormatter(file_formatter)
+
+# console
+stream_handler = StreamHandler()
+stream_handler.setFormatter(stream_formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
 
 
 def get_snipe():
@@ -27,13 +47,16 @@ def get_snipe():
         total_record = content['total']
 
         if total_record == 0:
-            print('No data in Snipe-IT')
+            logger.info('No data in Snipe-IT')
             content = None
             return content
 
         for offset in range(0, total_record, 500):
             querystring = {"offset": offset}
-            response = requests.request("GET", url=url, headers=cfg.api_headers, params=querystring)
+            response = requests.request("GET",
+                                        url=url,
+                                        headers=cfg.api_headers,
+                                        params=querystring)
             content = response.json()
 
             for item in content['rows']:
@@ -64,12 +87,27 @@ def get_snipe():
 
         # insert list of dictionaries
         mycol.insert_many(all_items)
-        print('snipe db updated')
+        logger.info('snipe db updated')
+
+        full_club_list = mycol.find({'Category': 'Router'},
+                                    {'Location': 1,
+                                     'IP': 1,
+                                     '_id': 0})
+        club_list = []
+        for item in full_club_list:
+            club_list.append(item)
+
+        # use collection 'club_list'
+        club_list_coll = mydb['club_list']
+
+        # delete prior scan items
+        club_list_coll.delete_many({})
+
+        # insert full club list into mongodb collection
+        club_list_coll.insert_many(club_list)
 
     except (KeyError,
             decoder.JSONDecodeError):
         content = None
-        print('No response')
+        logger.exception('No response')
         return content
-
-
