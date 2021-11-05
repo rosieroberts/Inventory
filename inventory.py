@@ -44,16 +44,17 @@ logger = getLogger(__name__)
 # TODO: set to ERROR later on after setup
 logger.setLevel(INFO)
 
-formatter = Formatter('%(asctime)s %(name)s %(levelname)s: %(message)s')
+file_formatter = Formatter('{asctime} {name} {levelname}: {message}', style='{')
+stream_formatter = Formatter('{message}', style='{')
 
 # logfile
 file_handler = FileHandler('asset_inventory.log')
 file_handler.setLevel(INFO)
-file_handler.setFormatter(formatter)
+file_handler.setFormatter(file_formatter)
 
 # console
 stream_handler = StreamHandler()
-stream_handler.setFormatter(formatter)
+stream_handler.setFormatter(stream_formatter)
 
 logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
@@ -111,7 +112,6 @@ def main(ip_list):
         ip_address = ip_regex.search(ip)
         clb_runtime_str = time()
 
-        logger.info('Scanning {}'.format(str(ip)))
         if ip_address:
             # connect to router and get connect object and device type
             # item returned [0]
@@ -187,12 +187,17 @@ def connect(ip):
         Does not raise an error. If connection is unsuccessful,
         None is returned.
     """
-    logger.info('Scanning IP {}'.format(ip))
+    logger.info('********************************************************************')
+    club = get_club(ip)
+    if club:
+        logger.info('Scanning {}'.format(club))
+    else:
+        logger.info('Scanning {}'.format(ip))
     for _ in range(1):
         for attempt in range(2):
             startconn = time()
             try:
-                logger.info('Connecting... attempt', attempt + 1)
+                logger.info('Connecting... attempt {}'.format(str(attempt + 1)))
                 if ip in cfg.routers_cisco:
                     device_type = 'cisco_ios'
 
@@ -229,16 +234,18 @@ def connect(ip):
                 for ip in scanner.all_hosts():
                     if scanner[ip].has_tcp(22):
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
-                            logger.info('port 22 is showing closed for ' + (ip))
+                            logger.info('port 22 is showing closed for {}'
+                                        .format(ip))
                             not_connected.append(ip)
                             return None
                         else:
                             logger.info('Port 22 is open ')
                             break
                     else:
-                        logger.info('port 22 is closed for ' + (ip))
+                        logger.info('port 22 is closed for {}'
+                                    .format(ip))
                         continue
-                logger.info('Connecting... attempt', attempt + 1)
+                logger.info('Connecting... attempt {}'.format(str(attempt + 1)))
                 if attempt == 0:
                     logger.info('Error, Trying to connect to {} again '.format(ip))
                 else:
@@ -292,7 +299,8 @@ def get_router_info(conn, host, device_type, loc_id_data):
                 try:
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
-                        logger.info('Sending command to router... attempt', attempt2 + 1)
+                        logger.info('Sending command to router... attempt {}'
+                                    .format(attempt2 + 1))
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
                         elif device_type == 'cisco_ios':
@@ -469,7 +477,8 @@ def get_router_info(conn, host, device_type, loc_id_data):
                         logger.exception('Could not send command, trying again')
                         continue
                     else:
-                        logger.exception('Could not get arp table ' + (host))
+                        logger.exception('Could not get arp table for ip {}'
+                                         .format(host))
                         not_connected.append(host)
                         failed_results = {'Host': host,
                                           'Location': club_result,
@@ -478,7 +487,8 @@ def get_router_info(conn, host, device_type, loc_id_data):
 
     end2 = time()
     runtime2 = end2 - start2
-    logger.info('Club devices information was received in', runtime2)
+    logger.info('Club devices information was received in {}'
+                .format(runtime2))
     logger.info('--------------------------SCAN RESULTS------------------------------')
     logger.info(pformat(results))
     logger.info('--------------------------------------------------------------------')
@@ -809,7 +819,7 @@ def mongo_diff(results):
                         'added'
                         .format(item['ID'],
                                 item['Mac Address']))
-                logger.info('NEW ASSET', count_add)
+                logger.info('NEW ASSET {}'.format(count_add))
                 logger.info(msg1)
                 status_file.write(msg1)
 
@@ -830,10 +840,10 @@ def mongo_diff(results):
                 remove.append(itm)
                 msg7 = ('Device with ID {} and Mac Address {} '
                         'no longer found, '
-                        'has been removed'
+                        'will be removed'
                         .format(itm['ID'],
                                 itm['Mac Address']))
-                logger.info('REMOVED ASSET', count_remove)
+                logger.info('REMOVE ASSET {}'.format(count_remove))
                 logger.info(msg7)
                 status_file.write(msg7)
 
@@ -902,11 +912,10 @@ def api_payload(all_diff):
         item.pop('id')
 
     if add:
-        logger.info('ADD')
-        logger.info(*add, sep='\n')
+        logger.info('ADD ASSETS FULL INFORMATION')
+        logger.info(pformat(add))
     if remove:
-        logger.info('REMOVE')
-        logger.info(*remove, sep='\n')
+        logger.info('REMOVE ASSETS FULL INFORMATION')
         logger.info(pformat(remove))
     return [add, remove]
 
@@ -979,9 +988,9 @@ def api_call(club_id, add, remove):
             else:
                 del_item = None
 
-            logger.info(item['_snipeit_mac_address_7'],
-                        item['asset_tag'],
-                        item['_snipeit_ip_6'])  # remove line
+            logger.info('Mac Address {}, IP {}'
+                        .format(item['_snipeit_mac_address_7'],
+                                item['_snipeit_ip_6']))  # remove line
 
             # if mac address and ip for item found in "deleted" collection
             try:
@@ -1195,7 +1204,8 @@ def club_id(conn, host, device_type):
                             club_info = conn.send_command('sh run | inc hostname')
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
-                            logger.info('Getting club ID... attempt', attempt + 1)
+                            logger.info('Getting club ID... attempt {}'
+                                        .format(attempt + 1))
                             # if club pattern is not found
                             if club_result is None:
                                 # search for regional pattern
@@ -1215,7 +1225,8 @@ def club_id(conn, host, device_type):
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
                             club_result = None
-                            logger.info('Getting club ID... attempt', attempt + 1)
+                            logger.info('Getting club ID... attempt'
+                                        .format(attempt + 1))
                             if club_number is not None:
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
@@ -1397,6 +1408,29 @@ def get_club_ips(club):
 
     return ip
 
+def get_club(ip):
+    ''' Get club name for ip address
+    args: ip
+    returns: club000'''
+
+    myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # use database named "inventory"
+    mydb = myclient['inventory']
+
+    # use collection 'club_list'
+    club_list = mydb['club_list']
+
+    # query club
+    club = club_list.find_one({'IP': ip}, {'Location': 1, '_id': 0})
+
+    if club:
+        club = club.get('Location')
+        return club
+
+    else:
+        return None
+
 
 def club_ips(club_list):
     ''' takes list of clubs to scan, and converts them to list of ips'''
@@ -1404,16 +1438,22 @@ def club_ips(club_list):
     club_ip_list = []
     club_rgx = compile(cfg.club_rgx)
     ip_rgx = compile(cfg.ip_rgx)
+    reg_rgx = compile(cfg.reg_rgx)
 
     try:
         for item in club_list:
             club_ = club_rgx.search(item)
+            reg_ = reg_rgx.search(item)
             ip_ = ip_rgx.search(item)
 
             if club_ is not None:
                 club_ = str(club_.group(0))
                 club_ip = get_club_ips(club_)
                 club_ip_list.append(club_ip)
+
+            elif reg_ is not None:
+                reg_ = str(reg_.group(0))
+                club_ip_list.append(reg)
 
             elif ip_ is not None:
                 ip_ = str(ip_.group(0))
@@ -1456,3 +1496,4 @@ if __name__ == '__main__':
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))
     logger.info('Script Runtime: {} '.format(runtime))
+    logger.info('*******************************************************************')
