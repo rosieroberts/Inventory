@@ -48,7 +48,7 @@ file_formatter = Formatter('{asctime} {name} {levelname}: {message}', style='{')
 stream_formatter = Formatter('{message}', style='{')
 
 # logfile
-file_handler = FileHandler('asset_inventory.log')
+file_handler = FileHandler('/opt/Inventory/asset_inventory.log')
 file_handler.setLevel(INFO)
 file_handler.setFormatter(file_formatter)
 
@@ -198,6 +198,7 @@ def connect(ip):
             startconn = time()
             try:
                 logger.info('Connecting... attempt {}'.format(str(attempt + 1)))
+              
                 if ip in cfg.routers_cisco:
                     device_type = 'cisco_ios'
 
@@ -248,8 +249,10 @@ def connect(ip):
                 logger.info('Connecting... attempt {}'.format(str(attempt + 1)))
                 if attempt == 0:
                     logger.info('Error, Trying to connect to {} again '.format(ip))
+
                 else:
-                    logger.exception()
+                    logger.exception('Could not connect to host')
+
         # exhausted all tries to connect, return None and exit
         logger.error('Connection to {} is not possible: '.format(ip))
         not_connected.append(ip)
@@ -1393,20 +1396,25 @@ def get_club_ips(club):
     ''' Get ip address for club number in command line argument
     args: club in 'club000' format
     '''
-    myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+    try:
+        myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
-    # use database named "inventory"
-    mydb = myclient['inventory']
+        # use database named "inventory"
+        mydb = myclient['inventory']
 
-    # use collection 'club_list'
-    club_list = mydb['club_list']
+        # use collection 'club_list'
+        club_list = mydb['club_list']
 
-    # query IP
-    ip = club_list.find_one({'Location': club}, {'IP': 1, '_id': 0})
+        # query IP
+        ip = club_list.find_one({'Location': club}, {'IP': 1, '_id': 0})
 
-    ip = ip.get('IP')
+        ip = ip.get('IP')
 
-    return ip
+        return ip
+
+    except(AttributeError):
+        logger.exception('Cannot find ip for {}'.format(club))
+        return None
 
 
 def get_club(ip):
@@ -1450,7 +1458,12 @@ def club_ips(club_list):
             if club_ is not None:
                 club_ = str(club_.group(0))
                 club_ip = get_club_ips(club_)
-                club_ip_list.append(club_ip)
+                if club_ip is not None:
+                    club_ip_list.append(club_ip)
+                else:
+                    logger.info('cannot find IP for {}'.format(club_))
+                    not_connected.append(club_)
+                    continue
 
             elif reg_ is not None:
                 reg_ = str(reg_.group(0))
@@ -1464,11 +1477,18 @@ def club_ips(club_list):
                 logger.warning('{} is not in the right format, try again.'.format(item))
                 continue
 
-        return club_ip_list
+        if len(club_ip_list):
+            return club_ip_list
+        else:
+            return None
 
-    except(OSError):
-        logger.exception('There was a problem getting IPs for clubs. Try again')
-        return club_ip_list
+    except(OSError, AttributeError):
+        if len(club_ip_list):
+            logger.exception('There was a problem getting all IPs.')
+            return club_ip_list
+        else:
+            logger.exception('There was a problem getting IPs for clubs. Try again')
+            return None
 
 
 def inv_args(ip_list):
@@ -1483,11 +1503,16 @@ def inv_args(ip_list):
         help='Club List in list of "club000" format or club IP')
     inv_args = parser.parse_args()
 
-    if inv_args.club is not None:
-        ips = club_ips(inv_args.club)
+    if inv_args.club:
+        arg_ips = club_ips(inv_args.club)
+        if arg_ips:
+            ips = arg_ips
+        else:
+            logger.error('Could not find club IP, exiting')
+            exit()
     else:
         ips = ip_list
-
+        
     return ips
 
 
