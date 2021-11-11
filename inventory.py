@@ -198,7 +198,7 @@ def connect(ip):
             startconn = time()
             try:
                 logger.info('Connecting... attempt {}'.format(str(attempt + 1)))
-              
+
                 if ip in cfg.routers_cisco:
                     device_type = 'cisco_ios'
 
@@ -1512,7 +1512,7 @@ def inv_args(ip_list):
             exit()
     else:
         ips = ip_list
-        
+
     return ips
 
 
