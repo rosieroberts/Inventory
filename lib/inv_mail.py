@@ -6,7 +6,7 @@ from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from configparser import ConfigParser
 from email.message import EmailMessage
 from datetime import date
-from json2html import convert
+from json2html import *
 
 logger = getLogger('email')
 # TODO: set to ERROR later on after setup
@@ -67,12 +67,12 @@ def send_mail(start,
         n = {'Clubs': item}
         clubs_n.append(n)
 
-    table = convert(json=scanned_a)
-    table2 = convert(json=scanned_r)
-    table3 = convert(json=scanned_d)
+    table = json2html.convert(json=scanned_a)
+    table2 = json2html.convert(json=scanned_r)
+    table3 = json2html.convert(json=scanned_d)
 
-    clubs_conn = convert(json=clubs_s)
-    clubs_ncon = convert(json=clubs_n)
+    clubs_conn = json2html.convert(json=clubs_s)
+    clubs_ncon = json2html.convert(json=clubs_n)
 
     if not clubs:
         scan_error = ''
