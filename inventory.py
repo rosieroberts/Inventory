@@ -9,7 +9,7 @@ from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
-from time import time
+from time import time, ctime
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
@@ -19,7 +19,6 @@ import requests
 import urllib3
 import pymongo
 from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
-from configparser import ConfigParser
 from argparse import ArgumentParser
 
 from nmap import PortScanner
@@ -32,6 +31,7 @@ from netmiko.ssh_exception import (
 from lib import ips
 from lib.get_snipe_inv import get_snipe
 from lib import config as cfg
+from lib import inv_mail as mail
 
 
 start = time()
@@ -39,16 +39,20 @@ today = date.today()
 not_connected = []
 clubs = []
 additional_ids = []
+restored = []
+added = []
+deleted = []
 
 logger = getLogger(__name__)
 # TODO: set to ERROR later on after setup
 logger.setLevel(INFO)
 
-file_formatter = Formatter('{asctime} {name} {levelname}: {message}', style='{')
+file_formatter = Formatter('{asctime}: {message}', style='{')
 stream_formatter = Formatter('{message}', style='{')
 
 # logfile
-file_handler = FileHandler('/opt/Inventory/asset_inventory.log')
+file_handler = FileHandler('/opt/Inventory/logs/asset_inventory{}.log'
+                           .format(today.strftime('%m%d%Y')))
 file_handler.setLevel(INFO)
 file_handler.setFormatter(file_formatter)
 
@@ -105,76 +109,109 @@ def main(ip_list):
             loc_id_data = response_loc.json()
         except decoder.JSONDecodeError:
             loc_id_data = None
-            logger.exception('Cannot get location information from API. Stopping Script')
+            logger.exception('Cannot get location information from API. '
+                             'Stopping Script')
             exit()
 
-    for ip in ip_list:
-        ip_address = ip_regex.search(ip)
-        clb_runtime_str = time()
+    try:
+        for ip in ip_list:
+            ip_address = ip_regex.search(ip)
+            clb_runtime_str = time()
 
-        if ip_address:
-            # connect to router and get connect object and device type
-            # item returned [0]
-            # device_type [1]
-            router_connect = connect(str(ip))
-        try:
+            if ip_address:
+                # connect to router and get connect object and device type
+                # item returned [0]
+                # device_type [1]
+                router_connect = connect(str(ip))
+            try:
+                if router_connect:
+                    connect_obj = router_connect[0]
+                    device_type = router_connect[1]
+                    if ip_address:
+
+                        results = get_router_info(connect_obj,
+                                                  str(ip),
+                                                  device_type,
+                                                  loc_id_data)
+                    else:
+                        results = None
+
+                    for item in results:
+                        item['ID'] = get_id(item['Asset Tag'])
+
+                    results_copy = deepcopy(results)
+
+                    all_diff = mongo_diff(results_copy)
+
+                    if all_diff:
+                        all_api_payload = api_payload(all_diff)
+
+                        if all_api_payload:
+                            add = all_api_payload[0]
+                            remove = all_api_payload[1]
+                            # update = all_api_payload[2]
+                        api_call(results_copy[0]['Location'], add, remove)
+                    updated_results = save_results(results, str(ip))
+                    add_to_db(updated_results, db_count)
+                    db_count += 1
+                    csv(results, header_added)
+                    connect_obj.disconnect()
+
+            except(urllib3.exceptions.ProtocolError):
+                logger.exception('Remote end closed connection without response')
+                logger.info('Scanning next club....')
+            except(TypeError):
+                logger.exception('Scan for {} ended abruptly'.format(results[0]['Location']))
+                logger.info('Scanning next club....')
+                continue
+
+            clb_runtime_end = time()
+            clb_runtime = clb_runtime_end - clb_runtime_str
+            clb_runtime = str(timedelta(seconds=int(clb_runtime)))
+            header_added = True
+
             if router_connect:
-                connect_obj = router_connect[0]
-                device_type = router_connect[1]
-                if ip_address:
+                if results:
+                    logger.info('{} Scan Runtime: {} '
+                                .format(results[0]['Location'], clb_runtime))
+            else:
+                logger.info('Club Scan Runtime: {} '.format(clb_runtime))
 
-                    results = get_router_info(connect_obj, str(ip), device_type, loc_id_data)
-                else:
-                    results = None
+        logger.info('The following {} hosts were not scanned:'
+                    .format(len(not_connected)))
+        for item in not_connected:
+            logger.info(item)
 
-                for item in results:
-                    item['ID'] = get_id(item['Asset Tag'])
+        logger.info('The following {} clubs were scanned:'.format(len(clubs)))
+        for item in clubs:
+            logger.info(item)
+        end = time()
+        runtime = end - start
+        runtime = str(timedelta(seconds=int(runtime)))
+        logger.info('Script Runtime: {} '.format(runtime))
+        mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
+        logger.info('Script ran successfully')
+        logger.info('*******************************************************************')
 
-                results_copy = deepcopy(results)
+    except(OSError, KeyboardInterrupt):
+        logger.exception('Script Error')
+        logger.info('The following {} hosts were not scanned:'
+                    .format(len(not_connected)))
+        for item in not_connected:
+            logger.info(item)
 
-                all_diff = mongo_diff(results_copy)
+        logger.info('The following {} clubs were scanned:'.format(len(clubs)))
+        for item in clubs:
+            logger.info(item)
 
-                if all_diff:
-                    all_api_payload = api_payload(all_diff)
+        end = time()
+        runtime = end - start
+        runtime = str(timedelta(seconds=int(runtime)))
+        logger.info('Script Runtime: {} '.format(runtime))
+        mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
+        logger.info('*******************************************************************')
 
-                    if all_api_payload:
-                        add = all_api_payload[0]
-                        remove = all_api_payload[1]
-                        # update = all_api_payload[2]
-                    api_call(results_copy[0]['Location'], add, remove)
-                updated_results = save_results(results, str(ip))
-                add_to_db(updated_results, db_count)
-                db_count += 1
-                csv(results, header_added)
-                connect_obj.disconnect()
-
-        except(urllib3.exceptions.ProtocolError):
-            logger.exception('Remote end closed connection without response')
-            logger.info('Scanning next club....')
-            continue
-
-        clb_runtime_end = time()
-        clb_runtime = clb_runtime_end - clb_runtime_str
-        clb_runtime = str(timedelta(seconds=int(clb_runtime)))
-        header_added = True
-
-        if router_connect:
-            if results:
-                logger.info('{} Scan Runtime: {} '
-                            .format(results[0]['Location'], clb_runtime))
-        else:
-            logger.info('Club Scan Runtime: {} '.format(clb_runtime))
-
-    logger.info('The following {} hosts were not scanned:'
-                .format(len(not_connected)))
-    for item in not_connected:
-        logger.info(item)
-
-    logger.info('The following {} clubs were scanned:'.format(len(clubs)))
-    for item in clubs:
-        logger.info(item)
-
-    return [add, remove, update]
+        return [add, remove, update]
 
 
 def connect(ip):
@@ -846,7 +883,7 @@ def mongo_diff(results):
                         'will be removed'
                         .format(itm['ID'],
                                 itm['Mac Address']))
-                logger.info('REMOVE ASSET {}'.format(count_remove))
+                logger.info('REMOVED ASSET {}'.format(count_remove))
                 logger.info(msg7)
                 status_file.write(msg7)
 
@@ -938,7 +975,7 @@ def api_call(club_id, add, remove):
         # possible bug -line below. When club is none, sends error
         # baseline_dir = path.join('./scans/baselines/', club)
 
-        if club:
+        if club and add or remove:
             status_file.write('\n\n')
             status_file.write(club.upper())
             status_file.write('\n')
@@ -1010,10 +1047,12 @@ def api_call(club_id, add, remove):
                                                     headers=cfg.api_headers)
                         logger.info(pformat(response.text))
                         msg = ('Restored item with asset_tag {} '
-                               'and id {} in Snipe-IT')
+                               'and id {} in Snipe-IT\n')
 
                         status_file.write(msg.format(item_tag, item_id))
                         logger.info(msg.format(item_tag, item_id))
+                        res_tuple = (club_id, item_tag)
+                        restored.append(res_tuple)
 
                         continue
 
@@ -1031,6 +1070,8 @@ def api_call(club_id, add, remove):
                                                 data=payload,
                                                 headers=cfg.api_headers)
                     logger.info(pformat(response.text))
+                    add_tuple = (club_id, item['asset_tag'])
+                    added.append(add_tuple)
 
             except (KeyError,
                     decoder.JSONDecodeError):
@@ -1042,8 +1083,8 @@ def api_call(club_id, add, remove):
                                          item['_snipeit_mac_address_7']))
 
             if response.status_code == 200:
-                status_file.write('Sent request to add new item'
-                                  'with asset-tag {} to Snipe-IT'
+                status_file.write('Added new item '
+                                  'with asset-tag {} to Snipe-IT\n'
                                   .format(item['asset_tag']))
 
                 url = cfg.api_url_get + str(item['asset_tag'])
@@ -1051,11 +1092,11 @@ def api_call(club_id, add, remove):
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send '
                                   'request to add new item '
-                                  'with asset-tag {} to Snipe-IT'
+                                  'with asset-tag {} to Snipe-IT\n'
                                   .format(item['asset_tag']))
             if response.status_code == 422:
                 status_file.write('Payload does not match Snipe_IT. '
-                                  'item {}'
+                                  'item {}\n'
                                   .format(item['asset_tag']))
     if remove:
         for item in remove:
@@ -1066,8 +1107,8 @@ def api_call(club_id, add, remove):
             logger.info(pformat(response.text))
 
             if response.status_code == 200:
-                status_file.write('Sent request to remove item'
-                                  'with asset-tag {} from Snipe-IT'
+                status_file.write('Removed item '
+                                  'with asset-tag {} from Snipe-IT\n'
                                   .format(item['asset_tag']))
                 # add remove item to mongo colletion -deleted
                 client = pymongo.MongoClient("mongodb://localhost:27017/")
@@ -1081,10 +1122,13 @@ def api_call(club_id, add, remove):
                 # add item to collection
                 del_col.insert_one(item)
 
+                del_tuple = (club_id, item['asset_tag'])
+                deleted.append(del_tuple)
+
             if response.status_code == 401:
-                status_file.write('Unauthorized. Could not send'
-                                  'request to remove item'
-                                  'with asset-tag {} from Snipe-IT'
+                status_file.write('Unauthorized. Could not send '
+                                  'request to remove item '
+                                  'with asset-tag {} from Snipe-IT\n'
                                   .format(item['asset_tag']))
 
 
@@ -1300,17 +1344,6 @@ def get_hostnames(ip):
         return host
 
 
-def send_mail():
-    config = ConfigParser()
-    config.read('inv.cnf')
-    mail_info = {
-        'sender': str(), 'recipients': str(),
-        'subject': str(), 'body': str()}
-
-    mail_info['sender'] = config['mail']['sender']
-    mail_info['recipients'] = config['mail']['recipient']
-
-
 def club_num(club_result):
     """Returns a generated ID for each club asset
 
@@ -1518,8 +1551,3 @@ def inv_args(ip_list):
 
 if __name__ == '__main__':
     main(inv_args(ips.get_ips()))
-    end = time()
-    runtime = end - start
-    runtime = str(timedelta(seconds=int(runtime)))
-    logger.info('Script Runtime: {} '.format(runtime))
-    logger.info('*******************************************************************')

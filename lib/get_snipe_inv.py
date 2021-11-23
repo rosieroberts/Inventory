@@ -2,6 +2,7 @@ import pymongo
 import requests
 from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from json import decoder
+from datetime import date
 from lib import config as cfg
 
 
@@ -11,9 +12,11 @@ logger.setLevel(INFO)
 
 file_formatter = Formatter('{asctime} {name} {levelname}: {message}', style='{')
 stream_formatter = Formatter('{message}', style='{')
+today = date.today()
 
 # logfile
-file_handler = FileHandler('asset_inventory.log')
+file_handler = FileHandler('/opt/Inventory/logs/asset_inventory{}.log'
+                           .format(today.strftime('%m%d%Y')))
 file_handler.setLevel(INFO)
 file_handler.setFormatter(file_formatter)
 
