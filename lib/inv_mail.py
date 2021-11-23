@@ -83,6 +83,7 @@ def send_mail(start,
     config = ConfigParser()
     config.read('/opt/Inventory/lib/config.cnf')
     config.sections()
+    website = config['mail']['website']
 
     msg = EmailMessage()
     msg['Subject'] = 'Information Security Asset Inventory'
@@ -117,7 +118,7 @@ def send_mail(start,
             <li>{restored_count} assets were restored in snipe_it</li>
             <li>{deleted_count} assets were deleted from snipe_it</li></ul>
             <p>More detailed information:</p>
-               <p>https://secutil-prd-01.24hourfit.com/inv.html</p>
+            {website}
         </p>
       </body>
     </html>
@@ -138,7 +139,8 @@ def send_mail(start,
                table2=table2,
                table3=table3,
                clubs_conn=clubs_conn,
-               clubs_ncon=clubs_ncon), subtype='html')
+               clubs_ncon=clubs_ncon,
+               website=website), subtype='html')
 
     msg2 = """\
     <html>
