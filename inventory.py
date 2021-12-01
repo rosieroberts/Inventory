@@ -42,6 +42,8 @@ additional_ids = []
 restored = []
 added = []
 deleted = []
+# list of location IDs from snipeIT
+location_ids = get_loc_id()
 
 logger = getLogger(__name__)
 # TODO: set to ERROR later on after setup
@@ -85,40 +87,11 @@ def main(ip_list):
     try:
         for ip in ip_list:
             club_scan(ip)
-
-        logger.info('The following {} hosts were not scanned:'
-                    .format(len(not_connected)))
-        for item in not_connected:
-            logger.info(item)
-
-        logger.info('The following {} clubs were scanned:'.format(len(clubs)))
-        for item in clubs:
-            logger.info(item)
-        end = time()
-        runtime = end - start
-        runtime = str(timedelta(seconds=int(runtime)))
-        logger.info('Script Runtime: {} '.format(runtime))
-        mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
-        logger.info('Script ran successfully')
-        logger.info('*******************************************************************')
+        script_info()
 
     except(OSError, KeyboardInterrupt):
         logger.exception('Script Error')
-        logger.info('The following {} hosts were not scanned:'
-                    .format(len(not_connected)))
-        for item in not_connected:
-            logger.info(item)
-
-        logger.info('The following {} clubs were scanned:'.format(len(clubs)))
-        for item in clubs:
-            logger.info(item)
-
-        end = time()
-        runtime = end - start
-        runtime = str(timedelta(seconds=int(runtime)))
-        logger.info('Script Runtime: {} '.format(runtime))
-        mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
-        logger.info('*******************************************************************')
+        script_info()
 
 
 def club_scan(ip):
@@ -163,7 +136,7 @@ def club_scan(ip):
                 results = get_router_info(connect_obj,
                                           str(ip),
                                           device_type,
-                                          get_loc_id())
+                                          location_ids)
             else:
                 results = None
 
@@ -1553,6 +1526,26 @@ def inv_args(ip_list):
         ips = ip_list
 
     return ips
+
+
+def script_info():
+    """ Information to display when script is done"""
+
+    logger.info('The following {} hosts were not scanned:'
+                .format(len(not_connected)))
+    for item in not_connected:
+        logger.info(item)
+
+    logger.info('The following {} clubs were scanned:'.format(len(clubs)))
+    for item in clubs:
+        logger.info(item)
+
+    end = time()
+    runtime = end - start
+    runtime = str(timedelta(seconds=int(runtime)))
+    logger.info('Script Runtime: {} '.format(runtime))
+    mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
+    logger.info('*******************************************************************')
 
 
 if __name__ == '__main__':
