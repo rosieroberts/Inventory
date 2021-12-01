@@ -85,7 +85,7 @@ def main(ip_list):
     get_snipe()
     csv_trunc()
 
-    start = time.perf_counter()
+    start = perf_counter()
     threads = []
     try:
         for ip in ip_list:
