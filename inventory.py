@@ -77,6 +77,29 @@ def main(ip_list):
     Raises:
         Does not raise an error.
     """
+    print(cfg.intro1)
+    print(cfg.intro2)
+    get_snipe()
+    csv_trunc()
+
+    for ip in ip_list:
+        club_scan(ip)
+
+
+def club_scan(ip):
+    """function to scan each club using club ip
+
+    Args:
+        ip for each location
+
+    Returns:
+        Info for assets that need to be added, removed or updated
+
+    Raises:
+        Does not raise an error.
+        Returns None if club cannot be scanned
+    """
+
     all_diff = []
     all_api_payload = []
     add = []
@@ -86,83 +109,69 @@ def main(ip_list):
 
     header_added = False
     ip_regex = compile(r'(?:\d+\.){3}\d+')
-
-    print(cfg.intro1)
-    print(cfg.intro2)
     db_count = 0
-    get_snipe()
-
-    # truncating csv file if it was ran a prior time on same day to
-    # avoid duplicate values
-    full_csv = ('./scans/full_scans/full_scan{}.csv'
-                .format(today.strftime('%m%d%Y')))
-    if (path.exists(full_csv) and path.isfile(full_csv)):
-        f = open(full_csv, "w+")
-        f.close()
 
     try:
-        for ip in ip_list:
-            ip_address = ip_regex.search(ip)
-            clb_runtime_str = time()
+        ip_address = ip_regex.search(ip)
+        clb_runtime_str = time()
 
-            if ip_address:
-                # connect to router and get connect object and device type
-                # item returned [0]
-                # device_type [1]
-                router_connect = connect(str(ip))
-            try:
-                if router_connect:
-                    connect_obj = router_connect[0]
-                    device_type = router_connect[1]
-                    if ip_address:
-
-                        results = get_router_info(connect_obj,
-                                                  str(ip),
-                                                  device_type,
-                                                  get_loc_id())
-                    else:
-                        results = None
-
-                    for item in results:
-                        item['ID'] = get_id(item['Asset Tag'])
-
-                    results_copy = deepcopy(results)
-
-                    all_diff = mongo_diff(results_copy)
-
-                    if all_diff:
-                        all_api_payload = api_payload(all_diff)
-
-                        if all_api_payload:
-                            add = all_api_payload[0]
-                            remove = all_api_payload[1]
-                            # update = all_api_payload[2]
-                        api_call(results_copy[0]['Location'], add, remove)
-                    updated_results = save_results(results, str(ip))
-                    add_to_db(updated_results, db_count)
-                    db_count += 1
-                    csv(results, header_added)
-                    connect_obj.disconnect()
-
-            except(urllib3.exceptions.ProtocolError):
-                logger.exception('Remote end closed connection without response')
-                logger.info('Scanning next club....')
-            except(TypeError):
-                logger.exception('Scan for {} ended abruptly'.format(results[0]['Location']))
-                logger.info('Scanning next club....')
-                continue
-
-            clb_runtime_end = time()
-            clb_runtime = clb_runtime_end - clb_runtime_str
-            clb_runtime = str(timedelta(seconds=int(clb_runtime)))
-            header_added = True
-
+        if ip_address:
+            # connect to router and get connect object and device type
+            # item returned [0]
+            # device_type [1]
+            router_connect = connect(str(ip))
+        try:
             if router_connect:
-                if results:
-                    logger.info('{} Scan Runtime: {} '
-                                .format(results[0]['Location'], clb_runtime))
-            else:
-                logger.info('Club Scan Runtime: {} '.format(clb_runtime))
+                connect_obj = router_connect[0]
+                device_type = router_connect[1]
+                if ip_address:
+
+                    results = get_router_info(connect_obj,
+                                              str(ip),
+                                              device_type,
+                                              get_loc_id())
+                else:
+                    results = None
+
+                for item in results:
+                    item['ID'] = get_id(item['Asset Tag'])
+
+                results_copy = deepcopy(results)
+
+                all_diff = mongo_diff(results_copy)
+
+                if all_diff:
+                    all_api_payload = api_payload(all_diff)
+
+                    if all_api_payload:
+                        add = all_api_payload[0]
+                        remove = all_api_payload[1]
+                        # update = all_api_payload[2]
+                    api_call(results_copy[0]['Location'], add, remove)
+                updated_results = save_results(results, str(ip))
+                add_to_db(updated_results, db_count)
+                db_count += 1
+                csv(results, header_added)
+                connect_obj.disconnect()
+
+        except(urllib3.exceptions.ProtocolError):
+            logger.exception('Remote end closed connection without response')
+            logger.info('Scanning next club....')
+        except(TypeError):
+            logger.exception('Scan for {} ended abruptly'.format(results[0]['Location']))
+            logger.info('Scanning next club....')
+
+        clb_runtime_end = time()
+        clb_runtime = clb_runtime_end - clb_runtime_str
+        clb_runtime = str(timedelta(seconds=int(clb_runtime)))
+        header_added = True
+
+        if router_connect:
+            if results:
+                logger.info('{} Scan Runtime: {} '
+                            .format(results[0]['Location'], clb_runtime))
+        else:
+            logger.info('Club Scan Runtime: {} '.format(clb_runtime))
 
         logger.info('The following {} hosts were not scanned:'
                     .format(len(not_connected)))
@@ -614,6 +623,16 @@ def csv(results, header_added):
             logger.info('results written to .csv file')
     else:
         logger.error('No results written to .csv file')
+
+
+def csv_trunc():
+    # truncating csv file if it was ran a prior time on same day to
+    # avoid duplicate values
+    full_csv = ('./scans/full_scans/full_scan{}.csv'
+                .format(today.strftime('%m%d%Y')))
+    if (path.exists(full_csv) and path.isfile(full_csv)):
+        f = open(full_csv, "w+")
+        f.close()
 
 
 def check_if_remove(diff_item):
@@ -1259,7 +1278,7 @@ def club_id(conn, host, device_type):
                             # search club number '000' in club_info
                             club_number = fort_regex.search(club_info)
                             club_result = None
-                            logger.info('Getting club ID... attempt'
+                            logger.info('Getting club ID... attempt {}'
                                         .format(attempt + 1))
                             if club_number is not None:
                                 # club_number returns reg pattern '000'
