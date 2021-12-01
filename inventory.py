@@ -29,7 +29,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from lib import ips
-from lib.get_snipe_inv import get_snipe
+from lib.get_snipe_inv import get_loc_id, get_snipe
 from lib import config as cfg
 from lib import inv_mail as mail
 
@@ -100,24 +100,6 @@ def main(ip_list):
         f = open(full_csv, "w+")
         f.close()
 
-    for attempt in range(3):
-        try:
-            url_loc = cfg.api_url_get_locations
-            response_loc = requests.request("GET",
-                                            url=url_loc,
-                                            headers=cfg.api_headers)
-            loc_id_data = response_loc.json()
-            if loc_id_data:
-                break
-        except decoder.JSONDecodeError:
-            loc_id_data = None
-            if attempt == 2:
-                logger.exception('Cannot get location information from API. '
-                                 'Stopping Script')
-                exit()
-            else:
-                continue
-
     try:
         for ip in ip_list:
             ip_address = ip_regex.search(ip)
@@ -137,7 +119,7 @@ def main(ip_list):
                         results = get_router_info(connect_obj,
                                                   str(ip),
                                                   device_type,
-                                                  loc_id_data)
+                                                  get_loc_id())
                     else:
                         results = None
 
