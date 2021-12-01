@@ -89,15 +89,15 @@ def main(ip_list):
     threads = []
     try:
         for ip in ip_list:
-            t = threading.Thread(target=club_scan, args=(ip))
+            t = threading.Thread(target=club_scan, args=(ip,))
             t.start()
             threads.append(t)
-        script_info()
 
         for t in threads:
             t.join()
         end = perf_counter()
         logger.info('time = {}'.format(end - start))
+        script_info()
 
     except(OSError, KeyboardInterrupt):
         logger.exception('Script Error')
