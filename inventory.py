@@ -67,7 +67,7 @@ logger.addHandler(stream_handler)
 
 
 def main(ip_list):
-    """main function to run script, scans all clubs using 
+    """main function to run script, scans all clubs using
     get_ip_list from ips.py or using a specific list of ips from args
 
     Args:
