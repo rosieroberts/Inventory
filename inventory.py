@@ -9,7 +9,7 @@ from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
-from time import time, ctime
+from time import time, ctime, perf_counter
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
@@ -20,6 +20,7 @@ import urllib3
 import pymongo
 from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from argparse import ArgumentParser
+import threading
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -50,7 +51,7 @@ logger = getLogger(__name__)
 logger.setLevel(INFO)
 
 file_formatter = Formatter('{asctime}: {message}', style='{')
-stream_formatter = Formatter('{message}', style='{')
+stream_formatter = Formatter('{threadName} {message}', style='{')
 
 # logfile
 file_handler = FileHandler('/opt/Inventory/logs/asset_inventory{}.log'
@@ -84,13 +85,24 @@ def main(ip_list):
     get_snipe()
     csv_trunc()
 
+    start = time.perf_counter()
+    threads = []
     try:
         for ip in ip_list:
-            club_scan(ip)
+            t = threading.Thread(target=club_scan, args=(ip))
+            t.start()
+            threads.append(t)
         script_info()
+
+        for t in threads:
+            t.join()
+        end = perf_counter()
+        logger.info('time = {}'.format(end - start))
 
     except(OSError, KeyboardInterrupt):
         logger.exception('Script Error')
+        end = perf_counter()
+        logger.info('time = {}'.format(end - start))
         script_info()
 
 
