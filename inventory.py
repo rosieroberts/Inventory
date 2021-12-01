@@ -107,11 +107,16 @@ def main(ip_list):
                                             url=url_loc,
                                             headers=cfg.api_headers)
             loc_id_data = response_loc.json()
+            if loc_id_data:
+                break
         except decoder.JSONDecodeError:
             loc_id_data = None
-            logger.exception('Cannot get location information from API. '
-                             'Stopping Script')
-            exit()
+            if attempt == 2:
+                logger.exception('Cannot get location information from API. '
+                                 'Stopping Script')
+                exit()
+            else:
+                continue
 
     try:
         for ip in ip_list:
