@@ -20,7 +20,8 @@ import urllib3
 import pymongo
 from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from argparse import ArgumentParser
-import threading
+# import threading
+import concurrent.futures
 
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
@@ -85,25 +86,13 @@ def main(ip_list):
     get_snipe()
     csv_trunc()
 
-    start = perf_counter()
-    threads = []
     try:
-        for ip in ip_list:
-            t = threading.Thread(target=club_scan, args=(ip,))
-            t.start()
-            threads.append(t)
-
-        for t in threads:
-            t.join()
-        end = perf_counter()
-        logger.info('time = {}'.format(end - start))
-        script_info()
-
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            t = [executor.submit(club_scan, ip) for ip in ip_list]
     except(OSError, KeyboardInterrupt):
         logger.exception('Script Error')
-        end = perf_counter()
-        logger.info('time = {}'.format(end - start))
-        script_info()
+
+    script_info()                   
 
 
 def club_scan(ip):
