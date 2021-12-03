@@ -114,3 +114,26 @@ def get_snipe():
         content = None
         logger.exception('No response')
         return content
+
+
+def get_loc_id():
+    """Get Location IDs from all clubs, needed to run script"""
+    for attempt in range(3):
+        try:
+            url_loc = cfg.api_url_get_locations
+            response_loc = requests.request("GET",
+                                            url=url_loc,
+                                            headers=cfg.api_headers)
+            loc_id_data = response_loc.json()
+            if loc_id_data:
+                break
+        except decoder.JSONDecodeError:
+            loc_id_data = None
+            if attempt == 2:
+                logger.exception('Cannot get location information from API. '
+                                 'Stopping Script')
+                exit()
+            else:
+                continue
+
+    return loc_id_data
