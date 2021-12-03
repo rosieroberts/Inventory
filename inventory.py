@@ -228,7 +228,7 @@ def connect(ip):
                 endconn = time()
                 time_elapsed = endconn - startconn
                 logger.debug('Connection achieved in {} seconds'
-                            .format(int(time_elapsed)))
+                             .format(int(time_elapsed)))
 
                 return net_connect, device_type
 
@@ -250,7 +250,7 @@ def connect(ip):
                     if scanner[ip].has_tcp(22):
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             logger.debug('port 22 is showing closed for {}'
-                                        .format(ip))
+                                         .format(ip))
                             not_connected.append(ip)
                             return None
                         else:
@@ -258,7 +258,7 @@ def connect(ip):
                             break
                     else:
                         logger.debug('port 22 is closed for {}'
-                                    .format(ip))
+                                     .format(ip))
                         continue
                 logger.debug('Connecting... attempt {}'.format(str(attempt + 1)))
                 if attempt == 0:
@@ -317,7 +317,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
                         logger.debug('Sending command to router... attempt {}'
-                                    .format(attempt2 + 1))
+                                     .format(attempt2 + 1))
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
                         elif device_type == 'cisco_ios':
@@ -476,7 +476,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     if results:
                         logger.debug('Results complete...')
                         logger.debug('Writing {} results to files...'
-                                    .format(results[0]['Location']))
+                                     .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
                             './scans/full_scans/full_scan{}.json'.format(
@@ -505,7 +505,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
     end2 = time()
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
-                .format(runtime2))
+                 .format(runtime2))
     logger.debug(pformat(results))
     return results
 
@@ -607,7 +607,6 @@ def csv(results, scan_count):
 def csv_trunc():
     # truncating csv file if it was ran a prior time on same day to
     # avoid duplicate values
-    
     full_csv = ('./scans/full_scans/full_scan{}.csv'
                 .format(today.strftime('%m%d%Y')))
     if (path.exists(full_csv) and path.isfile(full_csv)):
@@ -1015,8 +1014,8 @@ def api_call(club_id, add, remove):
                 del_item = None
 
             logger.debug('Mac Address {}, IP {}'
-                        .format(item['_snipeit_mac_address_7'],
-                                item['_snipeit_ip_6']))  # remove line
+                         .format(item['_snipeit_mac_address_7'],
+                                 item['_snipeit_ip_6']))  # remove line
 
             # if mac address and ip for item found in "deleted" collection
             try:
@@ -1044,7 +1043,7 @@ def api_call(club_id, add, remove):
 
                 else:
                     logger.debug('Item has never been previously deleted,'
-                                ' creating new item')
+                                 ' creating new item')
                     # adding brand new item to snipe-it
                     item_id = None
                     url = cfg.api_url
@@ -1239,7 +1238,7 @@ def club_id(conn, host, device_type):
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
                             logger.debug('Getting club ID... attempt {}'
-                                        .format(attempt + 1))
+                                         .format(attempt + 1))
                             # if club pattern is not found
                             if club_result is None:
                                 # search for regional pattern
@@ -1260,7 +1259,7 @@ def club_id(conn, host, device_type):
                             club_number = fort_regex.search(club_info)
                             club_result = None
                             logger.debug('Getting club ID... attempt {}'
-                                        .format(attempt + 1))
+                                         .format(attempt + 1))
                             if club_number is not None:
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
