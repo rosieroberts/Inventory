@@ -33,6 +33,7 @@ logger.addHandler(stream_handler)
 def send_mail(start,
               runtime,
               clubs,
+              club_queue,
               not_connected,
               added,
               restored,
@@ -43,6 +44,7 @@ def send_mail(start,
     scanned_d = []
     clubs_s = []
     clubs_n = []
+    clubs_q = []
 
     for item in added:
         a = {'Clubs': item[0],
@@ -67,12 +69,17 @@ def send_mail(start,
         n = {'Clubs': item}
         clubs_n.append(n)
 
+    for item in club_queue:
+        q = {'Clubs': item}
+        clubs_q.append(q)
+
     table = json2html.convert(json=scanned_a)
     table2 = json2html.convert(json=scanned_r)
     table3 = json2html.convert(json=scanned_d)
 
     clubs_conn = json2html.convert(json=clubs_s)
     clubs_ncon = json2html.convert(json=clubs_n)
+    clubs_queue = json2html.convert(json=clubs_q)
 
     if not clubs:
         scan_error = ''
@@ -111,9 +118,10 @@ def send_mail(start,
             <ul>
             <li>Scan started at {start}</p>
             <li>Runtime: {runtime}</li>
-            <li>{scan_error} Errors detected</li>
+            <li>{scan_error} Errors Running Script</li>
             <li>{club_count} clubs were successfully scanned</li>
-            <li>{not_con_count} clubs were not scanned</li>
+            <li>{club_queue} clubs were not scanned</li>
+            <li>{not_con_count} clubs were not scanned because of a problem</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
             <li>{deleted_count} assets were deleted from snipe_it</li></ul>
@@ -123,6 +131,7 @@ def send_mail(start,
       </body>
     </html>
     """.format(club_count=len(clubs),
+               club_queue=len(club_queue),
                not_con_count=len(not_connected),
                added_count=len(added),
                restored_count=len(restored),
@@ -142,9 +151,10 @@ def send_mail(start,
             <ul>
             <li>Scan started at {start}</p>
             <li>Runtime: {runtime}</li>
-            <li>{scan_error} Errors detected</li>
+            <li>{scan_error} Errors running script</li>
             <li>{club_count} clubs were successfully scanned</li>
-            <li>{not_con_count} clubs were not scanned</li>
+            <li>{club_queue} clubs were not scanned</li>
+            <li>{not_con_count} clubs were not scanned because of a problem</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
             <li>{deleted_count} assets were deleted from snipe_it</li></ul>
@@ -152,6 +162,8 @@ def send_mail(start,
                <p>Clubs Scanned:</p>
                {clubs_conn}
                <p>Clubs Not Scanned:</p>
+               {clubs_queue}
+               <p>Clubs Not Scanned because of a problem:</p>
                {clubs_ncon}
                <p>Assets Added:</p>
                {table}
@@ -164,6 +176,7 @@ def send_mail(start,
       </body>
     </html>
     """.format(club_count=len(clubs),
+               club_queue=len(club_queue),
                not_con_count=len(not_connected),
                added_count=len(added),
                restored_count=len(restored),
@@ -175,6 +188,7 @@ def send_mail(start,
                table2=table2,
                table3=table3,
                clubs_conn=clubs_conn,
+               clubs_queue=clubs_queue,
                clubs_ncon=clubs_ncon)
 
     # Make a local copy of what we are going to send.
@@ -197,3 +211,4 @@ def send_mail(start,
 
     except SMTPConnectError:
         logger.exception('Unable to connect to {}, the server refused the connection'.format(s))
+        

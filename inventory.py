@@ -18,7 +18,13 @@ from ipaddress import ip_address, ip_network
 import requests
 import urllib3
 import pymongo
-from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
+from logging import (
+    FileHandler,
+    Formatter,
+    StreamHandler,
+    getLogger,
+    INFO,
+    DEBUG)
 from argparse import ArgumentParser
 import concurrent.futures
 
@@ -44,14 +50,14 @@ restored = []
 added = []
 deleted = []
 scan_count = 0
-
+scan_queue = []
+club_queue = []
 
 # list of location IDs from snipeIT
 location_ids = get_loc_id()
 
+# logging set up
 logger = getLogger(__name__)
-# TODO: set to ERROR later on after setup
-logger.setLevel(INFO)
 
 file_formatter = Formatter('{asctime} {threadName}: {message}', style='{')
 stream_formatter = Formatter('{threadName} {message}', style='{')
@@ -132,7 +138,6 @@ def club_scan(ip):
         router_connect = connect(str(ip))
     try:
         if router_connect:
-            print(router_connect)
             connect_obj = router_connect[0]
             device_type = router_connect[1]
             if ip_address:
@@ -164,6 +169,7 @@ def club_scan(ip):
             scan_started()
             connect_obj.disconnect()
             logger.info('disconnected from {}'.format(results[0]['Location']))
+            scan_queue.remove(ip)
 
     except(urllib3.exceptions.ProtocolError):
         logger.exception('Remote end closed connection without response')
@@ -595,7 +601,6 @@ def csv(results, scan_count):
         with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m%d%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
-            print('csv', scan_count)
             if scan_count == 0:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
@@ -607,6 +612,7 @@ def csv(results, scan_count):
 def csv_trunc():
     # truncating csv file if it was ran a prior time on same day to
     # avoid duplicate values
+
     full_csv = ('./scans/full_scans/full_scan{}.csv'
                 .format(today.strftime('%m%d%Y')))
     if (path.exists(full_csv) and path.isfile(full_csv)):
@@ -1520,17 +1526,35 @@ def inv_args(ip_list):
     parser.add_argument(
         '-clubList', '-l',
         help='Club List in list of "club000" format or club IP')
+    parser.add_argument(
+        '-debug', '-d',
+        action='store_true',
+        help='-debug mode')
     inv_args = parser.parse_args()
+
+    if inv_args.debug:
+        logger.setLevel(DEBUG)
+    else:
+        logger.setLevel(INFO)
 
     if inv_args.club:
         arg_ips = club_ips(inv_args.club)
         if arg_ips:
             ips = arg_ips
+            for ip in ips:
+                scan_queue.append(ip)
         else:
             logger.error('Could not find club IP, exiting')
             exit()
     else:
         ips = ip_list
+        for ip in ips:
+            scan_queue.append(ip)
+            club_number = get_club(ip)
+            if club_number:
+                club_queue.append(club_number)
+            else:
+                club_queue.append(ip)
 
     return ips
 
@@ -1538,20 +1562,36 @@ def inv_args(ip_list):
 def script_info():
     """ Information to display when script is done"""
 
-    logger.info('The following {} hosts were not scanned:'
-                .format(len(not_connected)))
-    for item in not_connected:
-        logger.info(item)
-
     logger.info('The following {} clubs were scanned:'.format(len(clubs)))
     for item in clubs:
+        logger.info(item)
+
+    logger.info('The following {} hosts were not scanned:'
+                .format(len(scan_queue)))
+    for ip in scan_queue:
+        club = get_club(ip)
+        if club:
+            logger.info(club)
+        else:
+            logger.info(ip)
+
+    logger.info('The following {} hosts were not scanned because of a problem:'
+                .format(len(not_connected)))
+    for item in not_connected:
         logger.info(item)
 
     end = time()
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))
     logger.info('Script Runtime: {} '.format(runtime))
-    mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
+    mail.send_mail(ctime(start),
+                   runtime,
+                   clubs,
+                   club_queue,
+                   not_connected,
+                   added,
+                   restored,
+                   deleted)
 
 
 if __name__ == '__main__':
