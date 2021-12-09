@@ -18,7 +18,13 @@ from ipaddress import ip_address, ip_network
 import requests
 import urllib3
 import pymongo
-from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
+from logging import (
+    FileHandler,
+    Formatter,
+    StreamHandler,
+    getLogger,
+    INFO,
+    DEBUG)
 from argparse import ArgumentParser
 import concurrent.futures
 
@@ -44,14 +50,14 @@ restored = []
 added = []
 deleted = []
 scan_count = 0
-
+scan_queue = []
+club_queue = []
 
 # list of location IDs from snipeIT
 location_ids = get_loc_id()
 
+# logging set up
 logger = getLogger(__name__)
-# TODO: set to ERROR later on after setup
-logger.setLevel(INFO)
 
 file_formatter = Formatter('{asctime} {threadName}: {message}', style='{')
 stream_formatter = Formatter('{threadName} {message}', style='{')
@@ -132,7 +138,6 @@ def club_scan(ip):
         router_connect = connect(str(ip))
     try:
         if router_connect:
-            print(router_connect)
             connect_obj = router_connect[0]
             device_type = router_connect[1]
             if ip_address:
@@ -164,6 +169,7 @@ def club_scan(ip):
             scan_started()
             connect_obj.disconnect()
             logger.info('disconnected from {}'.format(results[0]['Location']))
+            scan_queue.remove(ip)
 
     except(urllib3.exceptions.ProtocolError):
         logger.exception('Remote end closed connection without response')
@@ -228,7 +234,7 @@ def connect(ip):
                 endconn = time()
                 time_elapsed = endconn - startconn
                 logger.debug('Connection achieved in {} seconds'
-                            .format(int(time_elapsed)))
+                             .format(int(time_elapsed)))
 
                 return net_connect, device_type
 
@@ -250,7 +256,7 @@ def connect(ip):
                     if scanner[ip].has_tcp(22):
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             logger.debug('port 22 is showing closed for {}'
-                                        .format(ip))
+                                         .format(ip))
                             not_connected.append(ip)
                             return None
                         else:
@@ -258,7 +264,7 @@ def connect(ip):
                             break
                     else:
                         logger.debug('port 22 is closed for {}'
-                                    .format(ip))
+                                     .format(ip))
                         continue
                 logger.debug('Connecting... attempt {}'.format(str(attempt + 1)))
                 if attempt == 0:
@@ -317,7 +323,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
                         logger.debug('Sending command to router... attempt {}'
-                                    .format(attempt2 + 1))
+                                     .format(attempt2 + 1))
                         if device_type == 'fortinet':
                             arp_table = conn.send_command('get system arp')
                         elif device_type == 'cisco_ios':
@@ -476,7 +482,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     if results:
                         logger.debug('Results complete...')
                         logger.debug('Writing {} results to files...'
-                                    .format(results[0]['Location']))
+                                     .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
                             './scans/full_scans/full_scan{}.json'.format(
@@ -505,7 +511,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
     end2 = time()
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
-                .format(runtime2))
+                 .format(runtime2))
     logger.debug(pformat(results))
     return results
 
@@ -595,7 +601,6 @@ def csv(results, scan_count):
         with open('./scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m%d%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
-            print('csv', scan_count)
             if scan_count == 0:
                 csvwriter.writeheader()
             csvwriter.writerows(results)
@@ -607,7 +612,7 @@ def csv(results, scan_count):
 def csv_trunc():
     # truncating csv file if it was ran a prior time on same day to
     # avoid duplicate values
-    
+
     full_csv = ('./scans/full_scans/full_scan{}.csv'
                 .format(today.strftime('%m%d%Y')))
     if (path.exists(full_csv) and path.isfile(full_csv)):
@@ -1015,8 +1020,8 @@ def api_call(club_id, add, remove):
                 del_item = None
 
             logger.debug('Mac Address {}, IP {}'
-                        .format(item['_snipeit_mac_address_7'],
-                                item['_snipeit_ip_6']))  # remove line
+                         .format(item['_snipeit_mac_address_7'],
+                                 item['_snipeit_ip_6']))  # remove line
 
             # if mac address and ip for item found in "deleted" collection
             try:
@@ -1044,7 +1049,7 @@ def api_call(club_id, add, remove):
 
                 else:
                     logger.debug('Item has never been previously deleted,'
-                                ' creating new item')
+                                 ' creating new item')
                     # adding brand new item to snipe-it
                     item_id = None
                     url = cfg.api_url
@@ -1239,7 +1244,7 @@ def club_id(conn, host, device_type):
                             # search club pattern 'club000' in club_info
                             club_result = club_rgx.search(club_info)
                             logger.debug('Getting club ID... attempt {}'
-                                        .format(attempt + 1))
+                                         .format(attempt + 1))
                             # if club pattern is not found
                             if club_result is None:
                                 # search for regional pattern
@@ -1260,7 +1265,7 @@ def club_id(conn, host, device_type):
                             club_number = fort_regex.search(club_info)
                             club_result = None
                             logger.debug('Getting club ID... attempt {}'
-                                        .format(attempt + 1))
+                                         .format(attempt + 1))
                             if club_number is not None:
                                 # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
@@ -1521,17 +1526,35 @@ def inv_args(ip_list):
     parser.add_argument(
         '-clubList', '-l',
         help='Club List in list of "club000" format or club IP')
+    parser.add_argument(
+        '-debug', '-d',
+        action='store_true',
+        help='-debug mode')
     inv_args = parser.parse_args()
+
+    if inv_args.debug:
+        logger.setLevel(DEBUG)
+    else:
+        logger.setLevel(INFO)
 
     if inv_args.club:
         arg_ips = club_ips(inv_args.club)
         if arg_ips:
             ips = arg_ips
+            for ip in ips:
+                scan_queue.append(ip)
         else:
             logger.error('Could not find club IP, exiting')
             exit()
     else:
         ips = ip_list
+        for ip in ips:
+            scan_queue.append(ip)
+            club_number = get_club(ip)
+            if club_number:
+                club_queue.append(club_number)
+            else:
+                club_queue.append(ip)
 
     return ips
 
@@ -1539,20 +1562,36 @@ def inv_args(ip_list):
 def script_info():
     """ Information to display when script is done"""
 
-    logger.info('The following {} hosts were not scanned:'
-                .format(len(not_connected)))
-    for item in not_connected:
-        logger.info(item)
-
     logger.info('The following {} clubs were scanned:'.format(len(clubs)))
     for item in clubs:
+        logger.info(item)
+
+    logger.info('The following {} hosts were not scanned:'
+                .format(len(scan_queue)))
+    for ip in scan_queue:
+        club = get_club(ip)
+        if club:
+            logger.info(club)
+        else:
+            logger.info(ip)
+
+    logger.info('The following {} hosts were not scanned because of a problem:'
+                .format(len(not_connected)))
+    for item in not_connected:
         logger.info(item)
 
     end = time()
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))
     logger.info('Script Runtime: {} '.format(runtime))
-    mail.send_mail(ctime(start), runtime, clubs, not_connected, added, restored, deleted)
+    mail.send_mail(ctime(start),
+                   runtime,
+                   clubs,
+                   club_queue,
+                   not_connected,
+                   added,
+                   restored,
+                   deleted)
 
 
 if __name__ == '__main__':

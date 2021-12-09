@@ -90,7 +90,7 @@ def get_snipe():
 
         # insert list of dictionaries
         mycol.insert_many(all_items)
-        logger.info('snipe db updated')
+        logger.debug('snipe db updated')
 
         full_club_list = mycol.find({'Category': 'Router'},
                                     {'Location': 1,
