@@ -4,7 +4,6 @@ from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from json import decoder
 from datetime import date
 from lib import config as cfg
-from lib import ips
 
 
 logger = getLogger('get_snipe')

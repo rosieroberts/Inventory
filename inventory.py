@@ -473,8 +473,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
 
                                     if updated_id is not None:
                                         results[-1]['ID'] = updated_id
-                    #if club_result:
-                     #   clubs.append(club_result)
 
                     # make directory that will contain all full scans by date
                     full_scan_dir = path.join('./scans/full_scans')
