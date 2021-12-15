@@ -34,7 +34,8 @@ def send_mail(start,
               runtime,
               clubs,
               club_queue,
-              not_connected,
+              scan_queue,
+              not_scanned,
               added,
               restored,
               deleted):
@@ -65,7 +66,7 @@ def send_mail(start,
         s = {'Clubs': item}
         clubs_s.append(s)
 
-    for item in not_connected:
+    for item in not_scanned:
         n = {'Clubs': item}
         clubs_n.append(n)
 
@@ -120,7 +121,7 @@ def send_mail(start,
             <li>Runtime: {runtime}</li>
             <li>{scan_error} Errors Running Script</li>
             <li>{club_count} clubs were successfully scanned</li>
-            <li>{club_queue} clubs were not scanned</li>
+            <li>{scan_queue} clubs were not scanned</li>
             <li>{not_con_count} clubs were not scanned because of a problem</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
@@ -131,8 +132,8 @@ def send_mail(start,
       </body>
     </html>
     """.format(club_count=len(clubs),
-               club_queue=len(club_queue),
-               not_con_count=len(not_connected),
+               scan_queue=len(scan_queue),
+               not_con_count=len(not_scanned),
                added_count=len(added),
                restored_count=len(restored),
                deleted_count=len(deleted),
@@ -153,7 +154,7 @@ def send_mail(start,
             <li>Runtime: {runtime}</li>
             <li>{scan_error} Errors running script</li>
             <li>{club_count} clubs were successfully scanned</li>
-            <li>{club_queue} clubs were not scanned</li>
+            <li>{scan_queue} clubs were not scanned</li>
             <li>{not_con_count} clubs were not scanned because of a problem</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
@@ -176,8 +177,8 @@ def send_mail(start,
       </body>
     </html>
     """.format(club_count=len(clubs),
-               club_queue=len(club_queue),
-               not_con_count=len(not_connected),
+               scan_queue=len(scan_queue),
+               not_con_count=len(not_scanned),
                added_count=len(added),
                restored_count=len(restored),
                deleted_count=len(deleted),

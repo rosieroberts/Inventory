@@ -4,6 +4,7 @@ from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from json import decoder
 from datetime import date
 from lib import config as cfg
+from lib import ips
 
 
 logger = getLogger('get_snipe')
@@ -96,6 +97,7 @@ def get_snipe():
                                     {'Location': 1,
                                      'IP': 1,
                                      '_id': 0})
+
         club_list = []
         for item in full_club_list:
             club_list.append(item)
