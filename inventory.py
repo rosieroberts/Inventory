@@ -44,6 +44,7 @@ from lib import inv_mail as mail
 start = time()
 today = date.today()
 not_connected = []
+not_scanned = []
 clubs = []
 additional_ids = []
 restored = []
@@ -170,6 +171,7 @@ def club_scan(ip):
             connect_obj.disconnect()
             logger.info('disconnected from {}'.format(results[0]['Location']))
             scan_queue.remove(ip)
+            clubs.append(results[0]['Location'])
 
     except(urllib3.exceptions.ProtocolError):
         logger.exception('Remote end closed connection without response')
@@ -471,8 +473,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
 
                                     if updated_id is not None:
                                         results[-1]['ID'] = updated_id
-                    if club_result:
-                        clubs.append(club_result)
 
                     # make directory that will contain all full scans by date
                     full_scan_dir = path.join('./scans/full_scans')
@@ -1435,6 +1435,11 @@ def get_club_ips(club):
 
         ip = ip.get('IP')
 
+        # ips for cisco are different, see config file
+        cisco_ip = cfg.ip_cisco_routers(ip)
+        if cisco_ip:
+            ip = cisco_ip
+
         return ip
 
     except(AttributeError):
@@ -1446,6 +1451,10 @@ def get_club(ip):
     ''' Get club name for ip address
     args: ip
     returns: club000'''
+    cisco_ip = cfg.cisco_routers(ip)
+
+    if cisco_ip:
+        ip = cisco_ip
 
     myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
@@ -1550,11 +1559,6 @@ def inv_args(ip_list):
         ips = ip_list
         for ip in ips:
             scan_queue.append(ip)
-            club_number = get_club(ip)
-            if club_number:
-                club_queue.append(club_number)
-            else:
-                club_queue.append(ip)
 
     return ips
 
@@ -1575,20 +1579,35 @@ def script_info():
         else:
             logger.info(ip)
 
-    logger.info('The following {} hosts were not scanned because of a problem:'
-                .format(len(not_connected)))
-    for item in not_connected:
-        logger.info(item)
-
     end = time()
     runtime = end - start
     runtime = str(timedelta(seconds=int(runtime)))
     logger.info('Script Runtime: {} '.format(runtime))
+    for ip in scan_queue:
+        club_number = get_club(ip)
+        if club_number:
+            club_queue.append(club_number)
+        else:
+            club_queue.append(ip)
+
+    for ip in not_connected:
+        club_number = get_club(ip)
+        if club_number:
+            not_scanned.append(club_number)
+        else:
+            not_scanned.append(ip)
+
+    logger.info('The following {} hosts were not scanned because of a problem: '
+                .format(len(not_scanned)))
+    for item in not_scanned:
+        logger.info(item)
+
     mail.send_mail(ctime(start),
                    runtime,
                    clubs,
                    club_queue,
-                   not_connected,
+                   scan_queue,
+                   not_scanned,
                    added,
                    restored,
                    deleted)

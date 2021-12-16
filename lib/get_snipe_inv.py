@@ -96,6 +96,7 @@ def get_snipe():
                                     {'Location': 1,
                                      'IP': 1,
                                      '_id': 0})
+
         club_list = []
         for item in full_club_list:
             club_list.append(item)
