@@ -53,6 +53,7 @@ deleted = []
 scan_count = 0
 scan_queue = []
 club_queue = []
+api_status = []
 
 # list of location IDs from snipeIT
 location_ids = get_loc_id()
@@ -984,6 +985,8 @@ def api_call(club_id, add, remove):
                 response = requests.request("GET", url=url, headers=cfg.api_headers)
 
                 content = response.json()
+                status = str(content['status'])
+                # record status of api call and save with tag in list
                 tag = str(content['asset_tag'])
                 if tag:
                     status_file.write('Cannot add item, asset_tag {} already exists '
@@ -1039,6 +1042,12 @@ def api_call(club_id, add, remove):
                                                     url=url,
                                                     headers=cfg.api_headers)
                         logger.debug(pformat(response.text))
+                        content = response.json()
+                        status = str(content['status'])
+                        # record status of api call and save with tag in list
+                        api_snipe = {'asset_tag': item_tag,
+                                     'status': status}
+                        api_status.append(api_snipe)
                         msg = ('Restored item with asset_tag {} '
                                'and id {} in Snipe-IT\n')
 
@@ -1063,6 +1072,12 @@ def api_call(club_id, add, remove):
                                                 data=payload,
                                                 headers=cfg.api_headers)
                     logger.info(pformat(response.text))
+                    content = response.json()
+                    status = str(content['status'])
+                    # record status of api call and save with tag in list
+                    api_snipe = {'asset_tag': asset_tag,
+                                 'status': status}
+                    api_status.append(api_snipe)
                     add_tuple = (club_id, item['asset_tag'])
                     added.append(add_tuple)
 
@@ -1093,12 +1108,18 @@ def api_call(club_id, add, remove):
                                   .format(item['asset_tag']))
     if remove:
         for item in remove:
+            asset_tag = item['asset_tag']
             url = cfg.api_url + str(item['id'])
             response = requests.request("DELETE",
                                         url=url,
                                         headers=cfg.api_headers)
             logger.info(pformat(response.text))
-
+            content = response.json()
+            status = str(content['status'])
+            # record status of api call and save with tag in list
+            api_snipe = {'asset_tag': asset_tag,
+                         'status': status}
+            api_status.append(api_snipe)
             if response.status_code == 200:
                 msg_rem = ('Removed item '
                            'with asset-tag {} from Snipe-IT\n')
@@ -1610,6 +1631,7 @@ def script_info():
                    club_queue,
                    scan_queue,
                    not_scanned,
+                   api_status,
                    added,
                    restored,
                    deleted)
