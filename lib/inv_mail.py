@@ -233,4 +233,3 @@ def send_mail(start,
 
     except SMTPConnectError:
         logger.exception('Unable to connect to {}, the server refused the connection'.format(s))
-        

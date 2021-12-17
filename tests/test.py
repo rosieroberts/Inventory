@@ -1,6 +1,8 @@
-from lib.invbin import RouterInfo
+import inventory
+from lib.ips import get_ips
 from re import compile
 import random
+import unittest
 # from lib import config as cfg
 # import inv
 
@@ -19,7 +21,7 @@ class IPTest:
     """Test class for IPs"""
 
     def __init__(self):
-        ip_list = RouterInfo.get_ips()
+        ip_list = get_ips()
         random_ip = random.choice(ip_list)
         results = []
 
@@ -41,7 +43,7 @@ class InventoryTest:
 
     # tests for inventory.py
     def test1_inv():
-        assert RouterInfo.connect(IPTest.random_ip) is not None
+        assert inventory.connect(IPTest.random_ip) is not None
 
     def test2_inv():
         assert len(IPTest.results) > 0
@@ -54,12 +56,12 @@ class InventoryTest:
     #   assert random.choice(results)['Model Name'] in cfg.models
 
     def test4_inv():
-        conn = RouterInfo.connect(IPTest.random_ip)
+        conn = inventory.connect(IPTest.random_ip)
         print(conn)
-        IPTest.results = RouterInfo.get_router_info(conn,
-                                                    IPTest.random_ip,
-                                                    device_type='fortinet',
-                                                    loc_id_data=None)
+        IPTest.results = inventory.get_router_info(conn,
+                                                   IPTest.random_ip,
+                                                   device_type='fortinet',
+                                                   loc_id_data=None)
 
 
 if __name__ == "__main__":
