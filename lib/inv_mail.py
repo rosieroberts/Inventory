@@ -36,6 +36,7 @@ def send_mail(start,
               club_queue,
               scan_queue,
               not_scanned,
+              api_status,
               added,
               restored,
               deleted):
@@ -46,6 +47,14 @@ def send_mail(start,
     clubs_s = []
     clubs_n = []
     clubs_q = []
+    api_errors = []
+    asset_errors = []
+
+    print(api_status)
+    if api_status:
+        for item in api_status:
+            if item['status'] == 'error':
+                api_errors.append(item['asset_tag'])
 
     for item in added:
         a = {'Clubs': item[0],
@@ -74,6 +83,10 @@ def send_mail(start,
         q = {'Clubs': item}
         clubs_q.append(q)
 
+    for item in api_errors:
+        e = {'Asset': item}
+        asset_errors.append(e)
+
     table = json2html.convert(json=scanned_a)
     table2 = json2html.convert(json=scanned_r)
     table3 = json2html.convert(json=scanned_d)
@@ -81,6 +94,7 @@ def send_mail(start,
     clubs_conn = json2html.convert(json=clubs_s)
     clubs_ncon = json2html.convert(json=clubs_n)
     clubs_queue = json2html.convert(json=clubs_q)
+    api_error = json2html.convert(json=asset_errors)
 
     if not clubs:
         scan_error = ''
@@ -120,6 +134,7 @@ def send_mail(start,
             <li>Scan started at {start}</p>
             <li>Runtime: {runtime}</li>
             <li>{scan_error} Errors Running Script</li>
+            <li>{api_errors} Errors with Snipe-IT API</li>
             <li>{club_count} clubs were successfully scanned</li>
             <li>{scan_queue} clubs were not scanned</li>
             <li>{not_con_count} clubs were not scanned because of a problem</li>
@@ -137,6 +152,7 @@ def send_mail(start,
                added_count=len(added),
                restored_count=len(restored),
                deleted_count=len(deleted),
+               api_errors=len(api_errors),
                scan_error=scan_error,
                start=start,
                runtime=runtime,
@@ -153,6 +169,7 @@ def send_mail(start,
             <li>Scan started at {start}</p>
             <li>Runtime: {runtime}</li>
             <li>{scan_error} Errors running script</li>
+            <li>{api_errors} Errors with Snipe-IT API</li>
             <li>{club_count} clubs were successfully scanned</li>
             <li>{scan_queue} clubs were not scanned</li>
             <li>{not_con_count} clubs were not scanned because of a problem</li>
@@ -172,6 +189,8 @@ def send_mail(start,
                {table2}
                <p>Assets Deleted:</p>
                {table3}
+               <p>Tags with API errors</p>
+               {api_error}
 
         </p>
       </body>
@@ -182,6 +201,8 @@ def send_mail(start,
                added_count=len(added),
                restored_count=len(restored),
                deleted_count=len(deleted),
+               api_errors=len(api_errors),
+               api_error=api_error,
                scan_error=scan_error,
                start=start,
                runtime=runtime,
