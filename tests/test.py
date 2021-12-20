@@ -2,7 +2,7 @@ import inventory
 from lib.ips import get_ips
 from re import compile
 import random
-import unittest
+# import unittest
 # from lib import config as cfg
 # import inv
 
@@ -17,53 +17,45 @@ ip_w_mask = compile(r'^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$')
 ip_regex = compile(r'(?:\d+\.){3}\d+')
 
 
-class IPTest:
+class TestIP:
     """Test class for IPs"""
+    ip_list = get_ips()
+    random_ip = random.choice(ip_list)
 
-    def __init__(self):
-        ip_list = get_ips()
-        random_ip = random.choice(ip_list)
-        results = []
+    def test_1():
+        assert len(TestIP.ip_list) > 200
 
-    def test1_ips():
-        assert len(IPTest.ip_list) > 200
-
-    def test2_ips():
-        for item in IPTest.ip_list:
+    def test_2():
+        for item in TestIP.ip_list:
             re_value = ip_w_mask.search(item)
             assert re_value is not None
 
-    def test3_ips():
-        ip_value = ip_regex.search(IPTest.random_ip)
+    def test_3():
+        ip_value = ip_regex.search(TestIP.random_ip)
         assert ip_value is not None
 
 
-class InventoryTest:
+class TestInventory:
     """Test class for Inventory"""
 
     # tests for inventory.py
-    def test1_inv():
-        assert inventory.connect(IPTest.random_ip) is not None
+    def test_1():
+        assert inventory.connect(TestIP.random_ip) is not None
 
-    def test2_inv():
-        assert len(IPTest.results) > 0
-        assert IPTest.results[0]['IP'] == IPTest.random_ip
+    def test_2():
+        assert len(TestIP.results) > 0
+        assert TestIP.results[0]['IP'] == TestIP.random_ip
 
-        mac_value = mac_regex.search(IPTest.results[0]['Mac Address'])
+        mac_value = mac_regex.search(TestIP.results[0]['Mac Address'])
         assert mac_value is not None
 
-    # def test3_inv():
+    # def test3():
     #   assert random.choice(results)['Model Name'] in cfg.models
 
-    def test4_inv():
-        conn = inventory.connect(IPTest.random_ip)
+    def test_4():
+        conn = inventory.connect(TestIP.random_ip)
         print(conn)
-        IPTest.results = inventory.get_router_info(conn,
-                                                   IPTest.random_ip,
+        TestIP.results = inventory.get_router_info(conn,
+                                                   TestIP.random_ip,
                                                    device_type='fortinet',
                                                    loc_id_data=None)
-
-
-if __name__ == "__main__":
-    IPTest.test1_ips()
-    print("Everything passed")
