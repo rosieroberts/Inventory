@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import pytest
-import Inventory.inventory
+import inventory
 from lib.ips import get_ips
 from re import compile
-from datetime import date, timedelta
+from datetime import date
 import random
 from logging import (
     FileHandler,
@@ -60,10 +60,10 @@ def random_ip(ips):
 
 @pytest.fixture
 def results(random_ip):
-    conn = inventory.connect(random_ip)
     results = inventory.club_scan(random_ip)
     print(results)
     return results
+
 
 @pytest.fixture
 def ran_results(random_ip, results):
@@ -101,15 +101,6 @@ class TestInventory:
 
     def test_2(self, results):
         assert len(results) > 0
-
-        #assert TestInventory.results[0]['IP'] == random_ip
-
-       # mac_value = mac_regex.search(TestInventory.results[0]['Mac Address'])
-       # assert mac_value is not None
-
-    #def test_3(self):
-      #  print(TestInventory.res_['Model Name'])
-      #  assert TestInventory.res_['Model Name'] in cfg.models
 
 
 if __name__ == '__main__':
