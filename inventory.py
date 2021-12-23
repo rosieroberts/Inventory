@@ -171,7 +171,8 @@ def club_scan(ip):
             scan_started()
             connect_obj.disconnect()
             logger.info('disconnected from {}'.format(results[0]['Location']))
-            scan_queue.remove(ip)
+            if scan_queue:
+                scan_queue.remove(ip)
             clubs.append(results[0]['Location'])
 
     except(urllib3.exceptions.ProtocolError):
@@ -192,7 +193,7 @@ def club_scan(ip):
     else:
         logger.info('Club Scan Runtime: {} '.format(clb_runtime))
 
-    return [add, remove, update]
+    return results
 
 
 def scan_started():

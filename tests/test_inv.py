@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 import pytest
-import inventory
+import Inventory.inventory
 from lib.ips import get_ips
+from lib.get_snipe_inv import get_snipe, get_loc_id
+from lib.inv_mail import send_mail
 from re import compile
 from datetime import date
+from time import time, ctime
 import random
 from logging import (
     FileHandler,
@@ -30,7 +33,7 @@ file_formatter = Formatter('{asctime} {threadName}: {message}', style='{')
 stream_formatter = Formatter('{threadName} {message}', style='{')
 
 # logfile
-file_handler = FileHandler('/opt/Inventory/logs/asset_inventory{}.log'
+file_handler = FileHandler('/opt/Inventory/logs/tests{}.log'
                            .format(today.strftime('%m%d%Y')))
 file_handler.setLevel(DEBUG)
 file_handler.setFormatter(file_formatter)
@@ -60,16 +63,55 @@ def random_ip(ips):
 
 @pytest.fixture
 def results(random_ip):
-    results = inventory.club_scan(random_ip)
-    print(results)
+    results = Inventory.inventory.club_scan(random_ip)
     return results
 
 
 @pytest.fixture
-def ran_results(random_ip, results):
-    res = random.choice(results)
-    print(res)
+def results_0(random_ip, results):
+    res = results[0]
     return res
+
+
+@pytest.fixture
+def get_sn():
+    all_items, entries = get_snipe()
+    return all_items, entries
+
+
+@pytest.fixture
+def loc_id():
+    loc_id = get_loc_id()
+    return loc_id
+
+
+@pytest.fixture
+def mail():
+    start = time()
+    end = time()
+    runtime = end - start
+    clubs = ['club001', 'club002']
+    club_queue = ['club003', 'club004']
+    scan_queue = ['8.8.8.8', '0.0.0.0']
+    not_scanned = ['club005']
+    api_status = [{'asset_tag': '062H-FBE6',
+                   'status': 'success'},
+                  {'asset_tag': '062H-FBAA',
+                   'status': 'error'}]
+    added = [('club006', '062H-FB88')]
+    restored = []
+    deleted = []
+    msg = send_mail(ctime(start),
+                    runtime,
+                    clubs,
+                    club_queue,
+                    scan_queue,
+                    not_scanned,
+                    api_status,
+                    added,
+                    restored,
+                    deleted)
+    return msg
 
 
 class TestIP:
@@ -93,7 +135,7 @@ class TestIP:
 class TestInventory:
     """Test class for Inventory"""
 
-    res = ran_results
+    res = results_0
 
     # tests for inventory.py
     def test_1(self, results):
@@ -101,6 +143,36 @@ class TestInventory:
 
     def test_2(self, results):
         assert len(results) > 0
+
+
+class TestGetSnipe:
+    """Test class for get_snipe"""
+
+    def test_1(self, get_sn):
+        all_entries, entries = get_sn
+        assert len(all_entries) > 0
+        assert entries == True
+
+    def test_2(self, loc_id, results_0):
+        # loc_id list of clubs location IDs
+        location_id = False
+        assert loc_id is not None
+        location = results_0['Location']
+        for itm in loc_id['rows']:
+            if itm['name'] == str(location):
+                loc_i = itm['id']
+                location_id = True
+        assert location_id == True
+        assert type(loc_i) == int
+
+
+class TestInvMail:
+    """Test for mail_inv"""
+
+    def test_1(self, mail):
+        msg = mail
+        assert mail is not None
+        # assert type(msg) is "<class 'email.message.EmailMessage'>"
 
 
 if __name__ == '__main__':
