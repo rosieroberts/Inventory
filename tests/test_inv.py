@@ -5,6 +5,7 @@ import Inventory.inventory
 from lib.ips import get_ips
 from lib.get_snipe_inv import get_snipe, get_loc_id
 from lib.inv_mail import send_mail
+import lib.config as cfg
 from re import compile
 from datetime import date
 from time import time, ctime
@@ -90,17 +91,14 @@ def mail():
     start = time()
     end = time()
     runtime = end - start
-    clubs = ['club001', 'club002']
-    club_queue = ['club003', 'club004']
-    scan_queue = ['8.8.8.8', '0.0.0.0']
-    not_scanned = ['club005']
-    api_status = [{'asset_tag': '062H-FBE6',
-                   'status': 'success'},
-                  {'asset_tag': '062H-FBAA',
-                   'status': 'error'}]
-    added = [('club006', '062H-FB88')]
-    restored = []
-    deleted = []
+    clubs = cfg.clubs
+    club_queue = cfg.club_queue
+    scan_queue = cfg.scan_queue
+    not_scanned = cfg.not_scanned
+    api_status = cfg.api_status
+    added = cfg.added
+    restored = cfg.restored
+    deleted = cfg.deleted
     msg = send_mail(ctime(start),
                     runtime,
                     clubs,
