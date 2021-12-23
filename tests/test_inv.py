@@ -151,7 +151,7 @@ class TestGetSnipe:
     def test_1(self, get_sn):
         all_entries, entries = get_sn
         assert len(all_entries) > 0
-        assert entries == True
+        assert entries is True
 
     def test_2(self, loc_id, results_0):
         # loc_id list of clubs location IDs
@@ -162,7 +162,7 @@ class TestGetSnipe:
             if itm['name'] == str(location):
                 loc_i = itm['id']
                 location_id = True
-        assert location_id == True
+        assert location_id is True
         assert type(loc_i) == int
 
 
@@ -170,7 +170,7 @@ class TestInvMail:
     """Test for mail_inv"""
 
     def test_1(self, mail):
-        msg = mail
+        # msg = mail
         assert mail is not None
         # assert type(msg) is "<class 'email.message.EmailMessage'>"
 

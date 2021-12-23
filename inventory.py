@@ -124,7 +124,6 @@ def club_scan(ip):
     all_api_payload = []
     add = []
     remove = []
-    update = []
     connect_obj = None
     global scan_count
 
