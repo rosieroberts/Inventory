@@ -224,7 +224,7 @@ def send_mail(start,
         # Send the message via SMTP server.
         with SMTP(gethostbyname(config['mail']['server'])) as s:
             s.send_message(msg)
-            print(msg) 
+            print(msg)
             print(type(msg))
             return(msg)
             logger.info('Email message sent successfully')
