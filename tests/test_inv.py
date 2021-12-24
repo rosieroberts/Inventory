@@ -63,15 +63,25 @@ def random_ip(ips):
 
 
 @pytest.fixture
+def main_t(ips):
+    threads = Inventory.inventory.main(random_ip)
+    return threads
+
+
+@pytest.fixture
 def results(random_ip):
     results = Inventory.inventory.club_scan(random_ip)
     return results
 
 
 @pytest.fixture
-def results_0(random_ip, results):
-    res = results[0]
-    return res
+def get_ip_num(results):
+    ip_res = []
+    for item in results:
+        club = results[0]['Location']
+        ip = Inventory.inventory.get_club_ips(club)
+        ip_res.append(ip)
+    return ip_res
 
 
 @pytest.fixture
@@ -125,22 +135,83 @@ class TestIP:
             logger.debug(re_value)
             assert re_value is not None
 
-    def test_3(self, random_ip):
-        ip_value = ip_regex.search(random_ip)
-        assert ip_value is not None
+    def test_3(self, ips):
+        for item in ips:
+            assert item not in cfg.exclude_ips
 
 
 class TestInventory:
-    """Test class for Inventory"""
-
-    res = results_0
+    """Test class for Inventory
 
     # tests for inventory.py
+
+    FUNCTIONS:
+
+    # main
+    club_scan
+    # scan_started
+    connect
+    # get_router_info
+    # save_results
+    # add_to_db
+    # csv
+    # csv_trunc
+    # check_if_remove
+    # check_if_add
+    # mongo_diff
+    # api_payload
+    # api_call
+    # get_id
+    # last_4_baselines
+    # club_id
+    # get_hostnames
+    # club_num
+    # asset_tag_gen
+    get_club_ips
+    # get_club
+    # club_ips
+    # inv_args
+    # script_info
+    """
+
+    # club_scan
     def test_1(self, results):
         assert results is not None
+        assert len(results) > 2
 
-    def test_2(self, results):
-        assert len(results) > 0
+
+    # main *figure out how to test threads*
+    def test_2(self, main_t):
+        # assert main_t
+        pass
+
+
+    # get_club_ips
+    def test_3(self, get_ip_num, random_ip):
+        ips = get_ip_num
+        assert random_ip in ips
+
+
+    # test for each key in results from club_scan
+    def test_4(self, results):
+        for item in results:
+            assert item['ID'] is not None
+            assert item['Asset Tag'] is not None
+            assert item['IP'] is not None
+            assert item['Location'] is not None   
+            assert item['Location ID'] is not None
+            assert item['Category'] is not None
+            assert item['Manufacturer'] is not None
+            assert item['Model Name'] is not None
+            assert item['Model Number'] is not None
+            assert item['Mac Address'] is not None
+            assert item['Status'] is not None
+            assert item['Status ID'] is not None
+
+
+    # connect
+    def test_5(self):
+        assert Inventory.inventory.connect is not None
 
 
 class TestGetSnipe:
@@ -151,11 +222,11 @@ class TestGetSnipe:
         assert len(all_entries) > 0
         assert entries is True
 
-    def test_2(self, loc_id, results_0):
+    def test_2(self, loc_id, results):
         # loc_id list of clubs location IDs
         location_id = False
         assert loc_id is not None
-        location = results_0['Location']
+        location = results[0]['Location']
         for itm in loc_id['rows']:
             if itm['name'] == str(location):
                 loc_i = itm['id']
@@ -168,9 +239,7 @@ class TestInvMail:
     """Test for mail_inv"""
 
     def test_1(self, mail):
-        # msg = mail
         assert mail is not None
-        # assert type(msg) is "<class 'email.message.EmailMessage'>"
 
 
 if __name__ == '__main__':

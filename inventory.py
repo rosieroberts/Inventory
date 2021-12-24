@@ -99,10 +99,12 @@ def main(ip_list):
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             threads = [executor.submit(club_scan, ip) for ip in ip_list]
+        script_info()
     except(OSError, KeyboardInterrupt):
         logger.exception('Script Error')
-
-    script_info()
+        threads = None
+        script_info()
+   
     return threads
 
 
@@ -191,8 +193,7 @@ def club_scan(ip):
                         .format(results[0]['Location'], clb_runtime))
     else:
         logger.info('Club Scan Runtime: {} '.format(clb_runtime))
-
-    return results
+    return results_copy
 
 
 def scan_started():
@@ -524,7 +525,7 @@ def save_results(results, host):
         results - list returned from get_router_info() for each location
 
     Returns:
-        Does not return anything. Function writes to files.
+        Function writes to files and updates results with ID from SnipeIT
 
     Raises:
         Does not raise an error. File is created when function is called and
