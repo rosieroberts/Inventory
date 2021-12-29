@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pytest
-import Inventory.inventory
+import Inventory.inventory as inv
 from lib.ips import get_ips
 from lib.get_snipe_inv import get_snipe, get_loc_id
 from lib.inv_mail import send_mail
@@ -63,15 +63,22 @@ def random_ip(ips):
 
 
 @pytest.fixture
-def main_t(ips):
-    threads = Inventory.inventory.main(random_ip)
-    return threads
+def results(random_ip):
+    results = inv.club_scan(random_ip)
+    return results
 
 
 @pytest.fixture
-def results(random_ip):
-    results = Inventory.inventory.club_scan(random_ip)
-    return results
+def router_info(random_ip):
+    connect = inv.connect(random_ip)
+    connect_obj = connect[0]
+    device_type = connect[1]
+    info = inv.get_router_info(connect_obj,
+                           str(random_ip),
+                           device_type,
+                           inv.location_ids)
+    print(info)
+    return info
 
 
 @pytest.fixture
@@ -79,7 +86,7 @@ def get_ip_num(results):
     ip_res = []
     for item in results:
         club = results[0]['Location']
-        ip = Inventory.inventory.get_club_ips(club)
+        ip = inv.get_club_ips(club)
         ip_res.append(ip)
     return ip_res
 
@@ -151,7 +158,7 @@ class TestInventory:
     club_scan
     # scan_started
     connect
-    # get_router_info
+    get_router_info
     # save_results
     # add_to_db
     # csv
@@ -163,7 +170,7 @@ class TestInventory:
     # api_call
     # get_id
     # last_4_baselines
-    # club_id
+    club_id
     # get_hostnames
     # club_num
     # asset_tag_gen
@@ -180,10 +187,18 @@ class TestInventory:
         assert len(results) > 2
 
 
-    # main *figure out how to test threads*
-    def test_2(self, main_t):
-        # assert main_t
-        pass
+    # get_router_info 
+    def test_2(self, router_info):
+        info = router_info
+        club_number = info[0]['Location']
+        club_rgx = compile(cfg.club_rgx)
+        for item in info:
+            assert item['Location'] is club_number
+            # assert cfg.club_rgx.match(item['Location']) is not None
+            assert item['Status'] == 'up'
+            assert ip_regex.match(item['IP']) is not None
+            assert mac_regex.match(item['Mac Address']) is not None
+            
 
 
     # get_club_ips
@@ -211,7 +226,7 @@ class TestInventory:
 
     # connect
     def test_5(self):
-        assert Inventory.inventory.connect is not None
+        assert inv.connect is not None
 
 
 class TestGetSnipe:
