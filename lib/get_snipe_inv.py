@@ -110,6 +110,14 @@ def get_snipe():
         # insert full club list into mongodb collection
         club_list_coll.insert_many(club_list)
 
+        num_entries = mycol.count()
+        entries = False
+
+        if num_entries:
+            entries = True
+
+        return (all_items, entries)
+
     except (KeyError,
             decoder.JSONDecodeError):
         content = None

@@ -50,7 +50,6 @@ def send_mail(start,
     api_errors = []
     asset_errors = []
 
-    print(api_status)
     if api_status:
         for item in api_status:
             if item['status'] == 'error':
@@ -226,6 +225,7 @@ def send_mail(start,
         with SMTP(gethostbyname(config['mail']['server'])) as s:
             s.send_message(msg)
             logger.info('Email message sent successfully')
+            return(msg)
 
     except gaierror:
         logger.exception('Hostname resolution has failed', config['mail']['server'])
