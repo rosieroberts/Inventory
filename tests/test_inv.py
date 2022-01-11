@@ -10,6 +10,7 @@ from re import compile
 from datetime import date
 from time import time, ctime
 import random
+import pymongo
 from logging import (
     FileHandler,
     Formatter,
@@ -129,6 +130,16 @@ def mail():
     return msg
 
 
+@pytest.fixture(autouse=True)
+def mongo_loc(results):
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client['inventory']
+    snipe_coll = db['snipe']
+    snipe_location = snipe_coll.find({'Location': results[0]['Location']},
+                                     {'Location': 1, '_id': 0})
+    return snipe_location
+
+
 class TestIP:
     """Test class for IPs"""
 
@@ -227,6 +238,11 @@ class TestInventory:
     # connect
     def test_5(self):
         assert inv.connect is not None
+
+
+    # mongo locations test
+    def test_6(self, mongo_loc, results):
+        assert results[0]['Location'] == mongo_loc[0]['Location']
 
 
 class TestGetSnipe:
