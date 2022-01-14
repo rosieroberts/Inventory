@@ -104,7 +104,7 @@ def main(ip_list):
         logger.exception('Script Error')
         threads = None
         script_info()
-   
+
     return threads
 
 
@@ -389,7 +389,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                             tag_exists = get_id(asset_tag)
                             if tag_exists:
                                 asset_tag = str(asset_tag) + '0'
-                            
+
                             if hostname is None:
                                 continue
 
@@ -840,7 +840,6 @@ def mongo_diff(results):
     # from list of dictionaries to just a list of mac addresses
     snipe_mac_list = [item['Mac Address'] for item in snipe_mac]
 
-
     # loop through results and append all results mac addr values to a list
     for item in results:
         # find mac address in deleted list, to see whether or not item is new or
@@ -1100,7 +1099,7 @@ def api_call(club_id, add, remove):
                             url = cfg.api_url_update.format(del_item_alt['id'])
                             item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6']})
                             payload = item_str.replace('\'', '\"')
-                            logger.debug(payload) 
+                            logger.debug(payload)
                             response = requests.request("PATCH",
                                                         url=url,
                                                         data=payload,
@@ -1171,7 +1170,6 @@ def api_call(club_id, add, remove):
                                'with asset-tag {} to Snipe-IT, review.\n')
                     status_file.write(msg_add.format(item['asset_tag']))
                     logger.info(msg_add.format(item['asset_tag']))
-                    
 
             if response.status_code == 401:
                 status_file.write('Unauthorized. Could not send '
