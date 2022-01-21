@@ -1115,9 +1115,7 @@ def api_call(club_id, add, remove):
 
                             del_coll.update_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
                                                 {'$set': {'_snipeit_ip_6': item['_snipeit_ip_6']}})
-                            del_item_alt2 = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
-                                                              {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
-                                                               '_snipeit_ip_6': 1, '_id': 0})
+
                             status_file.write(msg.format(item_tag, item_id, item_ip))
                             logger.info(msg.format(item_tag, item_id, item_ip))
                         else:
@@ -1145,7 +1143,7 @@ def api_call(club_id, add, remove):
                     api_status.append(api_snipe)
                     add_tuple = (club_id, item['asset_tag'])
                     added.append(add_tuple)
-                
+
                 if response.status_code == 200:
                     if status == 'success':
                         msg_add = ('Added new item '
@@ -1157,7 +1155,6 @@ def api_call(club_id, add, remove):
                                    'with asset-tag {} to Snipe-IT, review.\n')
                         status_file.write(msg_add.format(item['asset_tag']))
                         logger.info(msg_add.format(item['asset_tag']))
-                
 
                 elif response.status_code == 401:
                     status_file.write('Unauthorized. Could not send '
