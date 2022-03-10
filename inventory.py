@@ -67,7 +67,7 @@ stream_formatter = Formatter('{threadName} {message}', style='{')
 # logfile
 file_handler = FileHandler('/opt/Inventory/logs/asset_inventory{}.log'
                            .format(today.strftime('%m%d%Y')))
-file_handler.setLevel(DEBUG)
+file_handler.setLevel(INFO)
 file_handler.setFormatter(file_formatter)
 
 # console
@@ -156,7 +156,7 @@ def club_scan(ip):
                 item['ID'] = get_id(item['Asset Tag'])
             results_copy = deepcopy(results)
 
-            all_diff = mongo_diff(results_copy)
+            all_diff = diff(results_copy)
             if all_diff:
                 all_api_payload = api_payload(all_diff)
                 if all_api_payload:
@@ -299,7 +299,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
          'Asset Tag': '000P-ABCD-000-000',
          'Category': 'Phone',
          'Manufacturer': 'Cisco',
-        'Hostname': 'name@name.com',
+         'Hostname': 'name@name.com',
          'Mac Address': 'XX:XX:XX:XX:XX:XX',
          'Status': 'up'}
 
@@ -479,7 +479,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                         results[-1]['ID'] = updated_id
 
                     # make directory that will contain all full scans by date
-                    full_scan_dir = path.join('./scans/full_scans')
+                    full_scan_dir = path.join('/opt/Inventory/scans/full_scans')
                     full_scan_dir_obj = Path(full_scan_dir)
                     full_scan_dir_obj.mkdir(parents=True, exist_ok=True)
 
@@ -489,7 +489,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                      .format(results[0]['Location']))
                         # writing full scan to .json
                         club_output = open(
-                            './scans/full_scans/full_scan{}.json'.format(
+                            '/opt/Inventory/scans/full_scans/full_scan{}.json'.format(
                                 today.strftime('%m%d%Y')), 'a+')
 
                         for item in results:
@@ -539,9 +539,9 @@ def save_results(results, host):
 
         # make directory that will contain individual scans by club
         if results[0]['Location'] is not None:
-            mydir = path.join('./scans/baselines/{}'.format(results[0]['Location']))
+            mydir = path.join('/opt/Inventory/scans/baselines/{}'.format(results[0]['Location']))
         else:
-            mydir = path.join('./scans/baselines/{}'.format(results[0]['IP']))
+            mydir = path.join('/opt/Inventory/scans/baselines/{}'.format(results[0]['IP']))
 
         mydir_obj = Path(mydir)
         mydir_obj.mkdir(parents=True, exist_ok=True)
@@ -602,7 +602,7 @@ def csv(results, scan_count):
             item.pop('_id')
 
         # create .csv file with full scan
-        with open('./scans/full_scans/full_scan{}.csv'
+        with open('/opt/Inventory/scans/full_scans/full_scan{}.csv'
                   .format(today.strftime('%m%d%Y')), 'a') as csvfile:
             csvwriter = DictWriter(csvfile, keys)
             if scan_count == 0:
@@ -617,7 +617,7 @@ def csv_trunc():
     # truncating csv file if it was ran a prior time on same day to
     # avoid duplicate values
 
-    full_csv = ('./scans/full_scans/full_scan{}.csv'
+    full_csv = ('/opt/Inventory/scans/full_scans/full_scan{}.csv'
                 .format(today.strftime('%m%d%Y')))
     if (path.exists(full_csv) and path.isfile(full_csv)):
         f = open(full_csv, "w+")
@@ -733,7 +733,7 @@ def check_if_add(diff_item):
         return True
 
 
-def mongo_diff(results):
+def diff(results):
     """ Function to get differences between current and prior scans
     by date of scan.
     Function returns a list of all differences.
@@ -793,7 +793,7 @@ def mongo_diff(results):
         if add:
             logger.debug('Adding devices to Scan Files')
             # make directory that will contain all scan statuses by date
-            mydir = path.join('./scans/scan_status')
+            mydir = path.join('/opt/Inventory/scans/scan_status')
             mydir_obj = Path(mydir)
             mydir_obj.mkdir(parents=True, exist_ok=True)
 
@@ -812,12 +812,12 @@ def mongo_diff(results):
         return None
 
     # make directory that will contain all scan statuses by date
-    mydir = path.join('./scans/scan_status')
+    mydir = path.join('/opt/Inventory/scans/scan_status')
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # create file to write status of differences as they happen
-    status_file = open('./scans/scan_status/scan_{}'
+    status_file = open('/opt/Inventory/scans/scan_status/scan_{}'
                        .format(today.strftime('%m%d%Y')), 'a+')
     if club:
         status_file.write('\n\n')
@@ -982,17 +982,17 @@ def api_payload(all_diff):
 def api_call(club_id, add, remove):
 
     # make directory that will contain all scan statuses by date
-    mydir = path.join('./scans/api_status')
+    mydir = path.join('/opt/Inventory/scans/api_status')
     mydir_obj = Path(mydir)
     mydir_obj.mkdir(parents=True, exist_ok=True)
 
     # create file to write status of differences as they happen
-    status_file = open('./scans/api_status/scan_{}'
+    status_file = open('/opt/Inventory/scans/api_status/scan_{}'
                        .format(today.strftime('%m%d%Y')), 'a+')
     if club_id:
         club = str(club_id)
         # possible bug -line below. When club is none, sends error
-        # baseline_dir = path.join('./scans/baselines/', club)
+        # baseline_dir = path.join('/opt/Inventory/scans/baselines/', club)
 
         if club and add or remove:
             status_file.write('\n\n')
@@ -1263,7 +1263,7 @@ def last_4_baselines(diff_item):
         return None
 
     try:
-        club_bsln_path = './scans/baselines/{}'.format(club)
+        club_bsln_path = '/opt/Inventory/scans/baselines/{}'.format(club)
         # get list of all files in club baseline directory
         list_dir = listdir(club_bsln_path)
         if len(list_dir) >= 4:
