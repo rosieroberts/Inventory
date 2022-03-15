@@ -13,7 +13,7 @@ from time import time, ctime
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
-from pprint import pformat
+from pprint import pformat, pprint
 from ipaddress import ip_address, ip_network
 import requests
 import urllib3
@@ -49,6 +49,7 @@ clubs = []
 additional_ids = []
 restored = []
 added = []
+updated = []
 deleted = []
 scan_count = 0
 scan_queue = []
@@ -97,9 +98,10 @@ def main(ip_list):
     csv_trunc()
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             threads = [executor.submit(club_scan, ip) for ip in ip_list]
         script_info()
+        get_snipe()
     except(OSError, KeyboardInterrupt):
         logger.exception('Script Error')
         threads = None
@@ -162,8 +164,9 @@ def club_scan(ip):
                 if all_api_payload:
                     add = all_api_payload[0]
                     remove = all_api_payload[1]
-                    # update = all_api_payload[2]
-                api_call(results_copy[0]['Location'], add, remove)
+                    restore = all_api_payload[2]
+                    update = all_api_payload[3]
+                api_call(results_copy[0]['Location'], add, remove, restore, update)
             updated_results = save_results(results, str(ip))
             add_to_db(updated_results, scan_count)
             csv(results, scan_count)
@@ -259,6 +262,7 @@ def connect(ip):
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             logger.debug('port 22 is showing closed for {}'
                                          .format(ip))
+                            print('NOT CONNECTED 2')
                             not_connected.append(ip)
                             return None
                         else:
@@ -277,6 +281,7 @@ def connect(ip):
 
         # exhausted all tries to connect, return None and exit
         logger.error('Connection to {} is not possible: '.format(ip))
+        print('NOT CONNECTED 1')
         not_connected.append(ip)
         return None
 
@@ -506,6 +511,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     else:
                         logger.exception('Could not get arp table for ip {}'
                                          .format(host))
+                        print('NOT CONNECTED 5')
                         not_connected.append(host)
                         failed_results = {'Host': host,
                                           'Location': club_result,
@@ -565,6 +571,7 @@ def save_results(results, host):
 
     else:
         logger.error('No results received from router')
+        print('NOT CONNECTED 4')
         not_connected.append(host)
 
 
@@ -678,61 +685,6 @@ def check_if_remove(diff_item):
         return True
 
 
-def check_if_add(diff_item):
-    """ Check if record has been in baseline for last 4 scans (weeks)
-    if record is found within the last 4 baselines, return False
-    if record is not found within the last 4 baselines, return True"""
-    baselines = last_4_baselines(diff_item)
-
-    if baselines is None:
-        return True
-
-    baseline_1 = baselines[0]
-    baseline_2 = baselines[1]
-    baseline_3 = baselines[2]
-    baseline_4 = baselines[3]
-
-    id_found = next((itm for itm in baseline_1 if
-                     diff_item['ID'] == itm['ID']), None)
-
-    mac_found = next((item for item in baseline_1 if
-                      diff_item['Mac Address'] ==
-                      item['Mac Address']), None)
-    if id_found is not None and mac_found is not None:
-        return False
-
-    id_found_2 = next((itm for itm in baseline_2 if
-                       diff_item['ID'] == itm['ID']), None)
-
-    mac_found_2 = next((item for item in baseline_2 if
-                        diff_item['Mac Address'] ==
-                        item['Mac Address']), None)
-    if id_found_2 is not None and mac_found_2 is not None:
-        return False
-
-    id_found_3 = next((itm for itm in baseline_3 if
-                       diff_item['ID'] == itm['ID']), None)
-
-    mac_found_3 = next((item for item in baseline_3 if
-                        diff_item['Mac Address'] ==
-                        item['Mac Address']), None)
-
-    if id_found_3 is not None and mac_found_3 is not None:
-        return False
-
-    id_found_4 = next((itm for itm in baseline_4 if
-                       diff_item['ID'] == itm['ID']), None)
-
-    mac_found_4 = next((item for item in baseline_4 if
-                        diff_item['Mac Address'] ==
-                        item['Mac Address']), None)
-    if id_found_4 is not None and mac_found_4 is not None:
-        return False
-
-    else:
-        return True
-
-
 def diff(results):
     """ Function to get differences between current and prior scans
     by date of scan.
@@ -755,14 +707,15 @@ def diff(results):
     if results:
         logger.debug('Comparing to Prior Scan, Looking for Differences')
         club = results[0]['Location']
-    results_macs = []
-    # update = []
-    remove = []
-    # review = []
-    add = []
-    all_diff = []
-    if not results:
+    else:
         return None
+
+    add = []
+    remove = []
+    update = []
+    restore = []
+    all_diff = []
+    results_macs = []
 
     client = pymongo.MongoClient("mongodb://localhost:27017/")
 
@@ -771,22 +724,17 @@ def diff(results):
 
     # Use database "snipe" to compare
     snipe_coll = db['snipe']
-
+    # all deleted items in snipe
     deleted_coll = db['deleted']
 
-    # Use prior scans to check if device was currently in snipe
-
-    # if there is no scan in the db, if there are items in snipe get ids
-    # if there are no devices in snipe add to "add" list and send api call
-
+    # Find out if location has already been scanned
     snipe_location = snipe_coll.find({'Location': results[0]['Location']},
                                      {'Location': 1, '_id': 0})
 
-    snipe_location_amt = snipe_coll.count({'Location': results[0]['Location']})
-
-    if snipe_location_amt == 0:
-        # this needs to be tested
+    # If location is not found, 
+    if not snipe_location:
         logger.debug('No prior scan found to compare, adding all items to snipe-it')
+        # add all items 
         for item in results:
             add.append(item)
 
@@ -803,12 +751,12 @@ def diff(results):
             add_file.write(dumps(list(add), indent=4))
             add_file.close()
             all_diff.extend(add)
-            return [add, remove]
+            return [add, remove, restore, update]
         else:
             return None
 
     if results[0]['Location'] != snipe_location[0]['Location']:
-        logger.error('Club information cannot be compared')
+        logger.debug('Club information cannot be compared')
         return None
 
     # make directory that will contain all scan statuses by date
@@ -819,6 +767,7 @@ def diff(results):
     # create file to write status of differences as they happen
     status_file = open('/opt/Inventory/scans/scan_status/scan_{}'
                        .format(today.strftime('%m%d%Y')), 'a+')
+
     if club:
         status_file.write('\n\n')
         status_file.write(club.upper())
@@ -826,36 +775,74 @@ def diff(results):
 
     count_add = 0
     count_remove = 0
+    count_restore = 0
+    count_update = 0
 
     # Query mongo for all mac addresses in current location
     # location is based on results[0]['Location']
-    snipe_mac = snipe_coll.find({'Location': results[0]['Location']},
+    club_mac = snipe_coll.find({'Location': results[0]['Location']},
                                 {'Mac Address': 1, '_id': 0})
     # add db query to a list of dictionaries
-    snipe_mac = list(snipe_mac)
+    club_mac = list(club_mac)
 
     # list comprehension to get mac address values from snipe db
     # from list of dictionaries to just a list of mac addresses
-    snipe_mac_list = [item['Mac Address'] for item in snipe_mac]
+    club_mac_list = [item['Mac Address'] for item in club_mac]
 
-    # loop through results and append all results mac addr values to a list
     for item in results:
         # find mac address in deleted list, to see whether or not item is new or
         # is being restored
-        deleted_mac = deleted_coll.find_one({'_snipeit_mac_address_7': item['Mac Address']},
+        deleted_mac = deleted_coll.find_one({'_snipeit_mac_address_7': item['Mac Address'],
+                                             'Location': item['Location']},
                                             {'_snipeit_mac_address_7': 1, '_id': 0})
+
         results_macs.append(item['Mac Address'])
         # query for specific mac address from results in mongodb
-        new_mac = snipe_coll.find({'Mac Address': item['Mac Address']},
-                                  {'Mac Address': 1, '_id': 0})
-        # if mac address cannot be found in db
-        # and it is not found in deleted db it is new
-        if new_mac.count() == 0 and not deleted_mac:
-            count_add += 1
-            # if device is not found in 4 prior scans
-            check_add = check_if_add(item)
-            # if check_add is true, mac not found in prior 4 scans, add new
-            if check_add is True:
+        mac_in_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                        'Location': item['Location'],
+                                        'IP': item['IP']},
+                                       {'Mac Address': 1, '_id': 0})
+        mac_in_snipe = (list(mac_in_snipe))
+        # see if mac is in other locations
+        if not mac_in_snipe:
+            # mac address found in a different location
+            mac_other_snipe = snipe_coll.find({'Mac Address': item['Mac Address']},
+                                              {'Mac Address': 1, 'Location': 1, '_id': 0})
+            # mac address found with a different IP
+            mac_ip_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                            'Location': item['Location']},
+                                           {'Mac Address': 1, 'IP': 1, '_id': 0})
+            mac_other_snipe = list(mac_other_snipe)
+            mac_ip_snipe = list(mac_ip_snipe)
+            if mac_other_snipe and not mac_ip_snipe:
+                count_update += 1
+                update.append(item)
+                msg1 = ('Device from {}, ID {} and Mac Address {} '
+                        'has a different location - {}'
+                        .format(item['Location'],
+                                item['ID'],
+                                item['Mac Address'],
+                                mac_other_snipe[0]['Location']))
+                logger.debug('UPDATED ASSET {}'.format(count_update))
+                logger.debug(msg1)
+                status_file.write(msg1)
+
+            elif not mac_in_snipe and mac_ip_snipe:
+                count_update += 1
+                update.append(item)
+                msg1 = ('Device from {}, ID {} and Mac Address {} '
+                        'has a different IP - {}'
+                        .format(item['Location'],
+                                item['ID'],
+                                item['Mac Address'],
+                                mac_ip_snipe[0]['IP']))
+                logger.debug('UPDATED ASSET {}'.format(count_update))
+                logger.debug(msg1)
+                status_file.write(msg1)
+
+            elif not mac_in_snipe and not mac_other_snipe and not deleted_mac:
+                count_add += 1
+        
                 add.append(item)
                 msg1 = ('New device with ID {} and Mac Address {} '
                         'added'
@@ -865,25 +852,23 @@ def diff(results):
                 logger.debug(msg1)
                 status_file.write(msg1)
 
-        # if mac address cannot be found in db
-        # and it is found in deleted db it is not new but will be restored
-        if new_mac.count() == 0 and deleted_mac:
-            count_add += 1
-            # if device is not found in 4 prior scans
-            check_add = check_if_add(item)
-            # if check_add is true, mac not found in prior 4 scans, add new
-            if check_add is True:
-                add.append(item)
-                msg1 = ('Device with ID {} and Mac Address {} '
-                        'restored'
-                        .format(item['ID'],
-                                item['Mac Address']))
-                logger.debug('RESTORED ASSET {}'.format(count_add))
-                logger.debug(msg1)
-                status_file.write(msg1)
+        elif not mac_in_snipe and deleted_mac:
+            count_restore += 1
+            restore.append(item)
+            msg1 = ('Device with ID {} and Mac Address {} '
+                    'restored'
+                    .format(item['ID'],
+                            item['Mac Address']))
+            logger.debug('RESTORED ASSET {}'.format(count_restore))
+            logger.debug(msg1)
+            status_file.write(msg1)
+
+        else:
+            continue
+    
 
     # check if each mac address in snipedb is in results mac address list
-    not_in_results = list(filter(lambda item: item not in results_macs, snipe_mac_list))
+    not_in_results = list(filter(lambda item: item not in results_macs, club_mac_list))
 
     if not_in_results:
         for item in not_in_results:
@@ -906,11 +891,12 @@ def diff(results):
                 logger.debug(msg7)
                 status_file.write(msg7)
 
-    if add:
+    if add or restore:
         # create file for add
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m%d%Y")), 'a+')
         add_file.write(dumps(list(add), indent=4))
+        add_file.write(dumps(list(restore), indent=4))
         add_file.close()
         all_diff.extend(add)
 
@@ -922,64 +908,10 @@ def diff(results):
         remove_file.close()
         all_diff.extend(remove)
 
-    return [add, remove]
+    return [add, remove, restore, update]
 
 
-def api_payload(all_diff):
-    """Returns a list of strings with " escaped for each club changes,
-    needed for API call.
-
-        Args:
-            all_diff = return from diff() for each club
-
-        Returns:
-            list of strings with escaped "
-
-        Raises:
-            Does not raise an error, returns none if functions fails
-    """
-    diff = deepcopy(all_diff)
-    add = []
-    remove = []
-
-    if not all_diff:
-        return None
-
-    # review = all_diff[3]
-
-    for list in diff:
-        for item in list:
-            item['_snipeit_mac_address_7'] = item.pop('Mac Address')
-            item['_snipeit_ip_6'] = item.pop('IP')
-            item['_snipeit_hostname_8'] = item.pop('Hostname')
-            item['asset_tag'] = item.pop('Asset Tag')
-            item['id'] = item.pop('ID')
-            if 'Model Number' in item:
-                item['model_id'] = item.pop('Model Number')
-            if 'Status ID' in item:
-                item['status_id'] = item.pop('Status ID')
-            if 'Location ID' in item:
-                item['rtd_location_id'] = item.pop('Location ID')
-            if 'Status' in item:
-                item.pop('Status')
-
-    add = diff[0]
-    remove = diff[1]
-    # update = diff[2]
-
-    for item in add:
-        item.pop('id')
-
-    if add:
-        logger.debug('ADD ASSETS FULL INFORMATION')
-        logger.debug(pformat(add))
-    if remove:
-        logger.debug('REMOVE ASSETS FULL INFORMATION')
-        logger.debug(pformat(remove))
-    return [add, remove]
-
-
-def api_call(club_id, add, remove):
+def api_call(club_id, add, remove, restore, update):
 
     # make directory that will contain all scan statuses by date
     mydir = path.join('/opt/Inventory/scans/api_status')
@@ -991,13 +923,24 @@ def api_call(club_id, add, remove):
                        .format(today.strftime('%m%d%Y')), 'a+')
     if club_id:
         club = str(club_id)
-        # possible bug -line below. When club is none, sends error
-        # baseline_dir = path.join('/opt/Inventory/scans/baselines/', club)
 
-        if club and add or remove:
+        if club and add or remove or restore or update:
             status_file.write('\n\n')
             status_file.write(club.upper())
             status_file.write('\n')
+
+    # looking for id in mongo "deleted" collection
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # Use database called inventory
+    db = client['inventory']
+
+    # Use database "deleted"
+    del_coll = db['deleted']
+
+    # use database 'snipe'
+    snipe_coll = db['snipe']
+
 
     if add:
         for item in add:
@@ -1024,125 +967,25 @@ def api_call(club_id, add, remove):
                                  .format(item['asset_tag']))
                 continue
 
-            # checking if item was previously deleted so it can be restored and not create
-            # a new entry since it is not necessary and will prevent duplicate entries
-
-            # looking for id in mongo "deleted" collection
-            client = pymongo.MongoClient("mongodb://localhost:27017/")
-
-            # Use database called inventory
-            db = client['inventory']
-
-            # Use database "deleted"
-            del_coll = db['deleted']
-
-            cursor = del_coll.find()
-            del_item = None
-            del_item_alt = None
-            if cursor.count() != 0:
-                # find previously deleted item by mac address, and ip
-                del_item = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
-                                              '_snipeit_ip_6': item['_snipeit_ip_6'],
-                                              'Location': item['Location']},
-                                             {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
-                                              '_snipeit_ip_6': 1, '_id': 0})
-                if not del_item:
-                    # if not found, make sure item with just the mac address was not previously deleted
-                    # ip has changed, update deleted collection in mongo with new ip
-                    del_item_alt = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
-                                                      'Location': item['Location']},
-                                                     {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
-                                                      '_snipeit_ip_6': 1, '_id': 0})
-            else:
-                del_item = None
-
-            logger.debug('Mac Address {}, IP {}'
-                         .format(item['_snipeit_mac_address_7'],
-                                 item['_snipeit_ip_6']))  # remove line
-            # if mac address and ip for item found in "deleted" collection
             try:
-                if del_item or del_item_alt:
-                    if del_item:
-                        item_tag = str(del_item['asset_tag'])
-                        item_id = str(del_item['id'])
-                        item_mac = str(del_item['_snipeit_mac_address_7'])
-                        item_ip = str(del_item['_snipeit_ip_6'])
-                    elif del_item_alt:
-                        item_tag = str(del_item_alt['asset_tag'])
-                        item_id = str(del_item_alt['id'])
-                        item_mac = str(del_item_alt['_snipeit_mac_address_7'])
-                        item_ip = str(item['_snipeit_ip_6'])
-
-                    if item_ip and item_mac:
-                        url = cfg.api_url_restore_deleted.format(item_id)
-                        response = requests.request("POST",
-                                                    url=url,
-                                                    headers=cfg.api_headers)
-                        logger.debug(pformat(response.text))
-                        content = response.json()
-                        status = str(content['status'])
-                        # record status of api call and save with tag in list
-                        api_snipe = {'asset_tag': item_tag,
-                                     'status': status}
-                        api_status.append(api_snipe)
-                        msg = ('Restored item with asset_tag {} '
-                               'and id {} in Snipe-IT\n')
-
-                        status_file.write(msg.format(item_tag, item_id))
-                        logger.info(msg.format(item_tag, item_id))
-                        res_tuple = (club_id, item_tag)
-                        restored.append(res_tuple)
-
-                        # if item has a different ip address, partially update item in snipe it
-                        if del_item_alt:
-                            url = cfg.api_url_update.format(del_item_alt['id'])
-                            item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6']})
-                            payload = item_str.replace('\'', '\"')
-                            logger.debug(payload)
-                            response = requests.request("PATCH",
-                                                        url=url,
-                                                        data=payload,
-                                                        headers=cfg.api_headers)
-                            logger.debug(pformat(response.text))
-                            content = response.json()
-                            status = str(content['status'])
-                            # record status of api call and save with tag in list
-                            api_snipe = {'asset_tag': item_tag,
-                                         'status': status}
-                            api_status.append(api_snipe)
-                            msg = ('Updated item with asset_tag {} '
-                                   'and id {} with new IP {} in Snipe-IT\n')
-
-                            del_coll.update_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
-                                                {'$set': {'_snipeit_ip_6': item['_snipeit_ip_6']}})
-
-                            status_file.write(msg.format(item_tag, item_id, item_ip))
-                            logger.info(msg.format(item_tag, item_id, item_ip))
-                        else:
-                            continue
-
-                if not del_item and not del_item_alt:
-                    logger.debug('Item has never been previously deleted,'
-                                 ' creating new item')
-                    # adding brand new item to snipe-it
-                    item_id = None
-                    url = cfg.api_url
-                    item_str = str(item)
-                    payload = item_str.replace('\'', '\"')
-                    logger.debug(payload)
-                    response = requests.request("POST",
-                                                url=url,
-                                                data=payload,
-                                                headers=cfg.api_headers)
-                    logger.info(pformat(response.text))
-                    content = response.json()
-                    status = str(content['status'])
-                    # record status of api call and save with tag in list
-                    api_snipe = {'asset_tag': asset_tag,
-                                 'status': status}
-                    api_status.append(api_snipe)
-                    add_tuple = (club_id, item['asset_tag'])
-                    added.append(add_tuple)
+                logger.debug('Creating new item')
+                # adding brand new item to snipe-it
+                item_id = None
+                url = cfg.api_url
+                item_str = str(item)
+                payload = item_str.replace('\'', '\"')
+                logger.debug(payload)
+                response = requests.request("POST",
+                                            url=url,
+                                            data=payload,
+                                            headers=cfg.api_headers)
+                logger.info(pformat(response.text))
+                content = response.json()
+                status = str(content['status'])
+                # record status of api call and save with tag in list
+                api_snipe = {'asset_tag': asset_tag,
+                             'status': status}
+                api_status.append(api_snipe)
 
                 if response.status_code == 200:
                     if status == 'success':
@@ -1150,6 +993,8 @@ def api_call(club_id, add, remove):
                                    'with asset-tag {} to Snipe-IT\n')
                         status_file.write(msg_add.format(item['asset_tag']))
                         logger.info(msg_add.format(item['asset_tag']))
+                        add_tuple = (club_id, item['asset_tag'])
+                        added.append(add_tuple)
                     elif status == 'error':
                         msg_add = ('Could not add new item '
                                    'with asset-tag {} to Snipe-IT, review.\n')
@@ -1173,6 +1018,185 @@ def api_call(club_id, add, remove):
                                  .format(item['Location'],
                                          item['_snipeit_ip_6'],
                                          item['_snipeit_mac_address_7']))
+
+    if restore:
+        for item in restore:
+
+            # find previously deleted item by mac address, and ip
+            del_item = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                          '_snipeit_ip_6': item['_snipeit_ip_6'],
+                                          'Location': item['Location']},
+                                         {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
+                                          '_snipeit_ip_6': 1, '_id': 0})
+
+            # if not found, make sure item with just the mac address was not previously deleted
+            # ip has changed, update deleted collection in mongo with new ip
+            del_item_diff_ip = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                                  'Location': item['Location']},
+                                                 {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
+                                                  '_snipeit_ip_6': 1, '_id': 0})
+
+            try:
+                if del_item:
+                    item_tag = str(del_item['asset_tag'])
+                    item_id = str(del_item['id'])
+                    item_mac = str(del_item['_snipeit_mac_address_7'])
+                    item_ip = str(del_item['_snipeit_ip_6'])
+
+                    # all is needed to restore is asset_tag
+                    url = cfg.api_url_restore_deleted.format(item_id)
+                    response = requests.request("POST",
+                                                url=url,
+                                                headers=cfg.api_headers)
+
+                if del_item_diff_ip and not del_item:
+                    item_tag = str(del_item_diff_ip['asset_tag'])
+                    item_id = str(del_item_diff_ip['id'])
+                    item_mac = str(del_item_diff_ip['_snipeit_mac_address_7'])
+                    item_ip = str(item['_snipeit_ip_6'])
+
+                    # all is needed to restore is asset_tag
+                    url = cfg.api_url_restore_deleted.format(item_id)
+                    response = requests.request("POST",
+                                                url=url,
+                                                headers=cfg.api_headers)
+
+                    # if item has a different ip address, partially update item in snipe it
+                    url = cfg.api_url_update.format(del_item_alt['id'])
+                    item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6']})
+                    payload = item_str.replace('\'', '\"')
+                    logger.debug(payload)
+                    response2 = requests.request("PATCH",
+                                                 url=url,
+                                                 data=payload,
+                                                 headers=cfg.api_headers)
+                    logger.debug(pformat(response2.text))
+                    content2 = response2.json()
+                    status = str(content2['status'])
+                    # record status of api call and save with tag in list
+                    api_snipe = {'asset_tag': item_tag,
+                                 'status': status}
+                    api_status.append(api_snipe)
+                    msg = ('Updated item with asset_tag {} '
+                           'and id {} with new IP {} in Snipe-IT\n')
+
+                    del_coll.update_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
+                                        {'$set': {'_snipeit_ip_6': item['_snipeit_ip_6']}})
+
+                    status_file.write(msg.format(item_tag, item_id, item_ip))
+                    logger.info(msg.format(item_tag, item_id, item_ip))
+
+
+                logger.debug(pformat(response.text))
+                content = response.json()
+                status = str(content['status'])
+                # record status of api call and save with tag in list
+                api_snipe = {'asset_tag': item_tag,
+                             'status': status}
+                api_status.append(api_snipe)
+                msg = ('Restored item with asset_tag {} '
+                       'and id {} in Snipe-IT\n')
+                status_file.write(msg.format(item_tag, item_id))
+                logger.info(msg.format(item_tag, item_id))
+
+                if response.status_code == 200:
+                        if status == 'success':
+                            msg_add = ('Restored item '
+                                       'with asset-tag {} to Snipe-IT\n')
+                            status_file.write(msg_add.format(item['asset_tag']))
+                            logger.info(msg_add.format(item['asset_tag']))
+                            res_tuple = (club_id, item_tag)
+                            restored.append(res_tuple)
+                        elif status == 'error':
+                            msg_add = ('Could not add new item '
+                                       'with asset-tag {} to Snipe-IT, review.\n')
+                            status_file.write(msg_add.format(item['asset_tag']))
+                            logger.info(msg_add.format(item['asset_tag']))
+
+                elif response.status_code == 401:
+                    status_file.write('Unauthorized. Could not send '
+                                      'request to add new item '
+                                      'with asset-tag {} to Snipe-IT\n'
+                                      .format(item['asset_tag']))
+                elif response.status_code == 422:
+                    status_file.write('Payload does not match Snipe_IT. '
+                                      'item {}\n'
+                                      .format(item['asset_tag']))
+            except (KeyError,
+                    decoder.JSONDecodeError):
+                logger.exception('There was an error adding the asset '
+                                 'to Snipe-IT, check: '
+                                 '{}, ip {}, mac address {}'
+                                 .format(item['Location'],
+                                         item['_snipeit_ip_6'],
+                                         item['_snipeit_mac_address_7']))
+
+    if update:
+        for item in update:
+
+            # get current snipe info for this mac address
+            snipe_mac = snipe_coll.find({'Mac Address': item['_snipeit_mac_address_7']},
+                                        {'Mac Address': 1, 'Asset Tag': 1,
+                                         'IP': 1, 'Location': 1, 'Location ID':1,
+                                         'Hostname': 1, 'ID':1, '_id': 0})
+
+            try:
+                snipe_mac = list(snipe_mac)
+
+                url = cfg.api_url_update.format(snipe_mac[0]['ID'])
+                item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6'],
+                                '_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                '_snipeit_hostname_8': item['_snipeit_hostname_8'],
+                                'asset_tag': item['asset_tag'],
+                                'rtd_location_id': item['rtd_location_id']})
+                payload = item_str.replace('\'', '\"')
+                logger.debug(payload)
+                response = requests.request("PATCH",
+                                            url=url,
+                                            data=payload,
+                                            headers=cfg.api_headers)
+                logger.debug(pformat(response.text))
+                content = response.json()
+                status = str(content['status'])
+                # record status of api call and save with tag in list
+                api_snipe = {'asset_tag': item['asset_tag'],
+                             'status': status}
+                api_status.append(api_snipe)
+
+                status_file.write(msg.format(item['asset_tag'], item['id']))
+                logger.info(msg.format(item['asset_tag'], item['id']))
+
+                if response.status_code == 200:
+                    if status == 'success':
+                        msg_upd = ('Updated item with asset_tag {} '
+                                   'and id {} in Snipe-IT\n')
+                        status_file.write(msg_add.format(item['asset_tag']))
+                        logger.info(msg_add.format(item['asset_tag']))
+                        upd_tuple = (item['Location'], item['asset_tag'])
+                        updated.append(upd_tuple)
+
+                    elif status == 'error':
+                        msg_upd = ('Could not update item '
+                                   'with asset-tag {} to Snipe-IT, review.\n')
+                        status_file.write(msg_upd.format(item['asset_tag']))
+                        logger.info(msg_upd.format(item['asset_tag']))
+
+                elif response.status_code == 422:
+                    status_file.write('Payload does not match Snipe_IT. '
+                                      'item {}\n'
+                                      .format(item['asset_tag']))
+            
+            except (KeyError,
+                    decoder.JSONDecodeError):
+                logger.exception('There was an error updating the asset '
+                                 'check result {}, ip {}, mac address {} '
+                                 'snipe item {}, ip {}, mac address {} '
+                                 .format(item['Location'],
+                                         item['_snipeit_ip_6'],
+                                         item['_snipeit_mac_address_7'],
+                                         snipe_mac[0]['Location'],
+                                         snipe_mac[0]['IP'],
+                                         snipe_mac[0]['Mac Address']))
 
     if remove:
         for item in remove:
@@ -1208,11 +1232,74 @@ def api_call(club_id, add, remove):
                 del_tuple = (club_id, item['asset_tag'])
                 deleted.append(del_tuple)
 
-            if response.status_code == 401:
+            elif response.status_code == 401:
                 status_file.write('Unauthorized. Could not send '
                                   'request to remove item '
                                   'with asset-tag {} from Snipe-IT\n'
                                   .format(item['asset_tag']))
+
+
+def api_payload(all_diff):
+    """Returns a list of strings with " escaped for each club changes,
+    needed for API call.
+
+        Args:
+            all_diff = return from diff() for each club
+
+        Returns:
+            list of strings with escaped "
+
+        Raises:
+            Does not raise an error, returns none if functions fails
+    """
+    diff = deepcopy(all_diff)
+    add = []
+    remove = []
+    restore = []
+    update = []
+
+    if not all_diff:
+        return None
+
+    # review = all_diff[3]
+
+    for list in diff:
+        for item in list:
+            item['_snipeit_mac_address_7'] = item.pop('Mac Address')
+            item['_snipeit_ip_6'] = item.pop('IP')
+            item['_snipeit_hostname_8'] = item.pop('Hostname')
+            item['asset_tag'] = item.pop('Asset Tag')
+            item['id'] = item.pop('ID')
+            if 'Model Number' in item:
+                item['model_id'] = item.pop('Model Number')
+            if 'Status ID' in item:
+                item['status_id'] = item.pop('Status ID')
+            if 'Location ID' in item:
+                item['rtd_location_id'] = item.pop('Location ID')
+            if 'Status' in item:
+                item.pop('Status')
+
+    add = diff[0]
+    remove = diff[1]
+    restore = diff[2]
+    update = diff[3]
+
+    for item in add:
+        item.pop('id')
+
+    for item in restore:
+        item.pop('id')
+
+    if add:
+        logger.debug('ADD ASSETS FULL INFORMATION')
+        logger.debug(pformat(add))
+    if remove:
+        logger.debug('REMOVE ASSETS FULL INFORMATION')
+        logger.debug(pformat(remove))
+    if restore:
+        logger.debug('RESTORE ASSETS FULL INFORMATION')
+        logger.debug(pformat(restore))
+    return [add, remove, restore, update]
 
 
 def get_id(asset_tag):
@@ -1246,7 +1333,6 @@ def get_id(asset_tag):
 
 def last_4_baselines(diff_item):
     """Opens and loads prior 4 scans as baselines for use in check_if_remove()
-        and check_if_add()
 
         Args:
             item from differences that no longer appears in results
@@ -1587,6 +1673,7 @@ def club_ips(club_list):
                     club_ip_list.append(club_ip)
                 else:
                     logger.debug('cannot find IP for {}'.format(club_))
+                    print('NOT CONNECTED 3')
                     not_connected.append(club_)
                     continue
 
@@ -1702,6 +1789,7 @@ def script_info():
                    api_status,
                    added,
                    restored,
+                   updated,
                    deleted)
 
 
