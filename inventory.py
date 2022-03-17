@@ -262,7 +262,6 @@ def connect(ip):
                         if scanner[ip]['tcp'][22]['state'] == 'closed':
                             logger.debug('port 22 is showing closed for {}'
                                          .format(ip))
-                            print('NOT CONNECTED 2')
                             not_connected.append(ip)
                             return None
                         else:
@@ -281,7 +280,6 @@ def connect(ip):
 
         # exhausted all tries to connect, return None and exit
         logger.error('Connection to {} is not possible: '.format(ip))
-        print('NOT CONNECTED 1')
         not_connected.append(ip)
         return None
 
@@ -511,7 +509,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     else:
                         logger.exception('Could not get arp table for ip {}'
                                          .format(host))
-                        print('NOT CONNECTED 5')
                         not_connected.append(host)
                         failed_results = {'Host': host,
                                           'Location': club_result,
@@ -571,7 +568,6 @@ def save_results(results, host):
 
     else:
         logger.error('No results received from router')
-        print('NOT CONNECTED 4')
         not_connected.append(host)
 
 
@@ -1157,16 +1153,13 @@ def api_call(club_id, add, remove, restore, update):
                 api_snipe = {'asset_tag': item['asset_tag'],
                              'status': status}
                 api_status.append(api_snipe)
-
-                status_file.write(msg.format(item['asset_tag'], item['id']))
-                logger.info(msg.format(item['asset_tag'], item['id']))
-
                 if response.status_code == 200:
                     if status == 'success':
+                        print(status)
                         msg_upd = ('Updated item with asset_tag {} '
-                                   'and id {} in Snipe-IT\n')
-                        status_file.write(msg_add.format(item['asset_tag']))
-                        logger.info(msg_add.format(item['asset_tag']))
+                                   'in Snipe-IT\n')
+                        status_file.write(msg_upd.format(item['asset_tag']))
+                        logger.info(msg_upd.format(item['asset_tag']))
                         upd_tuple = (item['Location'], item['asset_tag'])
                         updated.append(upd_tuple)
 
@@ -1668,7 +1661,6 @@ def club_ips(club_list):
                     club_ip_list.append(club_ip)
                 else:
                     logger.debug('cannot find IP for {}'.format(club_))
-                    print('NOT CONNECTED 3')
                     not_connected.append(club_)
                     continue
 
