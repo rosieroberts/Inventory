@@ -854,16 +854,16 @@ def diff(results):
                 logger.debug(msg1)
                 status_file.write(msg1)
 
-        elif not mac_in_snipe and deleted_mac:
-            count_restore += 1
-            restore.append(item)
-            msg1 = ('Device with ID {} and Mac Address {} '
-                    'restored'
-                    .format(item['ID'],
-                            item['Mac Address']))
-            logger.debug('RESTORED ASSET {}'.format(count_restore))
-            logger.debug(msg1)
-            status_file.write(msg1)
+            elif not mac_in_snipe and deleted_mac:
+                count_restore += 1
+                restore.append(item)
+                msg1 = ('Device with ID {} and Mac Address {} '
+                        'restored'
+                        .format(item['ID'],
+                                item['Mac Address']))
+                logger.debug('RESTORED ASSET {}'.format(count_restore))
+                logger.debug(msg1)
+                status_file.write(msg1)
 
         elif mac_in_snipe and not asset_tag_diff:
             count_update += 1
@@ -965,7 +965,7 @@ def api_call(club_id, add, remove, restore, update):
                 response = requests.request("GET", url=url, headers=cfg.api_headers)
 
                 content = response.json()
-                status = str(content['status'])
+                status_a = str(content['status'])
                 # record status of api call and save with tag in list
                 tag = str(content['asset_tag'])
                 if tag:
@@ -994,21 +994,21 @@ def api_call(club_id, add, remove, restore, update):
                                             headers=cfg.api_headers)
                 logger.info(pformat(response.text))
                 content = response.json()
-                status = str(content['status'])
+                status_a = str(content['status'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': asset_tag,
-                             'status': status}
+                             'status': status_a}
                 api_status.append(api_snipe)
 
                 if response.status_code == 200:
-                    if status == 'success':
+                    if status_a == 'success':
                         msg_add = ('Added new item '
                                    'with asset-tag {} to Snipe-IT\n')
                         status_file.write(msg_add.format(item['asset_tag']))
                         logger.info(msg_add.format(item['asset_tag']))
                         add_tuple = (club_id, item['asset_tag'])
                         added.append(add_tuple)
-                    elif status == 'error':
+                    elif status_a == 'error':
                         msg_add = ('Could not add new item '
                                    'with asset-tag {} to Snipe-IT, review.\n')
                         status_file.write(msg_add.format(item['asset_tag']))
@@ -1083,10 +1083,10 @@ def api_call(club_id, add, remove, restore, update):
                                                  headers=cfg.api_headers)
                     logger.debug(pformat(response2.text))
                     content2 = response2.json()
-                    status = str(content2['status'])
+                    status_r_2 = str(content2['status'])
                     # record status of api call and save with tag in list
                     api_snipe = {'asset_tag': item_tag,
-                                 'status': status}
+                                 'status': status_r_2}
                     api_status.append(api_snipe)
                     msg = ('Updated item with asset_tag {} '
                            'and id {} with new IP {} in Snipe-IT\n')
@@ -1099,25 +1099,21 @@ def api_call(club_id, add, remove, restore, update):
 
                 logger.debug(pformat(response.text))
                 content = response.json()
-                status = str(content['status'])
+                status_r = str(content['status'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': item_tag,
-                             'status': status}
+                             'status': status_r}
                 api_status.append(api_snipe)
-                msg = ('Restored item with asset_tag {} '
-                       'and id {} in Snipe-IT\n')
-                status_file.write(msg.format(item_tag, item_id))
-                logger.info(msg.format(item_tag, item_id))
 
                 if response.status_code == 200:
-                    if status == 'success':
+                    if status_r == 'success':
                         msg_add = ('Restored item '
                                    'with asset-tag {} to Snipe-IT\n')
                         status_file.write(msg_add.format(item['asset_tag']))
                         logger.info(msg_add.format(item['asset_tag']))
                         res_tuple = (club_id, item_tag)
                         restored.append(res_tuple)
-                    elif status == 'error':
+                    elif status_r == 'error':
                         msg_add = ('Could not add new item '
                                    'with asset-tag {} to Snipe-IT, review.\n')
                         status_file.write(msg_add.format(item['asset_tag']))
@@ -1167,13 +1163,13 @@ def api_call(club_id, add, remove, restore, update):
                                             headers=cfg.api_headers)
                 logger.debug(pformat(response.text))
                 content = response.json()
-                status = str(content['status'])
+                status_u = str(content['status'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': item['asset_tag'],
-                             'status': status}
+                             'status': status_u}
                 api_status.append(api_snipe)
                 if response.status_code == 200:
-                    if status == 'success':
+                    if status_u == 'success':
                         msg_upd = ('Updated item with asset_tag {} '
                                    'in Snipe-IT\n')
                         status_file.write(msg_upd.format(item['asset_tag']))
@@ -1181,7 +1177,7 @@ def api_call(club_id, add, remove, restore, update):
                         upd_tuple = (item['Location'], item['asset_tag'])
                         updated.append(upd_tuple)
 
-                    elif status == 'error':
+                    elif status_u == 'error':
                         msg_upd = ('Could not update item '
                                    'with asset-tag {} to Snipe-IT, review.\n')
                         status_file.write(msg_upd.format(item['asset_tag']))
@@ -1213,10 +1209,10 @@ def api_call(club_id, add, remove, restore, update):
                                         headers=cfg.api_headers)
             logger.info(pformat(response.text))
             content = response.json()
-            status = str(content['status'])
+            status_d = str(content['status'])
             # record status of api call and save with tag in list
             api_snipe = {'asset_tag': asset_tag,
-                         'status': status}
+                         'status': status_d}
             api_status.append(api_snipe)
             if response.status_code == 200:
                 msg_rem = ('Removed item '
