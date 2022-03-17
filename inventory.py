@@ -13,7 +13,7 @@ from time import time, ctime
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
-from pprint import pformat, pprint
+from pprint import pformat
 from ipaddress import ip_address, ip_network
 import requests
 import urllib3
@@ -388,9 +388,8 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 vendor
                             )
                             tag_exists = check_tag(asset_tag, mac_result)
-                            if tag_exists == True:
+                            if tag_exists is True:
                                 asset_tag = str(asset_tag) + '0'
-                            
                             if hostname is None:
                                 continue
 
@@ -802,7 +801,7 @@ def diff(results):
         asset_tag_diff = snipe_coll.find({'Mac Address': item['Mac Address'],
                                           'Location': item['Location'],
                                           'IP': item['IP'], 'Asset Tag': item['Asset Tag']},
-                                         {'Mac Address': 1, 'Asset Tag': 1, '_id': 0}) 
+                                         {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
 
         mac_in_snipe = list(mac_in_snipe)
         asset_tag_diff = list(asset_tag_diff)
@@ -1369,11 +1368,10 @@ def check_tag(asset_tag, mac_addr):
             return True
         else:
             return False
-            
 
     except (KeyError,
             decoder.JSONDecodeError):
-         
+
         return False
 
 
