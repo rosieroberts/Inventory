@@ -13,7 +13,7 @@ from time import time, ctime
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
-from pprint import pformat
+from pprint import pformat, pprint
 from ipaddress import ip_address, ip_network
 import requests
 import urllib3
@@ -387,10 +387,10 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 mac_result,
                                 vendor
                             )
-                            tag_exists = get_id(asset_tag)
-                            if tag_exists:
+                            tag_exists = check_tag(asset_tag, mac_result)
+                            if tag_exists == True:
                                 asset_tag = str(asset_tag) + '0'
-
+                            
                             if hostname is None:
                                 continue
 
@@ -797,8 +797,15 @@ def diff(results):
         mac_in_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
                                         'Location': item['Location'],
                                         'IP': item['IP']},
-                                       {'Mac Address': 1, '_id': 0})
-        mac_in_snipe = (list(mac_in_snipe))
+                                       {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
+
+        asset_tag_diff = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                          'Location': item['Location'],
+                                          'IP': item['IP'], 'Asset Tag': item['Asset Tag']},
+                                         {'Mac Address': 1, 'Asset Tag': 1, '_id': 0}) 
+
+        mac_in_snipe = list(mac_in_snipe)
+        asset_tag_diff = list(asset_tag_diff)
         # see if mac is in other locations
         if not mac_in_snipe:
             # mac address found in a different location
@@ -856,6 +863,19 @@ def diff(results):
                     .format(item['ID'],
                             item['Mac Address']))
             logger.debug('RESTORED ASSET {}'.format(count_restore))
+            logger.debug(msg1)
+            status_file.write(msg1)
+
+        elif mac_in_snipe and not asset_tag_diff:
+            count_update += 1
+            update.append(item)
+            msg1 = ('Device from {}, ID {} and Mac Address {} '
+                    'has a different Asset Tag - {}'
+                    .format(item['Location'],
+                            item['ID'],
+                            item['Mac Address'],
+                            mac_in_snipe[0]['Asset Tag']))
+            logger.debug('UPDATED ASSET {}'.format(count_update))
             logger.debug(msg1)
             status_file.write(msg1)
 
@@ -1155,7 +1175,6 @@ def api_call(club_id, add, remove, restore, update):
                 api_status.append(api_snipe)
                 if response.status_code == 200:
                     if status == 'success':
-                        print(status)
                         msg_upd = ('Updated item with asset_tag {} '
                                    'in Snipe-IT\n')
                         status_file.write(msg_upd.format(item['asset_tag']))
@@ -1294,15 +1313,11 @@ def get_id(asset_tag):
     """Returns a ID for each host.
     This function returns a generated ID after it compares it to ID's
     on baseline, to avoid duplicate IDs.
-
         Args:
             Asset Tag = asset tag of device
-
         Returns:
             ID - get ID from snipe-it
-
         Raises:
-
     """
     try:
         url = cfg.api_url_get + str(asset_tag)
@@ -1317,6 +1332,49 @@ def get_id(asset_tag):
         result_id = None
 
     return result_id
+
+
+def check_tag(asset_tag, mac_addr):
+    # Update
+    """Returns a ID for each host.
+    This function returns a generated ID after it compares it to ID's
+    on baseline, to avoid duplicate IDs.
+
+        Args:
+            Asset Tag = asset tag of device
+
+        Returns:
+            ID - get ID from snipe-it
+
+        Raises:
+
+    """
+
+    try:
+        url = cfg.api_url_get + str(asset_tag)
+        response = requests.request("GET", url=url, headers=cfg.api_headers)
+        content = response.json()
+        status = str(content['status'])
+
+        if status == 'error':
+            asset_tag = asset_tag + '0'
+            url = cfg.api_url_get + str(asset_tag)
+            response = requests.request("GET", url=url, headers=cfg.api_headers)
+
+        content = response.json()
+        snipe_mac_addr = str(content['custom_fields']['Mac Address']['value'])
+        # if new asset_tag mac address is different from mac address in snipe
+        # return true so a 0 is added to the asset tag to prevent duplicates
+        if mac_addr != snipe_mac_addr:
+            return True
+        else:
+            return False
+            
+
+    except (KeyError,
+            decoder.JSONDecodeError):
+         
+        return False
 
 
 def last_4_baselines(diff_item):
