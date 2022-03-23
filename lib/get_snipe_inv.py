@@ -61,13 +61,13 @@ def get_snipe():
                                         headers=cfg.api_headers,
                                         params=querystring)
             content = response.json()
-
             for item in content['rows']:
                 device = {'ID': item['id'],
                           'Asset Tag': item['asset_tag'],
                           'IP': item['custom_fields']['IP']['value'],
                           'Mac Address': item['custom_fields']['Mac Address']['value'],
                           'Location': item['location']['name'],
+                          'Location ID': item['rtd_location']['id'],
                           'Category': item['category']['name'],
                           'Hostname': item['custom_fields']['Hostname']['value'],
                           'Manufacturer': item['manufacturer']['name'],

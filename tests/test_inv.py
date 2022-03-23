@@ -66,6 +66,7 @@ def random_ip(ips):
 @pytest.fixture
 def results(random_ip):
     results = inv.club_scan(random_ip)
+    print(results)
     return results
 
 
@@ -221,7 +222,6 @@ class TestInventory:
     # test for each key in results from club_scan
     def test_4(self, results):
         for item in results:
-            assert item['ID'] is not None
             assert item['Asset Tag'] is not None
             assert item['IP'] is not None
             assert item['Location'] is not None   

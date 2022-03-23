@@ -9,11 +9,11 @@ from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
-from time import time, ctime
+from time import time, ctime, sleep
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
-from pprint import pformat
+from pprint import pformat, pprint
 from ipaddress import ip_address, ip_network
 import requests
 import urllib3
@@ -68,12 +68,13 @@ stream_formatter = Formatter('{threadName} {message}', style='{')
 # logfile
 file_handler = FileHandler('/opt/Inventory/logs/asset_inventory{}.log'
                            .format(today.strftime('%m%d%Y')))
-file_handler.setLevel(INFO)
+file_handler.setLevel(DEBUG)
 file_handler.setFormatter(file_formatter)
 
 # console
 stream_handler = StreamHandler()
 stream_handler.setFormatter(stream_formatter)
+stream_handler.setLevel(DEBUG)
 
 logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
@@ -98,7 +99,7 @@ def main(ip_list):
     csv_trunc()
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             threads = [executor.submit(club_scan, ip) for ip in ip_list]
         script_info()
         get_snipe()
@@ -155,7 +156,7 @@ def club_scan(ip):
                 results = None
 
             for item in results:
-                item['ID'] = get_id(item['Asset Tag'])
+                item['ID'] = get_id(item['Asset Tag'], item['Mac Address'])
             results_copy = deepcopy(results)
 
             all_diff = diff(results_copy)
@@ -167,6 +168,7 @@ def club_scan(ip):
                     restore = all_api_payload[2]
                     update = all_api_payload[3]
                 api_call(results_copy[0]['Location'], add, remove, restore, update)
+            logger.info('{} scanned successfully'.format(results[0]['Location']))
             updated_results = save_results(results, str(ip))
             add_to_db(updated_results, scan_count)
             csv(results, scan_count)
@@ -178,10 +180,10 @@ def club_scan(ip):
             clubs.append(results[0]['Location'])
 
     except(urllib3.exceptions.ProtocolError):
-        logger.exception('Remote end closed connection without response')
+        logger.critical('Remote end closed connection without response', exc_info=True)
         logger.debug('Scanning next club....')
     except(TypeError):
-        logger.exception('Scan for {} ended abruptly'.format(results[0]['Location']))
+        logger.critical('Scan for {} ended abruptly'.format(results[0]['Location']), exc_info=True)
         logger.debug('Scanning next club....')
 
     clb_runtime_end = time()
@@ -276,7 +278,7 @@ def connect(ip):
                     logger.debug('Error, Trying to connect to {} again '.format(ip))
 
                 else:
-                    logger.exception('Could not connect to host')
+                    logger.error('Could not connect to host', exc_info=True)
 
         # exhausted all tries to connect, return None and exit
         logger.error('Connection to {} is not possible: '.format(ip))
@@ -392,7 +394,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 asset_tag = str(asset_tag) + '0'
                             if hostname is None:
                                 continue
-
                             loc_id = 'null'
                             try:
                                 if loc_id_data.get('total') != 0:
@@ -401,7 +402,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                             loc_id = str(itm['id'])
 
                             except KeyError:
-                                logger.exception()
+                                logger.critical('No loc_id', exc_info=True)
                                 loc_id = None
                                 loc_id = str(loc_id)
 
@@ -454,10 +455,8 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 else:
                                     not_added.append(host_info)
                                     continue
-
                             # compare ID to inventory in snipe-it and update ID if found
-                            updated_id = get_id(results[-1]['Asset Tag'])
-
+                            updated_id = get_id(asset_tag, mac_result)
                             if updated_id is not None:
                                 results[-1]['ID'] = updated_id
 
@@ -466,7 +465,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     # Then, not_added items mac's are compared to router
                     # mac's, and if different, added to results to avoid
                     # duplicate values
-
                     if not_added:
                         for itm in not_added:
                             if len(results) == 0:
@@ -475,7 +473,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 if itm['Mac Address'] != results[0]['Mac Address']:
                                     results.append(itm)
                                     # compare ID to inventory in snipe-it and update ID if found
-                                    updated_id = get_id(results[-1]['Asset Tag'])
+                                    updated_id = get_id(asset_tag, mac_result)
 
                                     if updated_id is not None:
                                         results[-1]['ID'] = updated_id
@@ -503,11 +501,11 @@ def get_router_info(conn, host, device_type, loc_id_data):
                        PipeTimeout):
 
                     if attempt2 == 0:
-                        logger.exception('Could not send command, trying again')
+                        logger.error('Could not send command, trying again', exc_info=True)
                         continue
                     else:
-                        logger.exception('Could not get arp table for ip {}'
-                                         .format(host))
+                        logger.critical('Could not get arp table for ip {}'
+                                        .format(host), exc_info=True)
                         not_connected.append(host)
                         failed_results = {'Host': host,
                                           'Location': club_result,
@@ -518,7 +516,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
                  .format(runtime2))
-    logger.debug(pformat(results))
+    #logger.debug(pformat(results))
     return results
 
 
@@ -553,7 +551,7 @@ def save_results(results, host):
 
         for item in results:
             if item['ID'] is None:
-                item_id = get_id(item['Asset Tag'])
+                item_id = get_id(item['Asset Tag'], item['Mac Address'])
                 if item_id:
                     item['ID'] = item_id
                 else:
@@ -820,7 +818,7 @@ def diff(results):
                 count_update += 1
                 update.append(item)
                 msg1 = ('Device from {}, ID {} and Mac Address {} '
-                        'has a different location - {}'
+                        'has a different location - {}\n'
                         .format(item['Location'],
                                 item['ID'],
                                 item['Mac Address'],
@@ -833,7 +831,7 @@ def diff(results):
                 count_update += 1
                 update.append(item)
                 msg1 = ('Device from {}, ID {} and Mac Address {} '
-                        'has a different IP - {}'
+                        'has a different IP - {}\n'
                         .format(item['Location'],
                                 item['ID'],
                                 item['Mac Address'],
@@ -847,7 +845,7 @@ def diff(results):
 
                 add.append(item)
                 msg1 = ('New device with ID {} and Mac Address {} '
-                        'added'
+                        'added\n'
                         .format(item['ID'],
                                 item['Mac Address']))
                 logger.debug('NEW ASSET {}'.format(count_add))
@@ -858,7 +856,7 @@ def diff(results):
                 count_restore += 1
                 restore.append(item)
                 msg1 = ('Device with ID {} and Mac Address {} '
-                        'restored'
+                        'restored\n'
                         .format(item['ID'],
                                 item['Mac Address']))
                 logger.debug('RESTORED ASSET {}'.format(count_restore))
@@ -869,7 +867,7 @@ def diff(results):
             count_update += 1
             update.append(item)
             msg1 = ('Device from {}, ID {} and Mac Address {} '
-                    'has a different Asset Tag - {}'
+                    'has a different Asset Tag - {}\n'
                     .format(item['Location'],
                             item['ID'],
                             item['Mac Address'],
@@ -898,7 +896,7 @@ def diff(results):
                 remove.append(itm)
                 msg7 = ('Device with ID {} and Mac Address {} '
                         'no longer found, '
-                        'will be removed'
+                        'will be removed '
                         .format(itm['ID'],
                                 itm['Mac Address']))
                 logger.debug('REMOVED ASSET {}'.format(count_remove))
@@ -921,6 +919,13 @@ def diff(results):
         remove_file.write(dumps(list(remove), indent=4))
         remove_file.close()
         all_diff.extend(remove)
+
+
+    if add or remove or restore or update:
+        logger.info('Differences found, will update snipe-it')
+        print(add, remove, restore, update)
+    else:
+        logger.info('_____No differences found____')
 
     return [add, remove, restore, update]
 
@@ -964,6 +969,7 @@ def api_call(club_id, add, remove, restore, update):
 
                 response = requests.request("GET", url=url, headers=cfg.api_headers)
 
+                logger.info('Request GET - Add')
                 content = response.json()
                 status_a = str(content['status'])
                 # record status of api call and save with tag in list
@@ -976,8 +982,8 @@ def api_call(club_id, add, remove, restore, update):
                     decoder.JSONDecodeError):
                 tag = None
             if tag is not None:
-                logger.exception('Cannot add item to Snipe-IT, asset tag {} already exists.'
-                                 .format(item['asset_tag']))
+                logger.error('Cannot add item to Snipe-IT, asset tag {} already exists.'
+                             .format(item['asset_tag']), exc_info=True)
                 continue
 
             try:
@@ -992,13 +998,14 @@ def api_call(club_id, add, remove, restore, update):
                                             url=url,
                                             data=payload,
                                             headers=cfg.api_headers)
+                logger.info('Request POST - Add')
                 logger.info(pformat(response.text))
                 content = response.json()
                 status_a = str(content['status'])
+                status_message_a = str(content['messages'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': asset_tag,
                              'status': status_a}
-                api_status.append(api_snipe)
 
                 if response.status_code == 200:
                     if status_a == 'success':
@@ -1008,29 +1015,57 @@ def api_call(club_id, add, remove, restore, update):
                         logger.info(msg_add.format(item['asset_tag']))
                         add_tuple = (club_id, item['asset_tag'])
                         added.append(add_tuple)
+                        api_status.append(api_snipe)
                     elif status_a == 'error':
-                        msg_add = ('Could not add new item '
-                                   'with asset-tag {} to Snipe-IT, review.\n')
-                        status_file.write(msg_add.format(item['asset_tag']))
-                        logger.info(msg_add.format(item['asset_tag']))
+                        while status_message_a == 'Too many requests':
+                            print('-----')
+                            sleep(10)
+                            print('SLEEP')
+                            print('Too many requests----------------------')
+                            response = requests.request("POST",
+                                                        url=url,
+                                                        data=payload,
+                                                        headers=cfg.api_headers)
+                            logger.info('Request POST - Add 2')
+                            logger.info(pformat(response.text))
+                            content = response.json()
+                            status_a = str(content['status'])
+                            status_message_a = str(content['messages'])
+
+                            if status_a == 'success':
+                                print('too many requests success')
+                                api_snipe = {'asset_tag': asset_tag,
+                                             'status': status_a}
+                                api_status.append(api_snipe)
+                        else:
+                            print('could not add new item')
+                            api_snipe = {'asset_tag': asset_tag,
+                                         'status': status_a}
+                            api_status.append(api_snipe)
+                            msg_add = ('Could not add new item '
+                                       'with asset-tag {} to Snipe-IT, review.\n')
+                            status_file.write(msg_add.format(item['asset_tag']))
+                            logger.info(msg_add.format(item['asset_tag']))
 
                 elif response.status_code == 401:
                     status_file.write('Unauthorized. Could not send '
                                       'request to add new item '
                                       'with asset-tag {} to Snipe-IT\n'
                                       .format(item['asset_tag']))
+                    api_status.append(api_snipe)
                 elif response.status_code == 422:
                     status_file.write('Payload does not match Snipe_IT. '
                                       'item {}\n'
                                       .format(item['asset_tag']))
+                    api_status.append(api_snipe)
             except (KeyError,
                     decoder.JSONDecodeError):
-                logger.exception('There was an error adding the asset '
+                logger.error('There was an error adding the asset '
                                  'to Snipe-IT, check: '
                                  '{}, ip {}, mac address {}'
                                  .format(item['Location'],
                                          item['_snipeit_ip_6'],
-                                         item['_snipeit_mac_address_7']))
+                                         item['_snipeit_mac_address_7']), exc_info=True)
 
     if restore:
         for item in restore:
@@ -1060,6 +1095,7 @@ def api_call(club_id, add, remove, restore, update):
                     response = requests.request("POST",
                                                 url=url,
                                                 headers=cfg.api_headers)
+                    logger.info('Request POST - Restore 1')
 
                 if del_item_diff_ip and not del_item:
                     item_tag = str(del_item_diff_ip['asset_tag'])
@@ -1071,6 +1107,7 @@ def api_call(club_id, add, remove, restore, update):
                     response = requests.request("POST",
                                                 url=url,
                                                 headers=cfg.api_headers)
+                    logger.info('Request POST - Restore 2')
 
                     # if item has a different ip address, partially update item in snipe it
                     url = cfg.api_url_update.format(del_item_diff_ip['id'])
@@ -1081,6 +1118,7 @@ def api_call(club_id, add, remove, restore, update):
                                                  url=url,
                                                  data=payload,
                                                  headers=cfg.api_headers)
+                    logger.info('Request PATCH - Restore 1')
                     logger.debug(pformat(response2.text))
                     content2 = response2.json()
                     status_r_2 = str(content2['status'])
@@ -1130,12 +1168,12 @@ def api_call(club_id, add, remove, restore, update):
                                       .format(item['asset_tag']))
             except (KeyError,
                     decoder.JSONDecodeError):
-                logger.exception('There was an error adding the asset '
-                                 'to Snipe-IT, check: '
-                                 '{}, ip {}, mac address {}'
-                                 .format(item['Location'],
-                                         item['_snipeit_ip_6'],
-                                         item['_snipeit_mac_address_7']))
+                logger.critical('There was an error adding the asset '
+                                'to Snipe-IT, check: '
+                                '{}, ip {}, mac address {}'
+                                .format(item['Location'],
+                                        item['_snipeit_ip_6'],
+                                        item['_snipeit_mac_address_7']), exc_info=True)
 
     if update:
         for item in update:
@@ -1161,13 +1199,16 @@ def api_call(club_id, add, remove, restore, update):
                                             url=url,
                                             data=payload,
                                             headers=cfg.api_headers)
+                logger.info('Request PATCH - Update 1')
                 logger.debug(pformat(response.text))
                 content = response.json()
                 status_u = str(content['status'])
+                print(status_u)
+                status_message_a = str(content['messages'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': item['asset_tag'],
                              'status': status_u}
-                api_status.append(api_snipe)
+
                 if response.status_code == 200:
                     if status_u == 'success':
                         msg_upd = ('Updated item with asset_tag {} '
@@ -1176,12 +1217,37 @@ def api_call(club_id, add, remove, restore, update):
                         logger.info(msg_upd.format(item['asset_tag']))
                         upd_tuple = (item['Location'], item['asset_tag'])
                         updated.append(upd_tuple)
+                        api_status.append(api_snipe)
 
                     elif status_u == 'error':
-                        msg_upd = ('Could not update item '
-                                   'with asset-tag {} to Snipe-IT, review.\n')
-                        status_file.write(msg_upd.format(item['asset_tag']))
-                        logger.info(msg_upd.format(item['asset_tag']))
+                        while status_message_u == 'Too many requests':
+                            print('----------')
+                            sleep(10)
+                            print('sleep----------')
+                            response = requests.request("PATCH",
+                                                        url=url,
+                                                        data=payload,
+                                                        headers=cfg.api_headers)
+                            logger.info('Request PATCH - Update 2')
+                            logger.info(pformat(response.text))
+                            content = response.json()
+                            status_a = str(content['status'])
+                            status_message_a = str(content['messages'])
+
+                            if status_u == 'success':
+                                print('worked!!!-------')
+                                api_snipe = {'asset_tag': asset_tag,
+                                             'status': status_a}
+                                api_status.append(api_snipe)
+                        else:
+                            api_snipe = {'asset_tag': asset_tag,
+                                         'status': status_a}
+                            print('didnt work')
+                            api_status.append(api_snipe)
+                            msg_upd = ('Could not update item '
+                                       'with asset-tag {} to Snipe-IT, review.\n')
+                            status_file.write(msg_upd.format(item['asset_tag']))
+                            logger.info(msg_upd.format(item['asset_tag']))
 
                 elif response.status_code == 422:
                     status_file.write('Payload does not match Snipe_IT. '
@@ -1190,55 +1256,176 @@ def api_call(club_id, add, remove, restore, update):
 
             except (KeyError,
                     decoder.JSONDecodeError):
-                logger.exception('There was an error updating the asset '
-                                 'check result {}, ip {}, mac address {} '
-                                 'snipe item {}, ip {}, mac address {} '
-                                 .format(item['Location'],
-                                         item['_snipeit_ip_6'],
-                                         item['_snipeit_mac_address_7'],
-                                         snipe_mac[0]['Location'],
-                                         snipe_mac[0]['IP'],
-                                         snipe_mac[0]['Mac Address']))
+                logger.critical('There was an error updating the asset '
+                                'check result {}, ip {}, mac address {} '
+                                'snipe item {}, ip {}, mac address {} '
+                                .format(item['Location'],
+                                        item['_snipeit_ip_6'],
+                                        item['_snipeit_mac_address_7'],
+                                        snipe_mac[0]['Location'],
+                                        snipe_mac[0]['IP'],
+                                        snipe_mac[0]['Mac Address']), exc_info=True)
 
     if remove:
         for item in remove:
-            asset_tag = item['asset_tag']
-            url = cfg.api_url + str(item['id'])
-            response = requests.request("DELETE",
-                                        url=url,
-                                        headers=cfg.api_headers)
-            logger.info(pformat(response.text))
-            content = response.json()
-            status_d = str(content['status'])
-            # record status of api call and save with tag in list
-            api_snipe = {'asset_tag': asset_tag,
-                         'status': status_d}
-            api_status.append(api_snipe)
-            if response.status_code == 200:
-                msg_rem = ('Removed item '
-                           'with asset-tag {} from Snipe-IT\n')
-                status_file.write(msg_rem.format(item['asset_tag']))
-                logger.info(msg_rem.format(item['asset_tag']))
-                # add remove item to mongo colletion -deleted
-                client = pymongo.MongoClient("mongodb://localhost:27017/")
+            try:
+                asset_tag = item['asset_tag']
+                url = cfg.api_url + str(item['id'])
+                response = requests.request("DELETE",
+                                            url=url,
+                                            headers=cfg.api_headers)
+                logger.info('Request DELETE - Remove 1')
+                logger.info(pformat(response.text))
+                content = response.json()
+                print(response.status_code)
+                status_d = str(content['status'])
 
-                # Use database called inveentory
-                db = client['inventory']
+                if response.status_code == 200:
+                    print('200--- remove')
+                    if status_d == 'success':
+                        msg_rem = ('Removed item '
+                                   'with asset-tag {} from Snipe-IT\n')
+                        status_file.write(msg_rem.format(item['asset_tag']))
+                        logger.info(msg_rem.format(item['asset_tag']))
+                        # add remove item to mongo colletion -deleted
+                        client = pymongo.MongoClient("mongodb://localhost:27017/")
 
-                # use collection named deleted
-                del_col = db['deleted']
+                        # Use database called inveentory
+                        db = client['inventory']
 
-                # add item to collection
-                del_col.insert_one(item)
+                        # use collection named deleted
+                        del_col = db['deleted']
 
-                del_tuple = (club_id, item['asset_tag'])
-                deleted.append(del_tuple)
+                        # add item to collection
+                        del_col.insert_one(item)
 
-            elif response.status_code == 401:
-                status_file.write('Unauthorized. Could not send '
-                                  'request to remove item '
-                                  'with asset-tag {} from Snipe-IT\n'
-                                  .format(item['asset_tag']))
+                        del_tuple = (club_id, item['asset_tag'])
+                        deleted.append(del_tuple)
+
+                        # record status of api call and save with tag in list
+                        api_snipe = {'asset_tag': asset_tag,
+                                     'status': status_d}
+                        api_status.append(api_snipe)
+
+                    elif status_d == 'error':
+                        print('ELIF status_d-----')
+                        while status_message_d == 'Too many requests':
+                            print('-----')
+                            sleep(10)
+                            print('SLEEP')
+                            print('Too many requests----------------------')
+                            response = requests.request("DELETE",
+                                                        url=url,
+                                                        headers=cfg.api_headers)
+                            logger.info('Request DELETE - Remove 2')
+                            logger.info(pformat(response.text))
+                            content = response.json()
+                            status_d = str(content['status'])
+                            status_message_d = str(content['messages'])
+
+                            if status_d == 'success':
+                                print('too many requests success')
+                                msg_rem = ('Removed item '
+                                           'with asset-tag {} from Snipe-IT\n')
+                                status_file.write(msg_rem.format(item['asset_tag']))
+                                logger.info(msg_rem.format(item['asset_tag']))
+                                # add remove item to mongo colletion -deleted
+                                client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+                                # Use database called inveentory
+                                db = client['inventory']
+
+                                # use collection named deleted
+                                del_col = db['deleted']
+
+                                # add item to collection
+                                del_col.insert_one(item)
+
+                                del_tuple = (club_id, item['asset_tag'])
+                                deleted.append(del_tuple)
+
+                                # record status of api call and save with tag in list
+                                api_snipe = {'asset_tag': asset_tag,
+                                             'status': status_d}
+                                api_status.append(api_snipe)
+                                status_message_d = 'success'
+
+
+                        else:
+                            print('could not remove item')
+                            api_snipe = {'asset_tag': asset_tag,
+                                         'status': status_a}
+                            api_status.append(api_snipe)
+                            msg_rem = ('Could not remove item '
+                                       'with asset-tag {} to Snipe-IT, review.\n')
+                            status_file.write(msg_rem.format(item['asset_tag']))
+                            logger.info(msg_rem.format(item['asset_tag']))
+
+
+                elif response.status_code == 401:
+                    msg_r = ('Unauthorized. Could not send '
+                             'request to remove item '
+                             'with asset-tag {} from Snipe-IT\n')
+
+                    status_file.write(msg_r.format(item['asset_tag']))
+                    logger.info(msg_r.format(item['asset_tag']))
+
+                else:
+                    print('ELSE status_d-----')
+                    while status_message_d == 'Too many requests':
+                        print('-----')
+                        sleep(10)
+                        print('SLEEP')
+                        print('Too many requests----------------------')
+                        response = requests.request("DELETE",
+                                                    url=url,
+                                                    headers=cfg.api_headers)
+                        logger.info('Request DELETE - Remove 2')
+                        logger.info(pformat(response.text))
+                        content = response.json()
+                        status_d = str(content['status'])
+                        status_message_d = str(content['messages'])
+
+                        if status_d == 'success':
+                            print('too many requests success')
+                            msg_rem = ('Removed item '
+                                       'with asset-tag {} from Snipe-IT\n')
+                            status_file.write(msg_rem.format(item['asset_tag']))
+                            logger.info(msg_rem.format(item['asset_tag']))
+                            # add remove item to mongo colletion -deleted
+                            client = pymongo.MongoClient("mongodb://localhost:27017/")
+                            # Use database called inveentory
+                            db = client['inventory']
+
+                            # use collection named deleted
+                            del_col = db['deleted']
+
+                            # add item to collection
+                            del_col.insert_one(item)
+
+                            del_tuple = (club_id, item['asset_tag'])
+                            deleted.append(del_tuple)
+
+                            # record status of api call and save with tag in list
+                            api_snipe = {'asset_tag': asset_tag,
+                                         'status': status_d}
+                            api_status.append(api_snipe)
+                            status_message_d = 'success'
+
+                    else:
+                        print('could not remove item')
+                        api_snipe = {'asset_tag': asset_tag,
+                                     'status': status_a}
+                        api_status.append(api_snipe)
+                        msg_rem = ('Could not remove item '
+                                   'with asset-tag {} to Snipe-IT, review.\n')
+                        status_file.write(msg_rem.format(item['asset_tag']))
+                        logger.info(msg_rem.format(item['asset_tag']))
+
+            except (KeyError, decoder.JSONDecodeError):
+                logger.error('There was an error removing the asset '
+                             'check Asset Tag {}\n'
+                             .format(item['Asset Tag']), exc_info=True)
 
 
 def api_payload(all_diff):
@@ -1304,7 +1491,7 @@ def api_payload(all_diff):
     return [add, remove, restore, update]
 
 
-def get_id(asset_tag):
+def get_id(asset_tag, mac_addr):
     """Returns a ID for each host.
     This function returns a generated ID after it compares it to ID's
     on baseline, to avoid duplicate IDs.
@@ -1315,18 +1502,36 @@ def get_id(asset_tag):
         Raises:
     """
     try:
-        url = cfg.api_url_get + str(asset_tag)
+        myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
-        response = requests.request("GET", url=url, headers=cfg.api_headers)
+        # use database named "inventory"
+        mydb = myclient['inventory']
 
-        content = response.json()
-        result_id = str(content['id'])
+        # use collection named "snipe"
+        snipe_coll = mydb['snipe']
 
-    except (KeyError,
-            decoder.JSONDecodeError):
-        result_id = None
+        id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
+                                  {'ID':1, '_id': 0})
 
-    return result_id
+        if id_:
+            return id_['ID']
+
+        else:
+            asset_tag = asset_tag + '0'
+
+            id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
+                                      {'ID':1, '_id': 0})
+
+            if id_:
+                return id_['ID']
+
+            else:
+                logger.debug('ID for asset tag {} not found'.format(asset_tag))
+                return None
+
+    except:
+        logger.error('Error getting ID for asset tag {}, and mac {} '.format(asset_tag, mac_addr), exc_info=True)
+        return None
 
 
 def check_tag(asset_tag, mac_addr):
@@ -1345,29 +1550,36 @@ def check_tag(asset_tag, mac_addr):
 
     """
 
+    id_ = None
     try:
-        url = cfg.api_url_get + str(asset_tag)
-        response = requests.request("GET", url=url, headers=cfg.api_headers)
-        content = response.json()
-        status = str(content['status'])
+        myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
-        if status == 'error':
-            asset_tag = asset_tag + '0'
-            url = cfg.api_url_get + str(asset_tag)
-            response = requests.request("GET", url=url, headers=cfg.api_headers)
+        # use database named "inventory"
+        mydb = myclient['inventory']
 
-        content = response.json()
-        snipe_mac_addr = str(content['custom_fields']['Mac Address']['value'])
-        # if new asset_tag mac address is different from mac address in snipe
-        # return true so a 0 is added to the asset tag to prevent duplicates
-        if mac_addr != snipe_mac_addr:
-            return True
-        else:
+        # use collection named "snipe"
+        snipe_coll = mydb['snipe']
+
+        id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
+                                  {'ID':1, '_id': 0})
+
+
+        if id_ is not None:
             return False
 
-    except (KeyError,
-            decoder.JSONDecodeError):
+        else:
+            asset_tag = str(asset_tag) + '0'
+            id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
+                                      {'ID':1, '_id': 0})
 
+            if id_ is not None:
+                return True
+
+            else:
+                return False
+
+    except (KeyError, IndexError):
+        logger.critical('Could not check asset tag for {} '.format(mac_addr), exc_info=True)
         return False
 
 
@@ -1490,17 +1702,17 @@ def club_id(conn, host, device_type):
                                 break
                             # if pattern is not found
                             if club_result is None:
-                                logger.error('no club ID found')
+                                logger.critical('no club ID found')
                                 # look for ID in router hostname
                                 raise OSError
 
                     except(OSError,
                            NetMikoTimeoutException):
                         if attempt == 0:
-                            logger.exception('Could not send command. Trying again')
+                            logger.error('Could not send command. Trying again', exc_info=True)
                             continue
                         if attempt == 1:
-                            logger.exception('Getting club_id from nmap hostname')
+                            logger.error('Getting club_id from nmap hostname', exc_info=True)
                             hostname = get_hostnames(host)
                             hostname_club = club_rgx.search(hostname['hostnames'])
                             if hostname_club:
@@ -1510,7 +1722,7 @@ def club_id(conn, host, device_type):
                                 return None
 
                         if attempt > 0:
-                            logger.exception('could not get club_id')
+                            logger.error('could not get club_id', exc_info=True)
         club_result = str(club_result)
         club_result = club_result.lower()
 
@@ -1660,7 +1872,7 @@ def get_club_ips(club):
         return ip
 
     except(AttributeError):
-        logger.exception('Cannot find ip for {}'.format(club))
+        logger.error('Cannot find ip for {}'.format(club), exc_info=True)
         return None
 
 
@@ -1735,10 +1947,10 @@ def club_ips(club_list):
 
     except(OSError, AttributeError):
         if len(club_ip_list):
-            logger.exception('There was a problem getting all IPs.')
+            logger.critical('There was a problem getting all IPs.', exc_info=True)
             return club_ip_list
         else:
-            logger.exception('There was a problem getting IPs for clubs. Try again')
+            logger.critical('There was a problem getting IPs for clubs. Try again', exc_info=True)
             return None
 
 
@@ -1761,7 +1973,8 @@ def inv_args(ip_list):
     if inv_args.debug:
         logger.setLevel(DEBUG)
     else:
-        logger.setLevel(INFO)
+        #change to INFO after debugging
+        logger.setLevel(DEBUG)
 
     if inv_args.club:
         arg_ips = club_ips(inv_args.club)
