@@ -117,6 +117,7 @@ def mail():
     api_status = cfg.api_status
     added = cfg.added
     restored = cfg.restored
+    updated = cfg.updated
     deleted = cfg.deleted
     msg = send_mail(ctime(start),
                     runtime,
@@ -127,6 +128,7 @@ def mail():
                     api_status,
                     added,
                     restored,
+                    updated,
                     deleted)
     return msg
 
