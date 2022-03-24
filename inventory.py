@@ -1035,6 +1035,7 @@ def api_call(club_id, add, remove, restore, update):
                                 api_snipe = {'asset_tag': asset_tag,
                                              'status': status_a}
                                 api_status.append(api_snipe)
+                                break
                         else:
                             print('could not add new item')
                             api_snipe = {'asset_tag': asset_tag,
@@ -1237,6 +1238,7 @@ def api_call(club_id, add, remove, restore, update):
                                 api_snipe = {'asset_tag': asset_tag,
                                              'status': status_a}
                                 api_status.append(api_snipe)
+                                break
                         else:
                             api_snipe = {'asset_tag': asset_tag,
                                          'status': status_a}
@@ -1306,59 +1308,6 @@ def api_call(club_id, add, remove, restore, update):
                                      'status': status_d}
                         api_status.append(api_snipe)
 
-                    elif status_d == 'error':
-                        print('ELIF status_d-----')
-                        while status_message_d == 'Too many requests':
-                            print('-----')
-                            sleep(10)
-                            print('SLEEP')
-                            print('Too many requests----------------------')
-                            response = requests.request("DELETE",
-                                                        url=url,
-                                                        headers=cfg.api_headers)
-                            logger.info('Request DELETE - Remove 2')
-                            logger.info(pformat(response.text))
-                            content = response.json()
-                            status_d = str(content['status'])
-                            status_message_d = str(content['messages'])
-
-                            if status_d == 'success':
-                                print('too many requests success')
-                                msg_rem = ('Removed item '
-                                           'with asset-tag {} from Snipe-IT\n')
-                                status_file.write(msg_rem.format(item['asset_tag']))
-                                logger.info(msg_rem.format(item['asset_tag']))
-                                # add remove item to mongo colletion -deleted
-                                client = pymongo.MongoClient("mongodb://localhost:27017/")
-
-                                # Use database called inveentory
-                                db = client['inventory']
-
-                                # use collection named deleted
-                                del_col = db['deleted']
-
-                                # add item to collection
-                                del_col.insert_one(item)
-
-                                del_tuple = (club_id, item['asset_tag'])
-                                deleted.append(del_tuple)
-
-                                # record status of api call and save with tag in list
-                                api_snipe = {'asset_tag': asset_tag,
-                                             'status': status_d}
-                                api_status.append(api_snipe)
-                                status_message_d = 'success'
-
-                        else:
-                            print('could not remove item')
-                            api_snipe = {'asset_tag': asset_tag,
-                                         'status': status_a}
-                            api_status.append(api_snipe)
-                            msg_rem = ('Could not remove item '
-                                       'with asset-tag {} to Snipe-IT, review.\n')
-                            status_file.write(msg_rem.format(item['asset_tag']))
-                            logger.info(msg_rem.format(item['asset_tag']))
-
                 elif response.status_code == 401:
                     msg_r = ('Unauthorized. Could not send '
                              'request to remove item '
@@ -1408,6 +1357,7 @@ def api_call(club_id, add, remove, restore, update):
                                          'status': status_d}
                             api_status.append(api_snipe)
                             status_message_d = 'success'
+                            break
 
                     else:
                         print('could not remove item')
