@@ -12,7 +12,7 @@ from pathlib import Path
 from time import time, ctime, sleep
 from re import compile, IGNORECASE
 from copy import deepcopy
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from pprint import pformat
 from ipaddress import ip_address, ip_network
 import requests
@@ -818,10 +818,10 @@ def diff(results):
                 update.append(item)
                 msg1 = ('Device from {}, ID {} and Mac Address {} '
                         'has a different location - {}\n'
-                        .format(item['Location'],
+                        .format(mac_other_snipe[0]['Location'],
                                 item['ID'],
                                 item['Mac Address'],
-                                mac_other_snipe[0]['Location']))
+                                item['Location']))
                 logger.debug('UPDATED ASSET {}'.format(count_update))
                 logger.debug(msg1)
                 status_file.write(msg1)
@@ -1546,17 +1546,23 @@ def last_4_baselines(diff_item):
     else:
         return None
 
+    file_list = []
+
     try:
         club_bsln_path = '/opt/Inventory/scans/baselines/{}'.format(club)
         # get list of all files in club baseline directory
         list_dir = listdir(club_bsln_path)
-        if len(list_dir) >= 4:
+        for item in list_dir:
+            date_ = item[8:16]
+            file_list.append(date_)
+
+        if len(file_list) >= 4:
             # sort list to find latest 4 baselines
-            sorted_list_dir = sorted(list_dir)
-            bline_1 = sorted_list_dir[-1]
-            bline_2 = sorted_list_dir[-2]
-            bline_3 = sorted_list_dir[-3]
-            bline_4 = sorted_list_dir[-4]
+            file_list.sort(key=lambda date: datetime.strptime(date, '%m%d%Y'))
+            bline_1 = club + '_' + file_list[-1] + '.json'
+            bline_2 = club + '_' + file_list[-2] + '.json'
+            bline_3 = club + '_' + file_list[-3] + '.json'
+            bline_4 = club + '_' + file_list[-4] + '.json'
 
             # full path of baselines
             baseline_1_path = path.join(club_bsln_path, str(bline_1))
