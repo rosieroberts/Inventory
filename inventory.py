@@ -13,7 +13,7 @@ from time import time, ctime, sleep
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date
-from pprint import pformat, pprint
+from pprint import pformat
 from ipaddress import ip_address, ip_network
 import requests
 import urllib3
@@ -23,7 +23,6 @@ from logging import (
     Formatter,
     StreamHandler,
     getLogger,
-    INFO,
     DEBUG)
 from argparse import ArgumentParser
 import concurrent.futures
@@ -516,7 +515,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
                  .format(runtime2))
-    #logger.debug(pformat(results))
+    # logger.debug(pformat(results))
     return results
 
 
@@ -920,7 +919,6 @@ def diff(results):
         remove_file.close()
         all_diff.extend(remove)
 
-
     if add or remove or restore or update:
         logger.info('Differences found, will update snipe-it')
         print(add, remove, restore, update)
@@ -1061,11 +1059,11 @@ def api_call(club_id, add, remove, restore, update):
             except (KeyError,
                     decoder.JSONDecodeError):
                 logger.error('There was an error adding the asset '
-                                 'to Snipe-IT, check: '
-                                 '{}, ip {}, mac address {}'
-                                 .format(item['Location'],
-                                         item['_snipeit_ip_6'],
-                                         item['_snipeit_mac_address_7']), exc_info=True)
+                             'to Snipe-IT, check: '
+                             '{}, ip {}, mac address {}'
+                             .format(item['Location'],
+                                     item['_snipeit_ip_6'],
+                                     item['_snipeit_mac_address_7']), exc_info=True)
 
     if restore:
         for item in restore:
@@ -1204,7 +1202,7 @@ def api_call(club_id, add, remove, restore, update):
                 content = response.json()
                 status_u = str(content['status'])
                 print(status_u)
-                status_message_a = str(content['messages'])
+                status_message_u = str(content['messages'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': item['asset_tag'],
                              'status': status_u}
@@ -1279,6 +1277,7 @@ def api_call(club_id, add, remove, restore, update):
                 content = response.json()
                 print(response.status_code)
                 status_d = str(content['status'])
+                status_message_d = str(content['messages'])
 
                 if response.status_code == 200:
                     print('200--- remove')
@@ -1350,7 +1349,6 @@ def api_call(club_id, add, remove, restore, update):
                                 api_status.append(api_snipe)
                                 status_message_d = 'success'
 
-
                         else:
                             print('could not remove item')
                             api_snipe = {'asset_tag': asset_tag,
@@ -1360,7 +1358,6 @@ def api_call(club_id, add, remove, restore, update):
                                        'with asset-tag {} to Snipe-IT, review.\n')
                             status_file.write(msg_rem.format(item['asset_tag']))
                             logger.info(msg_rem.format(item['asset_tag']))
-
 
                 elif response.status_code == 401:
                     msg_r = ('Unauthorized. Could not send '
@@ -1511,7 +1508,7 @@ def get_id(asset_tag, mac_addr):
         snipe_coll = mydb['snipe']
 
         id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
-                                  {'ID':1, '_id': 0})
+                                  {'ID': 1, '_id': 0})
 
         if id_:
             return id_['ID']
@@ -1520,7 +1517,7 @@ def get_id(asset_tag, mac_addr):
             asset_tag = asset_tag + '0'
 
             id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
-                                      {'ID':1, '_id': 0})
+                                      {'ID': 1, '_id': 0})
 
             if id_:
                 return id_['ID']
@@ -1529,7 +1526,7 @@ def get_id(asset_tag, mac_addr):
                 logger.debug('ID for asset tag {} not found'.format(asset_tag))
                 return None
 
-    except:
+    except(KeyError):
         logger.error('Error getting ID for asset tag {}, and mac {} '.format(asset_tag, mac_addr), exc_info=True)
         return None
 
@@ -1561,8 +1558,7 @@ def check_tag(asset_tag, mac_addr):
         snipe_coll = mydb['snipe']
 
         id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
-                                  {'ID':1, '_id': 0})
-
+                                  {'ID': 1, '_id': 0})
 
         if id_ is not None:
             return False
@@ -1570,7 +1566,7 @@ def check_tag(asset_tag, mac_addr):
         else:
             asset_tag = str(asset_tag) + '0'
             id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
-                                      {'ID':1, '_id': 0})
+                                      {'ID': 1, '_id': 0})
 
             if id_ is not None:
                 return True
@@ -1973,7 +1969,7 @@ def inv_args(ip_list):
     if inv_args.debug:
         logger.setLevel(DEBUG)
     else:
-        #change to INFO after debugging
+        # change to INFO after debugging
         logger.setLevel(DEBUG)
 
     if inv_args.club:

@@ -76,9 +76,9 @@ def router_info(random_ip):
     connect_obj = connect[0]
     device_type = connect[1]
     info = inv.get_router_info(connect_obj,
-                           str(random_ip),
-                           device_type,
-                           inv.location_ids)
+                               str(random_ip),
+                               device_type,
+                               inv.location_ids)
     print(info)
     return info
 
@@ -192,39 +192,34 @@ class TestInventory:
     # inv_args
     # script_info
     """
-
     # club_scan
     def test_1(self, results):
         assert results is not None
         assert len(results) > 2
 
-
-    # get_router_info 
+    # get_router_info
     def test_2(self, router_info):
         info = router_info
         club_number = info[0]['Location']
-        club_rgx = compile(cfg.club_rgx)
+        # club_rgx = compile(cfg.club_rgx)
         for item in info:
             assert item['Location'] is club_number
             # assert cfg.club_rgx.match(item['Location']) is not None
             assert item['Status'] == 'up'
             assert ip_regex.match(item['IP']) is not None
             assert mac_regex.match(item['Mac Address']) is not None
-            
-
 
     # get_club_ips
     def test_3(self, get_ip_num, random_ip):
         ips = get_ip_num
         assert random_ip in ips
 
-
     # test for each key in results from club_scan
     def test_4(self, results):
         for item in results:
             assert item['Asset Tag'] is not None
             assert item['IP'] is not None
-            assert item['Location'] is not None   
+            assert item['Location'] is not None
             assert item['Location ID'] is not None
             assert item['Category'] is not None
             assert item['Manufacturer'] is not None
@@ -234,11 +229,9 @@ class TestInventory:
             assert item['Status'] is not None
             assert item['Status ID'] is not None
 
-
     # connect
     def test_5(self):
         assert inv.connect is not None
-
 
     # mongo locations test
     def test_6(self, mongo_loc, results):
