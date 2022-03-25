@@ -9,7 +9,7 @@ from sys import exit
 from json import dumps, load, decoder
 from csv import DictWriter
 from pathlib import Path
-from time import time, ctime, sleep
+from time import time, ctime
 from re import compile, IGNORECASE
 from copy import deepcopy
 from datetime import timedelta, date, datetime
@@ -884,7 +884,6 @@ def diff(results):
     not_in_results = list(filter(lambda item: item not in results_macs, club_mac_list))
 
     if not_in_results:
-        
         for item in not_in_results:
 
             try:
@@ -911,7 +910,7 @@ def diff(results):
                              .format(item), exc_info=True)
 
     if add or restore:
-        
+
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m%d%Y")), 'a+')
         add_file.write(dumps(list(add), indent=4))
@@ -931,7 +930,6 @@ def diff(results):
         logger.info('Differences found, will update snipe-it')
     else:
         logger.info('_____No differences found____')
-
 
     return [add, remove, restore, update]
 
@@ -1008,7 +1006,6 @@ def api_call(club_id, add, remove, restore, update):
                 logger.info(pformat(response.text))
                 content = response.json()
                 status_a = str(content['status'])
-                status_message_a = str(content['messages'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': asset_tag,
                              'status': status_a}
@@ -1187,7 +1184,6 @@ def api_call(club_id, add, remove, restore, update):
                 logger.debug(pformat(response.text))
                 content = response.json()
                 status_u = str(content['status'])
-                status_message_u = str(content['messages'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': item['asset_tag'],
                              'status': status_u}
@@ -1240,7 +1236,6 @@ def api_call(club_id, add, remove, restore, update):
                 logger.info(pformat(response.text))
                 content = response.json()
                 status_d = str(content['status'])
-                status_message_d = str(content['messages'])
 
                 if response.status_code == 200:
                     if status_d == 'success':
