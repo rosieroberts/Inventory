@@ -39,11 +39,13 @@ def send_mail(start,
               api_status,
               added,
               restored,
+              updated,
               deleted):
 
     scanned_a = []
     scanned_r = []
     scanned_d = []
+    scanned_u = []
     clubs_s = []
     clubs_n = []
     clubs_q = []
@@ -64,6 +66,11 @@ def send_mail(start,
         r = {'Clubs': item[0],
              'Restored': item[1]}
         scanned_r.append(r)
+
+    for item in updated:
+        u = {'Clubs': item[0],
+             'Updated': item[1]}
+        scanned_u.append(u)
 
     for item in deleted:
         d = {'Clubs': item[0],
@@ -88,7 +95,8 @@ def send_mail(start,
 
     table = json2html.convert(json=scanned_a)
     table2 = json2html.convert(json=scanned_r)
-    table3 = json2html.convert(json=scanned_d)
+    table3 = json2html.convert(json=scanned_u)
+    table4 = json2html.convert(json=scanned_d)
 
     clubs_conn = json2html.convert(json=clubs_s)
     clubs_ncon = json2html.convert(json=clubs_n)
@@ -139,6 +147,7 @@ def send_mail(start,
             <li>{not_con_count} clubs were not scanned because of a problem</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
+            <li>{updated_count} assets were updated in snipe_it</li>
             <li>{deleted_count} assets were deleted from snipe_it</li></ul>
             <p>More detailed information:</p>
             {website}
@@ -150,6 +159,7 @@ def send_mail(start,
                not_con_count=len(not_scanned),
                added_count=len(added),
                restored_count=len(restored),
+               updated_count=len(updated),
                deleted_count=len(deleted),
                api_errors=len(api_errors),
                scan_error=scan_error,
@@ -174,6 +184,7 @@ def send_mail(start,
             <li>{not_con_count} clubs were not scanned because of a problem</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
+            <li>{updated_count} assets were updated in snipe_it</li>
             <li>{deleted_count} assets were deleted from snipe_it</li></ul>
             <p>More detailed information:</p>
                <p>Clubs Scanned:</p>
@@ -186,8 +197,10 @@ def send_mail(start,
                {table}
                <p>Assets Restored:</p>
                {table2}
-               <p>Assets Deleted:</p>
+               <p>Assets Updated:</p>
                {table3}
+               <p>Assets Deleted:</p>
+               {table4}
                <p>Tags with API errors</p>
                {api_error}
 
@@ -199,6 +212,7 @@ def send_mail(start,
                not_con_count=len(not_scanned),
                added_count=len(added),
                restored_count=len(restored),
+               updated_count=len(updated),
                deleted_count=len(deleted),
                api_errors=len(api_errors),
                api_error=api_error,
@@ -208,6 +222,7 @@ def send_mail(start,
                table=table,
                table2=table2,
                table3=table3,
+               table4=table4,
                clubs_conn=clubs_conn,
                clubs_queue=clubs_queue,
                clubs_ncon=clubs_ncon)
