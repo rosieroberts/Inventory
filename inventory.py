@@ -26,7 +26,6 @@ from logging import (
     DEBUG)
 from argparse import ArgumentParser
 import concurrent.futures
-
 from nmap import PortScanner
 from paramiko.ssh_exception import SSHException
 from paramiko.buffered_pipe import PipeTimeout
@@ -98,7 +97,7 @@ def main(ip_list):
     csv_trunc()
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             threads = [executor.submit(club_scan, ip) for ip in ip_list]
         script_info()
         get_snipe()
@@ -862,6 +861,9 @@ def diff(results):
                 logger.debug(msg1)
                 status_file.write(msg1)
 
+            else:
+                continue
+
         elif mac_in_snipe and not asset_tag_diff:
             count_update += 1
             update.append(item)
@@ -882,28 +884,34 @@ def diff(results):
     not_in_results = list(filter(lambda item: item not in results_macs, club_mac_list))
 
     if not_in_results:
+        
         for item in not_in_results:
-            itm = snipe_coll.find({'Mac Address': item},
-                                  {'_id': 0})
-            itm = list(itm)
-            itm = itm[0]
-            itm['ID'] = str(itm['ID'])
-            check_remove = check_if_remove(itm)
-            # if check_remove is true, remove device from snipeit
-            if check_remove is True:
-                count_remove += 1
-                remove.append(itm)
-                msg7 = ('Device with ID {} and Mac Address {} '
-                        'no longer found, '
-                        'will be removed '
-                        .format(itm['ID'],
-                                itm['Mac Address']))
-                logger.debug('REMOVED ASSET {}'.format(count_remove))
-                logger.debug(msg7)
-                status_file.write(msg7)
+
+            try:
+                itm = snipe_coll.find({'Mac Address': item},
+                                      {'_id': 0})
+                itm = list(itm)
+                itm = itm[0]
+                itm['ID'] = str(itm['ID'])
+                check_remove = check_if_remove(itm)
+                # if check_remove is true, remove device from snipeit
+                if check_remove is True:
+                    count_remove += 1
+                    remove.append(itm)
+                    msg7 = ('Device with ID {} and Mac Address {} '
+                            'no longer found, '
+                            'will be removed '
+                            .format(itm['ID'],
+                                    itm['Mac Address']))
+                    logger.debug('REMOVED ASSET {}'.format(count_remove))
+                    logger.debug(msg7)
+                    status_file.write(msg7)
+            except (KeyError):
+                logger.error('Cannot remove device with Mac Address {} '
+                             .format(item), exc_info=True)
 
     if add or restore:
-        # create file for add
+        
         add_file = open(mydir + '/add_{}.json'
                         .format(today.strftime("%m%d%Y")), 'a+')
         add_file.write(dumps(list(add), indent=4))
@@ -921,9 +929,9 @@ def diff(results):
 
     if add or remove or restore or update:
         logger.info('Differences found, will update snipe-it')
-        print(add, remove, restore, update)
     else:
         logger.info('_____No differences found____')
+
 
     return [add, remove, restore, update]
 
@@ -1014,37 +1022,6 @@ def api_call(club_id, add, remove, restore, update):
                         add_tuple = (club_id, item['asset_tag'])
                         added.append(add_tuple)
                         api_status.append(api_snipe)
-                    elif status_a == 'error':
-                        while status_message_a == 'Too many requests':
-                            print('-----')
-                            sleep(10)
-                            print('SLEEP')
-                            print('Too many requests----------------------')
-                            response = requests.request("POST",
-                                                        url=url,
-                                                        data=payload,
-                                                        headers=cfg.api_headers)
-                            logger.info('Request POST - Add 2')
-                            logger.info(pformat(response.text))
-                            content = response.json()
-                            status_a = str(content['status'])
-                            status_message_a = str(content['messages'])
-
-                            if status_a == 'success':
-                                print('too many requests success')
-                                api_snipe = {'asset_tag': asset_tag,
-                                             'status': status_a}
-                                api_status.append(api_snipe)
-                                break
-                        else:
-                            print('could not add new item')
-                            api_snipe = {'asset_tag': asset_tag,
-                                         'status': status_a}
-                            api_status.append(api_snipe)
-                            msg_add = ('Could not add new item '
-                                       'with asset-tag {} to Snipe-IT, review.\n')
-                            status_file.write(msg_add.format(item['asset_tag']))
-                            logger.info(msg_add.format(item['asset_tag']))
 
                 elif response.status_code == 401:
                     status_file.write('Unauthorized. Could not send '
@@ -1057,6 +1034,16 @@ def api_call(club_id, add, remove, restore, update):
                                       'item {}\n'
                                       .format(item['asset_tag']))
                     api_status.append(api_snipe)
+
+                else:
+                    api_snipe = {'asset_tag': asset_tag,
+                                 'status': status_a}
+                    api_status.append(api_snipe)
+                    msg_add = ('Could not add new item '
+                               'with asset-tag {} to Snipe-IT, review.\n')
+                    status_file.write(msg_add.format(item['asset_tag']))
+                    logger.info(msg_add.format(item['asset_tag']))
+
             except (KeyError,
                     decoder.JSONDecodeError):
                 logger.error('There was an error adding the asset '
@@ -1133,7 +1120,6 @@ def api_call(club_id, add, remove, restore, update):
 
                     status_file.write(msg.format(item_tag, item_id, item_ip))
                     logger.info(msg.format(item_tag, item_id, item_ip))
-
                 logger.debug(pformat(response.text))
                 content = response.json()
                 status_r = str(content['status'])
@@ -1141,7 +1127,6 @@ def api_call(club_id, add, remove, restore, update):
                 api_snipe = {'asset_tag': item_tag,
                              'status': status_r}
                 api_status.append(api_snipe)
-
                 if response.status_code == 200:
                     if status_r == 'success':
                         msg_add = ('Restored item '
@@ -1202,7 +1187,6 @@ def api_call(club_id, add, remove, restore, update):
                 logger.debug(pformat(response.text))
                 content = response.json()
                 status_u = str(content['status'])
-                print(status_u)
                 status_message_u = str(content['messages'])
                 # record status of api call and save with tag in list
                 api_snipe = {'asset_tag': item['asset_tag'],
@@ -1218,41 +1202,19 @@ def api_call(club_id, add, remove, restore, update):
                         updated.append(upd_tuple)
                         api_status.append(api_snipe)
 
-                    elif status_u == 'error':
-                        while status_message_u == 'Too many requests':
-                            print('----------')
-                            sleep(10)
-                            print('sleep----------')
-                            response = requests.request("PATCH",
-                                                        url=url,
-                                                        data=payload,
-                                                        headers=cfg.api_headers)
-                            logger.info('Request PATCH - Update 2')
-                            logger.info(pformat(response.text))
-                            content = response.json()
-                            status_a = str(content['status'])
-                            status_message_a = str(content['messages'])
-
-                            if status_u == 'success':
-                                print('worked!!!-------')
-                                api_snipe = {'asset_tag': asset_tag,
-                                             'status': status_a}
-                                api_status.append(api_snipe)
-                                break
-                        else:
-                            api_snipe = {'asset_tag': asset_tag,
-                                         'status': status_a}
-                            print('didnt work')
-                            api_status.append(api_snipe)
-                            msg_upd = ('Could not update item '
-                                       'with asset-tag {} to Snipe-IT, review.\n')
-                            status_file.write(msg_upd.format(item['asset_tag']))
-                            logger.info(msg_upd.format(item['asset_tag']))
-
                 elif response.status_code == 422:
                     status_file.write('Payload does not match Snipe_IT. '
                                       'item {}\n'
                                       .format(item['asset_tag']))
+
+                else:
+                    api_snipe = {'asset_tag': asset_tag,
+                                 'status': status_a}
+                    api_status.append(api_snipe)
+                    msg_upd = ('Could not update item '
+                               'with asset-tag {} to Snipe-IT, review.\n')
+                    status_file.write(msg_upd.format(item['asset_tag']))
+                    logger.info(msg_upd.format(item['asset_tag']))
 
             except (KeyError,
                     decoder.JSONDecodeError):
@@ -1277,12 +1239,10 @@ def api_call(club_id, add, remove, restore, update):
                 logger.info('Request DELETE - Remove 1')
                 logger.info(pformat(response.text))
                 content = response.json()
-                print(response.status_code)
                 status_d = str(content['status'])
                 status_message_d = str(content['messages'])
 
                 if response.status_code == 200:
-                    print('200--- remove')
                     if status_d == 'success':
                         msg_rem = ('Removed item '
                                    'with asset-tag {} from Snipe-IT\n')
@@ -1317,57 +1277,13 @@ def api_call(club_id, add, remove, restore, update):
                     logger.info(msg_r.format(item['asset_tag']))
 
                 else:
-                    print('ELSE status_d-----')
-                    while status_message_d == 'Too many requests':
-                        print('-----')
-                        sleep(10)
-                        print('SLEEP')
-                        print('Too many requests----------------------')
-                        response = requests.request("DELETE",
-                                                    url=url,
-                                                    headers=cfg.api_headers)
-                        logger.info('Request DELETE - Remove 2')
-                        logger.info(pformat(response.text))
-                        content = response.json()
-                        status_d = str(content['status'])
-                        status_message_d = str(content['messages'])
-
-                        if status_d == 'success':
-                            print('too many requests success')
-                            msg_rem = ('Removed item '
-                                       'with asset-tag {} from Snipe-IT\n')
-                            status_file.write(msg_rem.format(item['asset_tag']))
-                            logger.info(msg_rem.format(item['asset_tag']))
-                            # add remove item to mongo colletion -deleted
-                            client = pymongo.MongoClient("mongodb://localhost:27017/")
-                            # Use database called inveentory
-                            db = client['inventory']
-
-                            # use collection named deleted
-                            del_col = db['deleted']
-
-                            # add item to collection
-                            del_col.insert_one(item)
-
-                            del_tuple = (club_id, item['asset_tag'])
-                            deleted.append(del_tuple)
-
-                            # record status of api call and save with tag in list
-                            api_snipe = {'asset_tag': asset_tag,
-                                         'status': status_d}
-                            api_status.append(api_snipe)
-                            status_message_d = 'success'
-                            break
-
-                    else:
-                        print('could not remove item')
-                        api_snipe = {'asset_tag': asset_tag,
-                                     'status': status_a}
-                        api_status.append(api_snipe)
-                        msg_rem = ('Could not remove item '
-                                   'with asset-tag {} to Snipe-IT, review.\n')
-                        status_file.write(msg_rem.format(item['asset_tag']))
-                        logger.info(msg_rem.format(item['asset_tag']))
+                    api_snipe = {'asset_tag': asset_tag,
+                                 'status': status_a}
+                    api_status.append(api_snipe)
+                    msg_rem = ('Could not remove item '
+                               'with asset-tag {} to Snipe-IT, review.\n')
+                    status_file.write(msg_rem.format(item['asset_tag']))
+                    logger.info(msg_rem.format(item['asset_tag']))
 
             except (KeyError, decoder.JSONDecodeError):
                 logger.error('There was an error removing the asset '
@@ -1473,7 +1389,6 @@ def get_id(asset_tag, mac_addr):
                 return id_['ID']
 
             else:
-                logger.debug('ID for asset tag {} not found'.format(asset_tag))
                 return None
 
     except(KeyError):
@@ -1555,7 +1470,6 @@ def last_4_baselines(diff_item):
         for item in list_dir:
             date_ = item[8:16]
             file_list.append(date_)
-
         if len(file_list) >= 4:
             # sort list to find latest 4 baselines
             file_list.sort(key=lambda date: datetime.strptime(date, '%m%d%Y'))
@@ -1591,7 +1505,10 @@ def last_4_baselines(diff_item):
 
         return baseline_1, baseline_2, baseline_3, baseline_4
 
-    except FileNotFoundError:
+    except(ValueError, FileNotFoundError, decoder.JSONDecodeError):
+        logger.error('Cannot check baselines for diff item {} '
+                     .format(diff_item), exc_info=True)
+
         return None
 
 
