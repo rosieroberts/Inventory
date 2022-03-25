@@ -861,9 +861,6 @@ def diff(results):
                 logger.debug(msg1)
                 status_file.write(msg1)
 
-            else:
-                continue
-
         elif mac_in_snipe and not asset_tag_diff:
             count_update += 1
             update.append(item)
