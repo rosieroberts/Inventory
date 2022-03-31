@@ -370,13 +370,19 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 club_result,
                                 vendor
                             )
-                            fortext = cfg.is_fortext(fortext_result)
-                            if fortext is not None:
-                                device_type = fortext
                             octets = ip_result.split('.')
                             last_octet = int(octets[-1])
                             first_octet = int(octets[0])
+                            sec_octet = int(octets[1])
                             hostname = get_hostnames(ip_result)
+                            fortext = cfg.is_fortext(fortext_result)
+                            if fortext is not None:
+                                device_type = fortext
+                                hostname = {'ip': ip_result,
+                                            'status': 'up',
+                                            'status ID': '6',
+                                            'hostnames': ''}
+
                             model_name = cfg.model_name(device_type, vendor)
                             model_id = cfg.models.get(model_name)
                             club_number = club_num(club_result)
@@ -399,7 +405,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
 
-                            except KeyError:
+                            except:
                                 logger.critical('No loc_id', exc_info=True)
                                 loc_id = None
                                 loc_id = str(loc_id)
@@ -418,33 +424,18 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 'Hostname': hostname['hostnames'],
                                 'Mac Address': mac_result,
                                 'Status': hostname['status'],
-                                'Status ID': hostname['status ID']
-                            }
+                                'Status ID': hostname['status ID']}
+
                             # The first value added to 'results'
                             # is the router value. This is only added if the
-                            # host IP is 10.x.x.1.
+                            # host IP is 172.31.x.x.
                             # Subsequently, the rest of the mac values
                             # are compared to the first value.
                             # If the mac address is the same,
                             # values are not written to 'results' to avoid
                             # duplicate values from final list.
-
-                            # fix this code to account for the fact that
-                            # fgt routers do not end in .1 as a rule
                             if len(results) == 0:
-                                if first_octet == 10:
-                                    if last_octet == 1:
-                                        results.append(host_info)
-                                    else:
-                                        if len(not_added) != (ip_count - 1):
-                                            not_added.append(host_info)
-                                            continue
-                                        else:
-                                            results.append(host_info)
-
-                                elif first_octet == 172:
-                                    results.append(host_info)
-                                else:
+                                if first_octet == 172 and sec_octet == 31:
                                     results.append(host_info)
                             else:
                                 if (host_info['Mac Address'] !=
@@ -514,7 +505,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
                  .format(runtime2))
-    # logger.debug(pformat(results))
+    logger.debug(pformat(results))
     return results
 
 
@@ -781,101 +772,127 @@ def diff(results):
     club_mac_list = [item['Mac Address'] for item in club_mac]
 
     for item in results:
-        # find mac address in deleted list, to see whether or not item is new or
-        # is being restored
-        deleted_mac = deleted_coll.find_one({'_snipeit_mac_address_7': item['Mac Address'],
-                                             'Location': item['Location']},
-                                            {'_snipeit_mac_address_7': 1, '_id': 0})
+        try:
+            # find mac address in deleted list, to see whether or not item is new or
+            # is being restored
+            deleted_mac = deleted_coll.find_one({'_snipeit_mac_address_7': item['Mac Address'],
+                                                'Location': item['Location']},
+                                                {'_snipeit_mac_address_7': 1, '_id': 0})
 
-        results_macs.append(item['Mac Address'])
-        # query for specific mac address from results in mongodb
-        mac_in_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
-                                        'Location': item['Location'],
-                                        'IP': item['IP']},
-                                       {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
+            results_macs.append(item['Mac Address'])
+            # query for specific mac address from results in mongodb
+            mac_in_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                            'Location': item['Location'],
+                                            'IP': item['IP']},
+                                           {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
 
-        asset_tag_diff = snipe_coll.find({'Mac Address': item['Mac Address'],
-                                          'Location': item['Location'],
-                                          'IP': item['IP'], 'Asset Tag': item['Asset Tag']},
-                                         {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
+            asset_tag_diff = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                              'Location': item['Location'],
+                                              'IP': item['IP'], 'Asset Tag': item['Asset Tag']},
+                                             {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
 
-        mac_in_snipe = list(mac_in_snipe)
-        asset_tag_diff = list(asset_tag_diff)
-        # see if mac is in other locations
-        if not mac_in_snipe:
-            # mac address found in a different location
-            mac_other_snipe = snipe_coll.find({'Mac Address': item['Mac Address']},
-                                              {'Mac Address': 1, 'Location': 1, '_id': 0})
-            # mac address found with a different IP
-            mac_ip_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
-                                            'Location': item['Location']},
-                                           {'Mac Address': 1, 'IP': 1, '_id': 0})
-            mac_other_snipe = list(mac_other_snipe)
-            mac_ip_snipe = list(mac_ip_snipe)
-            if mac_other_snipe and not mac_ip_snipe:
+            hostname_diff = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                             'Location': item['Location'],
+                                             'IP': item['IP'],
+                                             'Hostname': item['Hostname']},
+                                            {'Mac Address': 1, 'Asset Tag': 1, '_id': 0})
+
+            mac_in_snipe = list(mac_in_snipe)
+            asset_tag_diff = list(asset_tag_diff)
+            hostname_diff = list(hostname_diff)
+
+            # see if mac is in other locations
+            if not mac_in_snipe:
+                # mac address found in a different location
+                mac_other_snipe = snipe_coll.find({'Mac Address': item['Mac Address']},
+                                                  {'Mac Address': 1, 'Location': 1, '_id': 0})
+                # mac address found with a different IP
+                mac_ip_snipe = snipe_coll.find({'Mac Address': item['Mac Address'],
+                                                'Location': item['Location']},
+                                               {'Mac Address': 1, 'IP': 1, '_id': 0})
+                mac_other_snipe = list(mac_other_snipe)
+                mac_ip_snipe = list(mac_ip_snipe)
+                if mac_other_snipe and not mac_ip_snipe:
+                    count_update += 1
+                    update.append(item)
+                    msg1 = ('Device from {}, ID {} and Mac Address {} '
+                            'has a different location - {}\n'
+                            .format(mac_other_snipe[0]['Location'],
+                                    item['ID'],
+                                    item['Mac Address'],
+                                    item['Location']))
+                    logger.debug('UPDATED ASSET {}'.format(count_update))
+                    logger.debug(msg1)
+                    status_file.write(msg1)
+
+                elif not mac_in_snipe and mac_ip_snipe:
+                    count_update += 1
+                    update.append(item)
+                    msg1 = ('Device from {}, ID {} and Mac Address {} '
+                            'has a different IP - {}\n'
+                            .format(item['Location'],
+                                    item['ID'],
+                                    item['Mac Address'],
+                                    mac_ip_snipe[0]['IP']))
+                    logger.debug('UPDATED ASSET {}'.format(count_update))
+                    logger.debug(msg1)
+                    status_file.write(msg1)
+
+                elif not mac_in_snipe and not mac_other_snipe and not deleted_mac:
+                    count_add += 1
+
+                    add.append(item)
+                    msg1 = ('New device with ID {} and Mac Address {} '
+                            'added\n'
+                            .format(item['ID'],
+                                    item['Mac Address']))
+                    logger.debug('NEW ASSET {}'.format(count_add))
+                    logger.debug(msg1)
+                    status_file.write(msg1)
+
+                elif not mac_in_snipe and deleted_mac:
+                    count_restore += 1
+                    restore.append(item)
+                    msg1 = ('Device with ID {} and Mac Address {} '
+                            'restored\n'
+                            .format(item['ID'],
+                                    item['Mac Address']))
+                    logger.debug('RESTORED ASSET {}'.format(count_restore))
+                    logger.debug(msg1)
+                    status_file.write(msg1)
+
+            elif mac_in_snipe and not asset_tag_diff:
                 count_update += 1
                 update.append(item)
                 msg1 = ('Device from {}, ID {} and Mac Address {} '
-                        'has a different location - {}\n'
-                        .format(mac_other_snipe[0]['Location'],
-                                item['ID'],
-                                item['Mac Address'],
-                                item['Location']))
-                logger.debug('UPDATED ASSET {}'.format(count_update))
-                logger.debug(msg1)
-                status_file.write(msg1)
-
-            elif not mac_in_snipe and mac_ip_snipe:
-                count_update += 1
-                update.append(item)
-                msg1 = ('Device from {}, ID {} and Mac Address {} '
-                        'has a different IP - {}\n'
+                        'has a different Asset Tag - {}\n'
                         .format(item['Location'],
                                 item['ID'],
                                 item['Mac Address'],
-                                mac_ip_snipe[0]['IP']))
+                                mac_in_snipe[0]['Asset Tag']))
                 logger.debug('UPDATED ASSET {}'.format(count_update))
                 logger.debug(msg1)
                 status_file.write(msg1)
 
-            elif not mac_in_snipe and not mac_other_snipe and not deleted_mac:
-                count_add += 1
-
-                add.append(item)
-                msg1 = ('New device with ID {} and Mac Address {} '
-                        'added\n'
-                        .format(item['ID'],
-                                item['Mac Address']))
-                logger.debug('NEW ASSET {}'.format(count_add))
+            elif mac_in_snipe and not hostname_diff:
+                count_update += 1
+                update.append(item)
+                msg1 = ('Device from {}, ID {} and Mac Address {} '
+                        'has a different Hostname - {}\n'
+                        .format(item['Location'],
+                                item['ID'],
+                                item['Mac Address'],
+                                item['Hostname']))
+                logger.debug('UPDATED ASSET {}'.format(count_update))
                 logger.debug(msg1)
                 status_file.write(msg1)
 
-            elif not mac_in_snipe and deleted_mac:
-                count_restore += 1
-                restore.append(item)
-                msg1 = ('Device with ID {} and Mac Address {} '
-                        'restored\n'
-                        .format(item['ID'],
-                                item['Mac Address']))
-                logger.debug('RESTORED ASSET {}'.format(count_restore))
-                logger.debug(msg1)
-                status_file.write(msg1)
+            else:
+                continue
 
-        elif mac_in_snipe and not asset_tag_diff:
-            count_update += 1
-            update.append(item)
-            msg1 = ('Device from {}, ID {} and Mac Address {} '
-                    'has a different Asset Tag - {}\n'
-                    .format(item['Location'],
-                            item['ID'],
-                            item['Mac Address'],
-                            mac_in_snipe[0]['Asset Tag']))
-            logger.debug('UPDATED ASSET {}'.format(count_update))
-            logger.debug(msg1)
-            status_file.write(msg1)
-
-        else:
-            continue
+        except (TypeError, IndexError):
+            logger.error('Cannot find differences for {} '
+                         .format(item), exc_info=True)
 
     # check if each mac address in snipedb is in results mac address list
     not_in_results = list(filter(lambda item: item not in results_macs, club_mac_list))
@@ -994,7 +1011,7 @@ def api_call(club_id, add, remove, restore, update):
                 url = cfg.api_url
                 item_str = str(item)
                 payload = item_str.replace('\'', '\"')
-                logger.debug(payload)
+                logger.debug(pformat(payload))
                 response = requests.request("POST",
                                             url=url,
                                             data=payload,
@@ -1064,11 +1081,19 @@ def api_call(club_id, add, remove, restore, update):
                                                  {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
                                                   '_snipeit_ip_6': 1, '_id': 0})
 
+            del_item_host = del_coll.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                               '_snipeit_ip_6': item['_snipeit_ip_6'],
+                                               'Location': item['Location'],
+                                               '_snipeit_hostname_8': item['_snipeit_hostname_8']},
+                                              {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
+                                               '_snipeit_ip_6': 1, '_id': 0})
+
             try:
                 if del_item:
                     item_tag = str(del_item['asset_tag'])
                     item_id = str(del_item['id'])
                     item_ip = str(del_item['_snipeit_ip_6'])
+                    item_host = str(item['_snipeit_hostname_8'])
 
                     # all is needed to restore is asset_tag
                     url = cfg.api_url_restore_deleted.format(item_id)
@@ -1076,6 +1101,38 @@ def api_call(club_id, add, remove, restore, update):
                                                 url=url,
                                                 headers=cfg.api_headers)
                     logger.info('Request POST - Restore 1')
+
+                    if not del_item_host:
+                        # if item has a differet hostname, partially update item in snipe it
+                        url = cfg.api_url_update.format(del_item_diff_ip['id'])
+                        item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6'],
+                                        '_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                        '_snipeit_hostname_8': item['_snipeit_hostname_8']})
+                        payload = item_str.replace('\'', '\"')
+                        logger.debug(payload)
+                        response2 = requests.request("PATCH",
+                                                     url=url,
+                                                     data=payload,
+                                                     headers=cfg.api_headers)
+                        logger.info('Request PATCH - Restore 2')
+                        logger.debug(pformat(response2.text))
+                        content2 = response2.json()
+                        status_r_2 = str(content2['status'])
+                        # record status of api call and save with tag in list
+                        api_snipe = {'asset_tag': item_tag,
+                                     'status': status_r_2}
+                        api_status.append(api_snipe)
+                        msg = ('Updated item with asset_tag {} '
+                               'and id {} with new hostname {} in Snipe-IT\n')
+
+                        del_coll.update_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
+                                            {'$set': {'_snipeit_ip_6': item['_snipeit_ip_6'],
+                                                      '_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                                      '_snipeit_hostname_8': item['_snipeit_hostname_8']}})
+
+                        status_file.write(msg.format(item_tag, item_id, item_host))
+                        logger.info(msg.format(item_tag, item_id, item_host))
+                        
 
                 if del_item_diff_ip and not del_item:
                     item_tag = str(del_item_diff_ip['asset_tag'])
@@ -1091,7 +1148,9 @@ def api_call(club_id, add, remove, restore, update):
 
                     # if item has a different ip address, partially update item in snipe it
                     url = cfg.api_url_update.format(del_item_diff_ip['id'])
-                    item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6']})
+                    item_str = str({'_snipeit_ip_6': item['_snipeit_ip_6'],
+                                    '_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                    '_snipeit_hostname_8': item['_snipeit_hostname_8']})
                     payload = item_str.replace('\'', '\"')
                     logger.debug(payload)
                     response2 = requests.request("PATCH",
@@ -1110,7 +1169,9 @@ def api_call(club_id, add, remove, restore, update):
                            'and id {} with new IP {} in Snipe-IT\n')
 
                     del_coll.update_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7']},
-                                        {'$set': {'_snipeit_ip_6': item['_snipeit_ip_6']}})
+                                        {'$set': {'_snipeit_ip_6': item['_snipeit_ip_6'],
+                                                  '_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                                  '_snipeit_hostname_8': item['_snipeit_hostname_8']}})
 
                     status_file.write(msg.format(item_tag, item_id, item_ip))
                     logger.info(msg.format(item_tag, item_id, item_ip))
@@ -1243,14 +1304,20 @@ def api_call(club_id, add, remove, restore, update):
                         # add remove item to mongo colletion -deleted
                         client = pymongo.MongoClient("mongodb://localhost:27017/")
 
-                        # Use database called inveentory
+                        # Use database called inventory
                         db = client['inventory']
 
                         # use collection named deleted
                         del_col = db['deleted']
 
-                        # add item to collection
-                        del_col.insert_one(item)
+                        del_item = del_col.find_one({'_snipeit_mac_address_7': item['_snipeit_mac_address_7'],
+                                                     '_snipeit_ip_6': item['_snipeit_ip_6'],
+                                                     'Location': item['Location']},
+                                                    {'id': 1, 'asset_tag': 1, '_snipeit_mac_address_7': 1,
+                                                     '_snipeit_ip_6': 1, '_id': 0})
+                        if not del_item:
+                            # add item to collection
+                            del_col.insert_one(item)
 
                         del_tuple = (club_id, item['asset_tag'])
                         deleted.append(del_tuple)
@@ -1416,22 +1483,19 @@ def check_tag(asset_tag, mac_addr):
 
         id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
                                   {'ID': 1, '_id': 0})
+        id2_ = snipe_coll.find_one({'Asset Tag': asset_tag},
+                                   {'ID': 1, '_id': 0})
 
         if id_ is not None:
             return False
 
+        elif id_ is None and id2_ is not None:
+            return True
+
         else:
-            asset_tag = str(asset_tag) + '0'
-            id_ = snipe_coll.find_one({'Asset Tag': asset_tag, 'Mac Address': mac_addr},
-                                      {'ID': 1, '_id': 0})
+            return False
 
-            if id_ is not None:
-                return True
-
-            else:
-                return False
-
-    except (KeyError, IndexError):
+    except:
         logger.critical('Could not check asset tag for {} '.format(mac_addr), exc_info=True)
         return False
 
@@ -1557,7 +1621,6 @@ def club_id(conn, host, device_type):
                             logger.debug('Getting club ID... attempt {}'
                                          .format(attempt + 1))
                             if club_number is not None:
-                                # club_number returns reg pattern '000'
                                 club_number = club_number.group(0)
                                 club_result = 'club' + str(club_number)
                                 break
@@ -1607,23 +1670,30 @@ def get_hostnames(ip):
         Does not raise an error. If a host is not found, an empty string
         is returned ''.
     """
-    hosts = str(ip)
-    nmap_args = '-sn'
-    scanner = PortScanner()
-    scanner.scan(hosts=hosts, arguments=nmap_args)
+    try:
+        hosts = str(ip)
+        nmap_args = '-sn'
+        scanner = PortScanner()
+        scanner.scan(hosts=hosts, arguments=nmap_args)
+        for ip in scanner.all_hosts():
+            host = {'ip': ip}
+            if 'hostnames' in scanner[ip]:
+                hostname = scanner[ip].hostname()
+                hostname = hostname.replace('.24hourfit.com', '')
+                host['hostnames'] = hostname.upper()
+            if 'status' in scanner[ip]:
+                host['status'] = scanner[ip]['status']['state']
+            if host['status'] == 'up':
+                host['status ID'] = '6'
+            if host['status'] == 'down':
+                host['status ID'] = '8'
+            return host
 
-    for ip in scanner.all_hosts():
-        host = {'ip': ip}
-        if 'hostnames' in scanner[ip]:
-            host['hostnames'] = scanner[ip].hostname()
-        if 'status' in scanner[ip]:
-            host['status'] = scanner[ip]['status']['state']
-        if host['status'] == 'up':
-            host['status ID'] = '6'
-        if host['status'] == 'down':
-            host['status ID'] = '8'
-
-        return host
+        else:
+            return None
+    except (KeyError):
+        logger.error('problem getting hostname ', exc_info=True)
+        return None
 
 
 def club_num(club_result):
