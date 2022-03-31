@@ -348,7 +348,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 if ip_add in ip_network(ip_range):
                                     arp_list_upd.append(item)
 
-                    ip_count = int(len(arp_list_upd)) - 1
                     # ARP table does not include main router mac, adding to list of devices
                     mac_addr_inf = conn.send_command('get hardware nic wan1 | grep Permanent_HWaddr')
                     router_info = (str(host) + ' ' + str(mac_addr_inf))
@@ -371,7 +370,6 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                 vendor
                             )
                             octets = ip_result.split('.')
-                            last_octet = int(octets[-1])
                             first_octet = int(octets[0])
                             sec_octet = int(octets[1])
                             hostname = get_hostnames(ip_result)
@@ -405,7 +403,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                                         if itm['name'] == str(club_result):
                                             loc_id = str(itm['id'])
 
-                            except:
+                            except KeyError:
                                 logger.critical('No loc_id', exc_info=True)
                                 loc_id = None
                                 loc_id = str(loc_id)
@@ -1132,7 +1130,6 @@ def api_call(club_id, add, remove, restore, update):
 
                         status_file.write(msg.format(item_tag, item_id, item_host))
                         logger.info(msg.format(item_tag, item_id, item_host))
-                        
 
                 if del_item_diff_ip and not del_item:
                     item_tag = str(del_item_diff_ip['asset_tag'])
@@ -1495,7 +1492,7 @@ def check_tag(asset_tag, mac_addr):
         else:
             return False
 
-    except:
+    except (KeyError, IndexError):
         logger.critical('Could not check asset tag for {} '.format(mac_addr), exc_info=True)
         return False
 
