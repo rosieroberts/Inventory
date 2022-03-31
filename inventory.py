@@ -136,19 +136,15 @@ def club_scan(ip):
     clb_runtime_str = time()
 
     if ip_address:
-        # connect to router and get connect object and device type
-        # item returned [0]
-        # device_type [1]
+        # connect to router and get connect object
         router_connect = connect(str(ip))
     try:
         if router_connect:
-            connect_obj = router_connect[0]
-            device_type = router_connect[1]
+            connect_obj = router_connect
             if ip_address:
 
                 results = get_router_info(connect_obj,
                                           str(ip),
-                                          device_type,
                                           location_ids)
             else:
                 results = None
@@ -224,13 +220,7 @@ def connect(ip):
             try:
                 logger.debug('Connecting... attempt {}'.format(str(attempt + 1)))
 
-                if ip in cfg.routers_cisco:
-                    device_type = 'cisco_ios'
-
-                else:
-                    device_type = 'fortinet'
-
-                net_connect = ConnectHandler(device_type=device_type,
+                net_connect = ConnectHandler(device_type='fortinet',
                                              host=ip,
                                              username=cfg.ssh['username'],
                                              password=cfg.ssh['password'],
@@ -241,7 +231,7 @@ def connect(ip):
                 logger.debug('Connection achieved in {} seconds'
                              .format(int(time_elapsed)))
 
-                return net_connect, device_type
+                return net_connect
 
             except(NetMikoTimeoutException,
                    NetMikoAuthenticationException,
@@ -284,7 +274,7 @@ def connect(ip):
         return None
 
 
-def get_router_info(conn, host, device_type, loc_id_data):
+def get_router_info(conn, host, loc_id_data):
     """Sends command to router to retrieve its arp-table, extracting all
     devices' mac-addresses and combines this with additional device
     information in a list of dictionaries per location.
@@ -312,7 +302,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
         list of failed results for investigation.
     """
     start2 = time()
-    club_result = club_id(conn, host, device_type)
+    club_result = club_id(conn, host)
     results = []  # main inventory results
     f_results = []  # list of failed results
     mac_regex = compile(cfg.mac_rgx)
@@ -329,11 +319,7 @@ def get_router_info(conn, host, device_type, loc_id_data):
                     if host_ip_type:
                         logger.debug('Sending command to router... attempt {}'
                                      .format(attempt2 + 1))
-                        if device_type == 'fortinet':
-                            arp_table = conn.send_command('get system arp')
-                        elif device_type == 'cisco_ios':
-                            arp_table = conn.send_command('sh arp')
-                            mac_regex = compile(r'([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})')
+                        arp_table = conn.send_command('get system arp')
 
                     arp_list = arp_table.splitlines()
                     arp_list_upd = []
@@ -1565,7 +1551,7 @@ def last_4_baselines(diff_item):
         return None
 
 
-def club_id(conn, host, device_type):
+def club_id(conn, host):
     """Sends command to router to retrieve location ID information.
     if not found, attempts to get location ID using get_hostnames()
 
@@ -1589,43 +1575,21 @@ def club_id(conn, host, device_type):
             if conn is not None:
                 if ip_regex.search(host):
                     try:
-                        if device_type == 'cisco_ios':
-                            # send command to get hostname
-                            club_info = conn.send_command('sh run | inc hostname')
-                            # search club pattern 'club000' in club_info
-                            club_result = club_rgx.search(club_info)
-                            logger.debug('Getting club ID... attempt {}'
-                                         .format(attempt + 1))
-                            # if club pattern is not found
-                            if club_result is None:
-                                # search for regional pattern
-                                club_result = reg_rgx.search(club_info)
-                            # if regional pattern found
-                            if club_result is not None:
-                                # club_result returns reg pattern 'reg-000'
-                                club_result = str(club_result.group(0))
-                                break
-                            # if reg pattern is not found
-                            if club_result is None:
-                                # look for ID in router hostname
-                                raise OSError
-
-                        elif device_type == 'fortinet':
-                            club_info = conn.send_command('show system snmp sysinfo')
-                            # search club number '000' in club_info
-                            club_number = fort_regex.search(club_info)
-                            club_result = None
-                            logger.debug('Getting club ID... attempt {}'
-                                         .format(attempt + 1))
-                            if club_number is not None:
-                                club_number = club_number.group(0)
-                                club_result = 'club' + str(club_number)
-                                break
-                            # if pattern is not found
-                            if club_result is None:
-                                logger.critical('no club ID found')
-                                # look for ID in router hostname
-                                raise OSError
+                        club_info = conn.send_command('show system snmp sysinfo')
+                        # search club number '000' in club_info
+                        club_number = fort_regex.search(club_info)
+                        club_result = None
+                        logger.debug('Getting club ID... attempt {}'
+                                     .format(attempt + 1))
+                        if club_number is not None:
+                            club_number = club_number.group(0)
+                            club_result = 'club' + str(club_number)
+                            break
+                        # if pattern is not found
+                        if club_result is None:
+                            logger.critical('no club ID found')
+                            # look for ID in router hostname
+                            raise OSError
 
                     except(OSError,
                            NetMikoTimeoutException):
@@ -1792,10 +1756,6 @@ def get_club_ips(club):
 
         ip = ip.get('IP')
 
-        # ips for cisco are different, see config file
-        cisco_ip = cfg.ip_cisco_routers(ip)
-        if cisco_ip:
-            ip = cisco_ip
 
         return ip
 
@@ -1808,10 +1768,6 @@ def get_club(ip):
     ''' Get club name for ip address
     args: ip
     returns: club000'''
-    cisco_ip = cfg.cisco_routers(ip)
-
-    if cisco_ip:
-        ip = cisco_ip
 
     myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
