@@ -1686,8 +1686,8 @@ def get_hostnames(ip):
                 host['status ID'] = '8'
             return host
 
-        else:
-            return None
+        return None
+
     except (KeyError):
         logger.error('problem getting hostname ', exc_info=True)
         return None
