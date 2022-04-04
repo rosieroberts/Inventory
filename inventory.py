@@ -1564,6 +1564,7 @@ def club_id(conn, host):
         'null' is returned.
     """
     club_rgx = compile(cfg.club_rgx)
+
     fort_regex = compile(r'([0-9]{3}(?=-fgt-))', IGNORECASE)
     ip_regex = compile(r'(?:\d+\.){3}\d+')
     for _ in range(1):
@@ -1742,7 +1743,6 @@ def get_club_ips(club):
         ip = club_list.find_one({'Location': club}, {'IP': 1, '_id': 0})
 
         ip = ip.get('IP')
-
 
         return ip
 
