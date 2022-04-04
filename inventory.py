@@ -218,7 +218,7 @@ def connect(ip):
         for attempt in range(2):
             startconn = time()
             try:
-                logger.debug('Connecting... attempt {}'.format(str(attempt + 1)))
+                logger.debug('Connecting...')
 
                 net_connect = ConnectHandler(device_type='fortinet',
                                              host=ip,
@@ -261,9 +261,8 @@ def connect(ip):
                         logger.debug('port 22 is closed for {}'
                                      .format(ip))
                         continue
-                logger.debug('Connecting... attempt {}'.format(str(attempt + 1)))
                 if attempt == 0:
-                    logger.debug('Error, Trying to connect to {} again '.format(ip))
+                    logger.debug('error connecting, trying to connect to {} again '.format(ip))
 
                 else:
                     logger.error('Could not connect to host', exc_info=True)
@@ -317,8 +316,6 @@ def get_router_info(conn, host, loc_id_data):
                 try:
                     host_ip_type = ip_regex.search(host)
                     if host_ip_type:
-                        logger.debug('Sending command to router... attempt {}'
-                                     .format(attempt2 + 1))
                         arp_table = conn.send_command('get system arp')
 
                     arp_list = arp_table.splitlines()
@@ -474,7 +471,7 @@ def get_router_info(conn, host, loc_id_data):
                        PipeTimeout):
 
                     if attempt2 == 0:
-                        logger.error('Could not send command, trying again', exc_info=True)
+                        logger.error('Could not connect to router, trying again', exc_info=True)
                         continue
                     else:
                         logger.critical('Could not get arp table for ip {}'
@@ -1579,8 +1576,7 @@ def club_id(conn, host):
                         # search club number '000' in club_info
                         club_number = fort_regex.search(club_info)
                         club_result = None
-                        logger.debug('Getting club ID... attempt {}'
-                                     .format(attempt + 1))
+
                         if club_number is not None:
                             club_number = club_number.group(0)
                             club_result = 'club' + str(club_number)
@@ -1674,22 +1670,14 @@ def club_num(club_result):
         return None
 
     club_n_regex = compile(r'((?<=club)[\d]{3})')
-    reg_n_regex = compile(r'((?<=reg-)[\d]{3})')
-    # Extract club number for regional offices
-    club_id = reg_n_regex.search(club_result)
-    # if regional office pattern not found
-    if club_id is None:
-        # Extract club number for clubs
-        club_id = club_n_regex.search(club_result)
-        # If club pattern is found
-        if club_id is not None:
-            club_id = club_id.group(0)
-            club_number = club_id
-        else:
-            club_number = club_result
+    # Extract club number for clubs
+    club_id = club_n_regex.search(club_result)
+    if club_id:
+        # if club pattern is found
+        club_id = club_id.group(0)
+        club_number = club_id
     else:
-        # If regional Office pattern found, Club Number = regional_num (config)
-        club_number = cfg.regional_num[club_result]
+        club_number = club_result
 
     return club_number
 
@@ -1716,14 +1704,14 @@ def asset_tag_gen(host, club_number, club_result, mac, vendor):
     asset3 = ('-' + mac_third + mac_fourth)
     loc_num_rgx = compile(r'([\d]{3})')
 
-    if club_number is not None:
+    if club_number:
         # club_number is the return from club_num()
         asset1 = club_number
     else:
-        if club_result is not None:
+        if club_result:
             # Extract location number
             club_id = loc_num_rgx.search(club_result)
-            if club_id is not None:
+            if club_id:
                 club_id = club_id.group(0)
                 asset1 = club_id
         else:
@@ -1793,12 +1781,10 @@ def club_ips(club_list):
     club_ip_list = []
     club_rgx = compile(cfg.club_rgx)
     ip_rgx = compile(cfg.ip_rgx)
-    reg_rgx = compile(cfg.reg_rgx)
 
     try:
         for item in club_list:
             club_ = club_rgx.search(item)
-            reg_ = reg_rgx.search(item)
             ip_ = ip_rgx.search(item)
 
             if club_ is not None:
@@ -1810,10 +1796,6 @@ def club_ips(club_list):
                     logger.debug('cannot find IP for {}'.format(club_))
                     not_connected.append(club_)
                     continue
-
-            elif reg_ is not None:
-                reg_ = str(reg_.group(0))
-                club_ip_list.append(reg_)
 
             elif ip_ is not None:
                 ip_ = str(ip_.group(0))
