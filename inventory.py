@@ -691,9 +691,8 @@ def diff(results):
     deleted_coll = db['deleted']
 
     # Find out if location has already been scanned
-    snipe_location = snipe_coll.find({'Location': results[0]['Location']},
-                                     {'Location': 1, '_id': 0})
-
+    snipe_location = snipe_coll.find_one({'Location': results[0]['Location']},
+                                         {'Location': 1, '_id': 0})
     # If location is not found,
     if not snipe_location:
         logger.debug('No prior scan found to compare, adding all items to snipe-it')
