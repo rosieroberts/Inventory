@@ -672,7 +672,6 @@ def diff(results):
         club = results[0]['Location']
     else:
         return None
-
     add = []
     remove = []
     update = []
@@ -693,13 +692,14 @@ def diff(results):
     # Find out if location has already been scanned
     snipe_location = snipe_coll.find_one({'Location': results[0]['Location']},
                                          {'Location': 1, '_id': 0})
+
     # If location is not found,
     if not snipe_location:
         logger.debug('No prior scan found to compare, adding all items to snipe-it')
         # add all items
         for item in results:
             add.append(item)
-
+           
         if add:
             logger.debug('Adding devices to Scan Files')
             # make directory that will contain all scan statuses by date
@@ -717,7 +717,7 @@ def diff(results):
         else:
             return None
 
-    if results[0]['Location'] != snipe_location[0]['Location']:
+    if results[0]['Location'] != snipe_location['Location']:
         logger.debug('Club information cannot be compared')
         return None
 
