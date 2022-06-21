@@ -151,7 +151,7 @@ def club_scan(ip):
                 logger.debug('No results')
                 results = None
 
-            if results == None:
+            if results is None:
                 raise ValueError
 
             for item in results:
@@ -507,7 +507,7 @@ def get_router_info(conn, host, loc_id_data):
         club_list = mydb['club_list']
 
         # add club to mongodb club_list
-        club_list.insert_one({'IP': results[0]['IP'],'Location': results[0]['Location']})
+        club_list.insert_one({'IP': results[0]['IP'], 'Location': results[0]['Location']})
         return None
     else:
         return results
@@ -722,7 +722,7 @@ def diff(results):
         # add all items
         for item in results:
             add.append(item)
-           
+
         if add:
             logger.debug('Adding devices to Scan Files')
             # make directory that will contain all scan statuses by date
@@ -1036,7 +1036,7 @@ def api_call(club_id, add, remove, restore, update):
                     api_snipe = {'asset_tag': asset_tag,
                                  'status': status_a}
                     api_status.append(api_snipe)
-                    message = str(content['messages']) 
+
                     if status_a == 'success':
                         msg_add = ('Added new item '
                                    'with asset-tag {} to Snipe-IT\n')
@@ -1278,7 +1278,6 @@ def api_call(club_id, add, remove, restore, update):
                                    'with asset-tag {} in Snipe-IT, review 3.\n')
                         status_file.write(msg_res.format(item['asset_tag']))
                         logger.info(msg_res.format(item['asset_tag']))
-
 
             except (KeyError,
                     decoder.JSONDecodeError):
