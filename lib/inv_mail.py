@@ -36,6 +36,7 @@ def send_mail(start,
               club_queue,
               scan_queue,
               not_scanned,
+              new_club,
               api_status,
               added,
               restored,
@@ -47,6 +48,7 @@ def send_mail(start,
     scanned_d = []
     scanned_u = []
     clubs_s = []
+    clubs_w = []
     clubs_n = []
     clubs_q = []
     api_errors = []
@@ -81,6 +83,10 @@ def send_mail(start,
         s = {'Clubs': item}
         clubs_s.append(s)
 
+    for item in new_club:
+        w = {'Clubs': item}
+        clubs_w.append(w)
+
     for item in not_scanned:
         n = {'Clubs': item}
         clubs_n.append(n)
@@ -99,6 +105,7 @@ def send_mail(start,
     table4 = json2html.convert(json=scanned_d)
 
     clubs_conn = json2html.convert(json=clubs_s)
+    clubs_new = json2html.convert(json=clubs_w)
     clubs_ncon = json2html.convert(json=clubs_n)
     clubs_queue = json2html.convert(json=clubs_q)
     api_error = json2html.convert(json=asset_errors)
@@ -144,7 +151,8 @@ def send_mail(start,
             <li>{api_errors} Errors with Snipe-IT API</li>
             <li>{club_count} clubs were successfully scanned</li>
             <li>{scan_queue} clubs were not scanned</li>
-            <li>{not_con_count} clubs were not scanned because of a problem</li>
+            <li>{not_con_count} clubs were not scanned because of a connection problem</li>
+            <li>{new_club} new location(s) need to be added in snipe_it, run club scan again</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
             <li>{updated_count} assets were updated in snipe_it</li>
@@ -157,6 +165,7 @@ def send_mail(start,
     """.format(club_count=len(clubs),
                scan_queue=len(scan_queue),
                not_con_count=len(not_scanned),
+               new_club = len(new_club),
                added_count=len(added),
                restored_count=len(restored),
                updated_count=len(updated),
@@ -181,7 +190,8 @@ def send_mail(start,
             <li>{api_errors} Errors with Snipe-IT API</li>
             <li>{club_count} clubs were successfully scanned</li>
             <li>{scan_queue} clubs were not scanned</li>
-            <li>{not_con_count} clubs were not scanned because of a problem</li>
+            <li>{not_con_count} clubs were not scanned because of a connection problem</li>
+            <li>{new_club} new location(s) need to be added in snipe_it, run club scan again</li>
             <li>{added_count} assets were added to snipe_it</li>
             <li>{restored_count} assets were restored in snipe_it</li>
             <li>{updated_count} assets were updated in snipe_it</li>
@@ -195,6 +205,8 @@ def send_mail(start,
                {clubs_ncon}
                <p>Assets Added:</p>
                {table}
+               <p>New Location to add to Snipe-IT:</p>
+               {clubs_new}
                <p>Assets Restored:</p>
                {table2}
                <p>Assets Updated:</p>
@@ -210,6 +222,7 @@ def send_mail(start,
     """.format(club_count=len(clubs),
                scan_queue=len(scan_queue),
                not_con_count=len(not_scanned),
+               new_club = len(new_club),
                added_count=len(added),
                restored_count=len(restored),
                updated_count=len(updated),
@@ -224,6 +237,7 @@ def send_mail(start,
                table3=table3,
                table4=table4,
                clubs_conn=clubs_conn,
+               clubs_new=clubs_new,
                clubs_queue=clubs_queue,
                clubs_ncon=clubs_ncon)
 
