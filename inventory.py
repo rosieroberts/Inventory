@@ -34,7 +34,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from lib import ips
-from lib.get_snipe_inv import get_loc_id, get_snipe
+from lib.get_snipe_inv import get_loc_id, get_snipe, check_in
 from lib import config as cfg
 from lib import inv_mail as mail
 
@@ -494,7 +494,7 @@ def get_router_info(conn, host, loc_id_data):
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
                  .format(runtime2))
-    logger.debug(pformat(results))
+    # logger.debug(pformat(results))
 
     if results[0]['Location ID'] == 'null':
         new_club.append(results[0]['Location'])
@@ -986,6 +986,12 @@ def api_call(club_id, add, remove, restore, update):
     # use database 'snipe'
     snipe_coll = db['snipe']
 
+    # use database 'software_inventory'
+    soft_db = client['software_inventory']
+
+    # use collection snipe_hw
+    soft_snipe_hw = soft_db['snipe_hw']
+
     if add:
         for item in add:
             asset_tag = item['asset_tag']
@@ -1361,6 +1367,16 @@ def api_call(club_id, add, remove, restore, update):
         for item in remove:
             try:
                 asset_tag = item['asset_tag']
+                snipe_item = soft_snipe_hw.find({'Asset Tag': asset_tag})
+                snipe_item = list(snipe_item)
+                if snipe_item:
+                    logger.info('Checking in seats before deleting asset {}'.format(asset_tag))
+                    checked_in = check_in(snipe_item)
+                    if checked_in is None:
+                        logger.info('No asset tag')
+                else:
+                    logger.info('No licenses to check in, asset is not a computer {}'.format(asset_tag))
+
                 url = cfg.api_url + str(item['id'])
                 response = requests.request("DELETE",
                                             url=url,
