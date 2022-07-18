@@ -168,19 +168,17 @@ def check_in(snipe_list):
 
     client = pymongo.MongoClient("mongodb://localhost:27017/")
     software_db = client['software_inventory']
-    asset_db = client['inventory']
 
     # Snipe Seats collection
     snipe_seats = software_db['snipe_seat']
     # this list contains one item for normal run, but also may contain several assets
     # for checking in licenses for several assets
 
-
     for id_ in id_list:
         not_succ = 0
         # for each asset in list
-        seats = snipe_seats.find({'assigned_asset': id_}, 
-                                 {'id': 1, 'license_id': 1, 'asset_name': 1, '_id':0})
+        seats = snipe_seats.find({'assigned_asset': id_},
+                                 {'id': 1, 'license_id': 1, 'asset_name': 1, '_id': 0})
 
         seats = list(seats)
         if len(seats) == 0:
@@ -189,13 +187,12 @@ def check_in(snipe_list):
                 continue
             else:
                 return False
-        
 
         for count, seat in enumerate(seats):
             # for each seat checked out to asset
             license_id = seat['license_id']
             seat_id = seat['id']
-            not_successful = 0 
+            not_successful = 0
 
             # license ID and seat id
             url = cfg.api_url_software_seat.format(license_id, seat_id)
@@ -210,7 +207,7 @@ def check_in(snipe_list):
             status_code = response.status_code
 
             if status_code == 200:
-                content = response.json()                
+                content = response.json()
                 status = str(content['status'])
                 if status == 'success':
                     logger.info('Successfully checked in seat for license {} for asset id {}'.format(seat['license_id'], id_))
@@ -222,7 +219,7 @@ def check_in(snipe_list):
                 not_successful += 1
 
         if not_successful != 0:
-             not_succ += 1
+            not_succ += 1
 
     if not_succ != 0:
         logger.info('Not all seats could be checked in')
@@ -231,5 +228,3 @@ def check_in(snipe_list):
     else:
         logger.info('All seats for all assets supplied have been checked in')
         return True
-
-
