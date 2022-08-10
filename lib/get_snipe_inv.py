@@ -4,6 +4,7 @@ from logging import FileHandler, Formatter, StreamHandler, getLogger, INFO
 from json import decoder
 from datetime import date
 from lib import config as cfg
+from time import sleep
 
 
 logger = getLogger('get_snipe')
@@ -146,3 +147,84 @@ def get_loc_id():
                 continue
 
     return loc_id_data
+
+
+def check_in(snipe_list):
+    # check in seats for each asset in list of snipe assets
+    # use this when deleting an item from snipe it.
+    id_list = []
+
+    if snipe_list is None:
+        logger.info('No asset to check in seats for')
+        return None
+
+    if type(snipe_list) != list:
+        snipe_list = [snipe_list]
+
+    for item in snipe_list:
+        # get asset ids for each asset and append to id_list
+        asset_id = item['ID']
+        id_list.append(asset_id)
+
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    software_db = client['software_inventory']
+
+    # Snipe Seats collection
+    snipe_seats = software_db['snipe_seat']
+    # this list contains one item for normal run, but also may contain several assets
+    # for checking in licenses for several assets
+
+    for id_ in id_list:
+        not_succ = 0
+        # for each asset in list
+        seats = snipe_seats.find({'assigned_asset': id_},
+                                 {'id': 1, 'license_id': 1, 'asset_name': 1, '_id': 0})
+
+        seats = list(seats)
+        if len(seats) == 0:
+            logger.info('No seats found to check in for asset id {}'.format(id_))
+            if len(id_list) > 1:
+                continue
+            else:
+                return False
+
+        for count, seat in enumerate(seats):
+            # for each seat checked out to asset
+            license_id = seat['license_id']
+            seat_id = seat['id']
+            not_successful = 0
+
+            # license ID and seat id
+            url = cfg.api_url_software_seat.format(license_id, seat_id)
+            sleep(5)
+            item_str = str({'asset_id': ''})
+            payload = item_str.replace('\'', '\"')
+            response = requests.request("PATCH",
+                                        url=url,
+                                        data=payload,
+                                        headers=cfg.api_headers)
+            logger.info(response.text)
+            status_code = response.status_code
+
+            if status_code == 200:
+                content = response.json()
+                status = str(content['status'])
+                if status == 'success':
+                    logger.info('Successfully checked in seat for license {} for asset id {}'.format(seat['license_id'], id_))
+                else:
+                    logger.info('Could not check in seat for license {} for asset id {}'.format(seat['license_id'], id_))
+                    not_successful += 1
+            else:
+                logger.info('Could not check in seat for license {} for asset id {}, error'.format(seat['license_id'], id_))
+                not_successful += 1
+
+        if not_successful != 0:
+            not_succ += 1
+
+    if not_succ != 0:
+        logger.info('Not all seats could be checked in')
+        return False
+
+    else:
+        logger.info('All seats for all assets supplied have been checked in')
+        return True

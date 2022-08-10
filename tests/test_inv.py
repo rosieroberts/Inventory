@@ -73,11 +73,9 @@ def results(random_ip):
 @pytest.fixture
 def router_info(random_ip):
     connect = inv.connect(random_ip)
-    connect_obj = connect[0]
-    device_type = connect[1]
+    connect_obj = connect
     info = inv.get_router_info(connect_obj,
                                str(random_ip),
-                               device_type,
                                inv.location_ids)
     print(info)
     return info

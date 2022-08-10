@@ -4,9 +4,9 @@
 
 # !/usr/bin/env python3
 
-from os import path, listdir
+from os import path
 from sys import exit
-from json import dumps, load, decoder
+from json import dumps, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time, ctime
@@ -34,7 +34,7 @@ from netmiko.ssh_exception import (
     NetMikoTimeoutException,
     NetMikoAuthenticationException)
 from lib import ips
-from lib.get_snipe_inv import get_loc_id, get_snipe
+from lib.get_snipe_inv import get_loc_id, get_snipe, check_in
 from lib import config as cfg
 from lib import inv_mail as mail
 
@@ -494,7 +494,7 @@ def get_router_info(conn, host, loc_id_data):
     runtime2 = end2 - start2
     logger.debug('Club devices information was received in {}'
                  .format(runtime2))
-    logger.debug(pformat(results))
+    # logger.debug(pformat(results))
 
     if results[0]['Location ID'] == 'null':
         new_club.append(results[0]['Location'])
@@ -617,58 +617,147 @@ def csv_trunc():
         f.close()
 
 
-def check_if_remove(diff_item):
-    """ Check if record has not been in baseline for last 4 scans (weeks)"""
-    baselines = last_4_baselines(diff_item)
+def check_if_remove(list_diff_items):
+    date_list = []
+    items_quarter = []
+    myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
-    if baselines is None:
-        return False
+    mydb = myclient.inventory
 
-    baseline_1 = baselines[0]
-    baseline_2 = baselines[1]
-    baseline_3 = baselines[2]
-    baseline_4 = baselines[3]
+    # list of collections from inventory db
+    cols = mydb.collection_names()
 
-    id_found = next((itm for itm in baseline_1 if
-                     diff_item['ID'] == itm['ID']), None)
+    today = date.today()
+    current_week = today.isocalendar()[1]
+    current_year = today.isocalendar()[0]
 
-    mac_found = next((item for item in baseline_1 if
-                      diff_item['Mac Address'] ==
-                      item['Mac Address']), None)
-
-    if id_found is not None and mac_found is not None:
-        return False
-
-    id_found_2 = next((itm for itm in baseline_2 if
-                       diff_item['ID'] == itm['ID']), None)
-
-    mac_found_2 = next((item for item in baseline_2 if
-                        diff_item['Mac Address'] ==
-                        item['Mac Address']), None)
-    if id_found_2 is not None and mac_found_2 is not None:
-        return False
-
-    id_found_3 = next((itm for itm in baseline_3 if
-                       diff_item['ID'] == itm['ID']), None)
-
-    mac_found_3 = next((item for item in baseline_3 if
-                        diff_item['Mac Address'] ==
-                        item['Mac Address']), None)
-
-    if id_found_3 is not None and mac_found_3 is not None:
-        return False
-
-    id_found_4 = next((itm for itm in baseline_4 if
-                       diff_item['ID'] == itm['ID']), None)
-
-    mac_found_4 = next((item for item in baseline_4 if
-                        diff_item['Mac Address'] ==
-                        item['Mac Address']), None)
-    if id_found_4 is not None and mac_found_4 is not None:
-        return False
-
+    if current_week in range(1, 13):
+        current_quarter = 1
+    elif current_week in range(14, 26):
+        current_quarter = 2
+    elif current_week in range(27, 39):
+        current_quarter = 3
+    elif current_week in range(40, 53):
+        current_quarter = 4
     else:
-        return True
+        current_quarter = 0
+
+    # only run this if in first week of the quarter of each year.
+    if current_week not in [1, 14, 27, 40]:
+        return None
+    else:
+        if len(list_diff_items) != 0:
+            # Make sure list of diff_items is not empty, if it is, return None
+            for diff_item in list_diff_items:
+                if diff_item:
+                    i = True
+                else:
+                    continue
+
+        if i is not True:
+            return None
+
+    try:
+        date_regex = compile(r'[0-9]{8}')
+        logger.debug('LOCATION {}'.format(diff_item['Location']))
+        for col in cols:
+            date_ = date_regex.search(col)
+            if date_:
+                # get only full scans
+                collection = mydb[col]
+                collection_count = collection.count()
+                if collection_count < 8_000:
+                    # drop collection
+                    collection.drop()
+                    continue
+                date_ = date_.group(0)
+                date_obj = datetime.strptime(date_, '%m%d%Y').date()
+                date_dict = {'date': date_obj,
+                             'week': date_obj.isocalendar()[1],
+                             'year': date_obj.isocalendar()[0],
+                             'col': col}
+                date_list.append(date_dict)
+            # collections that are not scans
+            else:
+                continue
+
+        for item in date_list:
+            if current_quarter == 1:
+                if item['year'] == current_year - 1:
+                    if item['week'] in range(40, 53):
+                        items_quarter.append(item)
+
+            elif current_quarter == 2:
+                if item['year'] == current_year:
+                    if item['week'] in range(1, 13):
+                        items_quarter.append(item)
+
+            elif current_quarter == 3:
+                if item['year'] == current_year:
+                    if item['week'] in range(14, 26):
+                        items_quarter.append(item)
+
+            elif current_quarter == 4:
+                if item['year'] == current_year:
+                    if item['week'] in range(27, 39):
+                        items_quarter.append(item)
+            else:
+                logger.debug('Cannot add this item {}'.format(item))
+
+        # sort dates
+        items_quarter.sort(key=lambda date: datetime.strptime(str(date['date']), '%Y-%m-%d'))
+
+        for item in items_quarter:
+            col = item['col']
+            collection = mydb[col]
+
+        # return True if there are items that need to be removed for the quarter only
+        # for each item to remove
+        # count of items that should be removed this quarter
+        remove_count = 0
+        remove_pop = []
+        for count, diff_item in enumerate(list_diff_items):
+            logger.debug(diff_item)
+            found_scan_count = 0
+            items_quarter_ct = []
+            found_ct = []
+            # for each applicable collection in quarter
+            for ct, item in enumerate(items_quarter):
+                items_quarter_ct.append(ct)
+                # get collection name
+                coll = mydb[item['col']]
+                found_asset = coll.find_one({'Mac Address': diff_item['Mac Address'],
+                                             'Location': diff_item['Location']})
+                if found_asset:
+                    found_scan_count += 1
+                    found_ct.append(ct)
+
+            last_4 = items_quarter_ct[-4:]
+            logger.debug('item found in {} scans'.format(found_scan_count))
+            if found_scan_count < (len(items_quarter) / 4):
+                # check if asset has been found in any of last four scans
+                check = any(item in found_ct for item in last_4)
+                if not check:
+                    logger.debug('{} count. item found in less than 25% of scans last quarter, removing item {}'.format(count, diff_item['ID']))
+                    remove_count += 1
+                else:
+                    logger.debug('item ID {} found in last 4 scans'.format(diff_item['ID']))
+                    remove_pop.append(count)
+
+            else:
+                logger.debug('item ID {} found in more than 25% of scans last quarter'.format(diff_item['ID']))
+                # list of items to not remove, pop from remove list
+                remove_pop.append(count)
+
+        if remove_count == 0:
+            rem = False
+        else:
+            rem = True
+        return (rem, remove_pop)
+
+    except(KeyError, IndexError):
+        logger.critical('There is something wrong with check_if_remove function', exc_info=True)
+        return False
 
 
 def diff(results):
@@ -785,7 +874,7 @@ def diff(results):
             # is being restored
             deleted_mac = deleted_coll.find_one({'_snipeit_mac_address_7': item['Mac Address'],
                                                 'Location': item['Location']},
-                                                {'_snipeit_mac_address_7': 1, '_id': 0})
+                                                {'_snipeit_mac_address_7': 1, 'id': 1, '_id': 0})
 
             results_macs.append(item['Mac Address'])
             # query for specific mac address from results in mongodb
@@ -862,8 +951,8 @@ def diff(results):
                     count_restore += 1
                     restore.append(item)
                     msg1 = ('Device with ID {} and Mac Address {} '
-                            'restored\n'
-                            .format(item['ID'],
+                            'will be restored\n'
+                            .format(deleted_mac['id'],
                                     item['Mac Address']))
                     logger.debug('RESTORED ASSET {}'.format(count_restore))
                     logger.debug(msg1)
@@ -906,30 +995,53 @@ def diff(results):
     not_in_results = list(filter(lambda item: item not in results_macs, club_mac_list))
 
     if not_in_results:
+        list_diff_items = []
         for item in not_in_results:
-
             try:
                 itm = snipe_coll.find({'Mac Address': item},
                                       {'_id': 0})
                 itm = list(itm)
                 itm = itm[0]
                 itm['ID'] = str(itm['ID'])
-                check_remove = check_if_remove(itm)
                 # if check_remove is true, remove device from snipeit
-                if check_remove is True:
-                    count_remove += 1
-                    remove.append(itm)
-                    msg7 = ('Device with ID {} and Mac Address {} '
-                            'no longer found, '
-                            'will be removed '
-                            .format(itm['ID'],
-                                    itm['Mac Address']))
-                    logger.debug('REMOVED ASSET {}'.format(count_remove))
-                    logger.debug(msg7)
-                    status_file.write(msg7)
-            except (KeyError):
-                logger.error('Cannot remove device with Mac Address {} '
+                count_remove += 1
+                remove.append(itm)
+                list_diff_items.append(itm)
+                msg7 = ('Device with ID {} and Mac Address {} '
+                        'not found, '
+                        'checking if it should be removed '
+                        .format(itm['ID'],
+                                itm['Mac Address']))
+                logger.debug('ASSET NOT FOUND {}'.format(count_remove))
+                logger.debug(msg7)
+                status_file.write(msg7)
+            except(KeyError, IndexError):
+                logger.error('Problem with getting not found asset with Mac Address {} '
                              .format(item), exc_info=True)
+
+        try:
+
+            # get tuple with True or False and list of diff_items to pop from remove
+            # if not getting removed from snipe-it
+            check_remove = check_if_remove(list_diff_items)
+
+            if check_remove:
+                # True if there are items to remove
+                check_remove_1 = check_remove[0]
+                # list of items to pop from remove list if not needed to remove
+                check_remove_2 = check_remove[1]
+                # if items should not be removed this quarter, clear remove list
+                if check_remove_1 is False:
+                    remove.clear()
+                    logger.debug('No items for club {} to remove this quarter'.format(itm['Location']))
+                else:
+                    if check_remove_2:
+                        for item in reversed(check_remove_2):
+                            remove.pop(item)
+                        if len(remove) > 0:
+                            logger.debug('There are items to remove for club {} from Snipe-it this quarter'.format(itm['Location']))
+        except(KeyError):
+            logger.critical('There is something not working with removing items from remove list', exc_info=True)
 
     if add or restore:
 
@@ -953,7 +1065,7 @@ def diff(results):
     else:
         logger.info('_____No differences found____')
 
-    return [add, remove, restore, update]
+    return [add, [], restore, update]
 
 
 def api_call(club_id, add, remove, restore, update):
@@ -986,6 +1098,12 @@ def api_call(club_id, add, remove, restore, update):
     # use database 'snipe'
     snipe_coll = db['snipe']
 
+    # use database 'software_inventory'
+    soft_db = client['software_inventory']
+
+    # use collection snipe_hw
+    soft_snipe_hw = soft_db['snipe_hw']
+
     if add:
         for item in add:
             asset_tag = item['asset_tag']
@@ -996,7 +1114,7 @@ def api_call(club_id, add, remove, restore, update):
                 response = requests.request("GET", url=url, headers=cfg.api_headers)
 
                 logger.info('Request GET - Add')
-                print(response.status_code)
+                logger.debug(response.status_code)
                 content = response.json()
                 status_a = str(content['status'])
                 # record status of api call and save with tag in list
@@ -1005,7 +1123,7 @@ def api_call(club_id, add, remove, restore, update):
                     status_file.write('Cannot add item, asset_tag {} already exists '
                                       'in Snipe-IT, review item\n{}'
                                       .format(item['asset_tag'], item))
-            except (KeyError,
+            except(KeyError,
                     decoder.JSONDecodeError):
                 tag = None
             if tag is not None:
@@ -1026,7 +1144,7 @@ def api_call(club_id, add, remove, restore, update):
                                             data=payload,
                                             headers=cfg.api_headers)
                 logger.info('Request POST - Add ')
-                print(response.status_code)
+                logger.debug(response.status_code)
                 logger.info(pformat(response.text))
                 content = response.json()
 
@@ -1106,7 +1224,7 @@ def api_call(club_id, add, remove, restore, update):
                                                 url=url,
                                                 headers=cfg.api_headers)
                     logger.info('Request POST - Restore 1 ')
-                    print(response.status_code)
+                    logger.debug(response.status_code)
 
                     logger.debug(pformat(response.text))
                     if response.status_code == 200:
@@ -1122,6 +1240,8 @@ def api_call(club_id, add, remove, restore, update):
 
                             status_file.write(msg_res.format(item_tag, item_id))
                             logger.info(msg_res.format(item_tag, item_id))
+                            res_tuple = (club_id, item_tag)
+                            restored.append(res_tuple)
 
                             if not del_item_host:
                                 # if item has a different hostname, partially update item in snipe it
@@ -1193,7 +1313,7 @@ def api_call(club_id, add, remove, restore, update):
                                                 url=url,
                                                 headers=cfg.api_headers)
                     logger.info('Request POST - Restore 2 ')
-                    print(response.status_code)
+                    logger.debug(response.status_code)
 
                     logger.debug(pformat(response.text))
 
@@ -1209,8 +1329,8 @@ def api_call(club_id, add, remove, restore, update):
                                        'with asset-tag {} to Snipe-IT\n')
                             status_file.write(msg_res.format(item['asset_tag']))
                             logger.info(msg_res.format(item['asset_tag']))
-                            res_tuple = (club_id, item_tag)
-                            restored.append(res_tuple)
+                            res_tuple2 = (club_id, item_tag)
+                            restored.append(res_tuple2)
                         # if status code is 200 but not successful
                         else:
                             msg_res = ('Could not restore item '
@@ -1313,7 +1433,7 @@ def api_call(club_id, add, remove, restore, update):
                                             data=payload,
                                             headers=cfg.api_headers)
                 logger.info('Request PATCH - Update 1 ')
-                print(response.status_code)
+                logger.debug(response.status_code)
                 logger.debug(pformat(response.text))
 
                 if response.status_code == 200:
@@ -1361,12 +1481,22 @@ def api_call(club_id, add, remove, restore, update):
         for item in remove:
             try:
                 asset_tag = item['asset_tag']
+                snipe_item = soft_snipe_hw.find({'Asset Tag': asset_tag})
+                snipe_item = list(snipe_item)
+                if snipe_item:
+                    logger.info('Checking in seats before deleting asset {}'.format(asset_tag))
+                    checked_in = check_in(snipe_item)
+                    if checked_in is None:
+                        logger.info('No asset tag')
+                else:
+                    logger.info('No licenses to check in, asset is not a computer {}'.format(asset_tag))
+
                 url = cfg.api_url + str(item['id'])
                 response = requests.request("DELETE",
                                             url=url,
                                             headers=cfg.api_headers)
                 logger.info('Request DELETE - Remove 1 ')
-                print(response.status_code)
+                logger.debug(response.status_code)
                 logger.info(pformat(response.text))
 
                 if response.status_code == 200:
@@ -1570,74 +1700,6 @@ def check_tag(asset_tag, mac_addr):
     except (KeyError, IndexError):
         logger.critical('Could not check asset tag for {} '.format(mac_addr), exc_info=True)
         return False
-
-
-def last_4_baselines(diff_item):
-    """Opens and loads prior 4 scans as baselines for use in check_if_remove()
-
-        Args:
-            item from differences that no longer appears in results
-
-        Returns:
-            list of 4 baselines - list of dictionary items from baseline in prior 4 scans
-
-        Raises:
-            Does not raise an error. If there is no baseline, returns None
-    """
-    if diff_item:
-        club = diff_item['Location']
-    else:
-        return None
-
-    file_list = []
-
-    try:
-        club_bsln_path = '/opt/Inventory/scans/baselines/{}'.format(club)
-        # get list of all files in club baseline directory
-        list_dir = listdir(club_bsln_path)
-        for item in list_dir:
-            date_ = item[8:16]
-            file_list.append(date_)
-        if len(file_list) >= 4:
-            # sort list to find latest 4 baselines
-            file_list.sort(key=lambda date: datetime.strptime(date, '%m%d%Y'))
-            bline_1 = club + '_' + file_list[-1] + '.json'
-            bline_2 = club + '_' + file_list[-2] + '.json'
-            bline_3 = club + '_' + file_list[-3] + '.json'
-            bline_4 = club + '_' + file_list[-4] + '.json'
-
-            # full path of baselines
-            baseline_1_path = path.join(club_bsln_path, str(bline_1))
-            baseline_2_path = path.join(club_bsln_path, str(bline_2))
-            baseline_3_path = path.join(club_bsln_path, str(bline_3))
-            baseline_4_path = path.join(club_bsln_path, str(bline_4))
-
-        else:
-            return None
-
-        output_1 = open(baseline_1_path)
-        baseline_1 = load(output_1)
-        output_1.close()
-
-        output_2 = open(baseline_2_path)
-        baseline_2 = load(output_2)
-        output_2.close()
-
-        output_3 = open(baseline_3_path)
-        baseline_3 = load(output_3)
-        output_3.close()
-
-        output_4 = open(baseline_4_path)
-        baseline_4 = load(output_4)
-        output_4.close()
-
-        return baseline_1, baseline_2, baseline_3, baseline_4
-
-    except(ValueError, FileNotFoundError, decoder.JSONDecodeError):
-        logger.error('Cannot check baselines for diff item {} '
-                     .format(diff_item), exc_info=True)
-
-        return None
 
 
 def club_id(conn, host):
