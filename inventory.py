@@ -4,9 +4,9 @@
 
 # !/usr/bin/env python3
 
-from os import path, listdir
+from os import path
 from sys import exit
-from json import dumps, load, decoder
+from json import dumps, decoder
 from csv import DictWriter
 from pathlib import Path
 from time import time, ctime
@@ -621,7 +621,7 @@ def check_if_remove(list_diff_items):
     date_list = []
     items_quarter = []
     myclient = pymongo.MongoClient("mongodb://localhost:27017/")
-    
+
     mydb = myclient.inventory
 
     # list of collections from inventory db
@@ -630,7 +630,7 @@ def check_if_remove(list_diff_items):
     today = date.today()
     current_week = today.isocalendar()[1]
     current_year = today.isocalendar()[0]
-    
+
     if current_week in range(1, 13):
         current_quarter = 1
     elif current_week in range(14, 26):
@@ -640,7 +640,7 @@ def check_if_remove(list_diff_items):
     elif current_week in range(40, 53):
         current_quarter = 4
     else:
-        current_quarter = 0 
+        current_quarter = 0
 
     # only run this if in first week of the quarter of each year.
     if current_week not in [1, 14, 27, 40]:
@@ -650,12 +650,11 @@ def check_if_remove(list_diff_items):
             # Make sure list of diff_items is not empty, if it is, return None
             for diff_item in list_diff_items:
                 if diff_item:
-                    club = diff_item['Location']
                     i = True
                 else:
                     continue
 
-        if i != True:
+        if i is not True:
             return None
 
     try:
@@ -672,7 +671,7 @@ def check_if_remove(list_diff_items):
                     collection.drop()
                     continue
                 date_ = date_.group(0)
-                date_obj =  datetime.strptime(date_, '%m%d%Y').date()
+                date_obj = datetime.strptime(date_, '%m%d%Y').date()
                 date_dict = {'date': date_obj,
                              'week': date_obj.isocalendar()[1],
                              'year': date_obj.isocalendar()[0],
@@ -711,7 +710,6 @@ def check_if_remove(list_diff_items):
         for item in items_quarter:
             col = item['col']
             collection = mydb[col]
-            collection_count_ = collection.count()
 
         # return True if there are items that need to be removed for the quarter only
         # for each item to remove
@@ -745,23 +743,22 @@ def check_if_remove(list_diff_items):
                 else:
                     logger.debug('item ID {} found in last 4 scans'.format(diff_item['ID']))
                     remove_pop.append(count)
-                
+
             else:
                 logger.debug('item ID {} found in more than 25% of scans last quarter'.format(diff_item['ID']))
                 # list of items to not remove, pop from remove list
                 remove_pop.append(count)
-                
+
         if remove_count == 0:
             rem = False
         else:
             rem = True
         return (rem, remove_pop)
 
-    
     except(KeyError, IndexError):
         logger.critical('There is something wrong with check_if_remove function', exc_info=True)
         return False
-                       
+
 
 def diff(results):
     """ Function to get differences between current and prior scans
@@ -1024,7 +1021,7 @@ def diff(results):
 
         try:
 
-            # get tuple with True or False and list of diff_items to pop from remove 
+            # get tuple with True or False and list of diff_items to pop from remove
             # if not getting removed from snipe-it
             check_remove = check_if_remove(list_diff_items)
 
