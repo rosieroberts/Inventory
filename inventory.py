@@ -707,10 +707,6 @@ def check_if_remove(list_diff_items):
         # sort dates
         items_quarter.sort(key=lambda date: datetime.strptime(str(date['date']), '%Y-%m-%d'))
 
-        for item in items_quarter:
-            col = item['col']
-            collection = mydb[col]
-
         # return True if there are items that need to be removed for the quarter only
         # for each item to remove
         # count of items that should be removed this quarter
