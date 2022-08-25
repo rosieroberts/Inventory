@@ -142,6 +142,7 @@ def club_scan(ip):
     try:
         if router_connect:
             connect_obj = router_connect
+
             if ip_address:
 
                 results = get_router_info(connect_obj,
@@ -199,6 +200,49 @@ def club_scan(ip):
     else:
         logger.info('Club Scan Runtime: {} '.format(clb_runtime))
     return results_copy
+
+
+def wake_devices(ip):
+    ''' Use this function in line 145 if printers are able to be awaken if they're offline
+    right now that capability is not available'''
+
+    # for each device connected to this router, from prior scans in mongo
+    # send a ping nmap scan to each ip to wake device
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # Use database called inventory
+    db = client['inventory']
+
+    # Use database "snipe" to compare
+    snipe_coll = db['snipe']
+
+    # Use database "deleted"
+    del_coll = db['deleted']
+
+    # Find out location of IP
+    ip_location = snipe_coll.find_one({'IP': ip},
+                                      {'Location': 1, '_id': 0})
+    # find all IPs in location
+    ip_res = snipe_coll.find({'Location': ip_location['Location']},
+                             {'IP': 1, '_id': 0})
+    ip_res = list(ip_res)
+    ip_res = [item['IP'] for item in ip_res]
+
+    # also find all ips in deleted
+    ip_del = del_coll.find({'Location': ip_location['Location']},
+                           {'_snipeit_ip_6': 1, '_id': 0})
+    ip_del = list(ip_del)
+    ip_del = [item['_snipeit_ip_6'] for item in ip_del]
+
+    ip_results = set(ip_res + ip_del)
+
+    scanner = PortScanner()
+
+    # send a ping nmap scan to each ip to wake device
+    for ip_result in ip_results:
+        host = str(ip_result)
+        nmap_args = '-sn'
+        scanner.scan(hosts=host, arguments=nmap_args)
 
 
 def scan_started():
@@ -414,6 +458,12 @@ def get_router_info(conn, host, loc_id_data):
                                 'Mac Address': mac_result,
                                 'Status': hostname['status'],
                                 'Status ID': hostname['status ID']}
+
+                            # send a ping nmap scan to wake device
+                            host = str(ip_result)
+                            nmap_args = '-sn'
+                            scanner = PortScanner()
+                            scanner.scan(hosts=host, arguments=nmap_args)
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
@@ -706,10 +756,6 @@ def check_if_remove(list_diff_items):
 
         # sort dates
         items_quarter.sort(key=lambda date: datetime.strptime(str(date['date']), '%Y-%m-%d'))
-
-        for item in items_quarter:
-            col = item['col']
-            collection = mydb[col]
 
         # return True if there are items that need to be removed for the quarter only
         # for each item to remove
@@ -1007,10 +1053,11 @@ def diff(results):
                 count_remove += 1
                 remove.append(itm)
                 list_diff_items.append(itm)
-                msg7 = ('Device with ID {} and Mac Address {} '
+                msg7 = ('{} with IP {} and Mac Address {} '
                         'not found, '
                         'checking if it should be removed '
-                        .format(itm['ID'],
+                        .format(itm['Category'],
+                                itm['IP'],
                                 itm['Mac Address']))
                 logger.debug('ASSET NOT FOUND {}'.format(count_remove))
                 logger.debug(msg7)
