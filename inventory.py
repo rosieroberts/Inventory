@@ -143,6 +143,43 @@ def club_scan(ip):
         if router_connect:
             connect_obj = router_connect
             if ip_address:
+                # for each device connected to this router, from prior scans in mongo
+                # send a ping nmap scan to each ip to wake device
+                client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+                # Use database called inventory
+                db = client['inventory']
+
+                # Use database "snipe" to compare
+                snipe_coll = db['snipe']
+
+                # Use database "deleted"
+                del_coll = db['deleted']
+                
+                # Find out location of IP
+                ip_location = snipe_coll.find_one({'IP': ip},
+                                                  {'Location': 1, '_id': 0})
+                # find all IPs in location
+                ip_res = snipe_coll.find({'Location': ip_location['Location']},
+                                         {'IP': 1, '_id': 0})
+                ip_res = list(ip_res)
+                ip_res = [item['IP'] for item in ip_res]
+
+                # also find all ips in deleted 
+                ip_del = del_coll.find({'Location': ip_location['Location']},
+                                       {'_snipeit_ip_6': 1, '_id': 0})
+                ip_del = list(ip_del)
+                ip_del = [item['_snipeit_ip_6'] for item in ip_del]
+
+                ip_results = set(ip_res + ip_del)
+
+                scanner = PortScanner()
+
+                # send a ping nmap scan to each ip to wake device
+                for ip_result in ip_results:
+                    host = str(ip_result)
+                    nmap_args = '-sn'
+                    scanner.scan(hosts=host, arguments=nmap_args)
 
                 results = get_router_info(connect_obj,
                                           str(ip),
@@ -182,7 +219,7 @@ def club_scan(ip):
         logger.critical('Remote end closed connection without response', exc_info=True)
         logger.debug('Scanning next club....')
     except(TypeError):
-        logger.critical('Scan for {} ended abruptly'.format(results[0]['Location']), exc_info=True)
+        logger.critical('Scan for {} ended abruptly'.format(ip_location), exc_info=True)
         logger.debug('Scanning next club....')
     except(ValueError):
         logger.critical('Scan for {} cannot be completed, club is not in Snipe-IT'.format(results[0]['Location']))
@@ -414,6 +451,12 @@ def get_router_info(conn, host, loc_id_data):
                                 'Mac Address': mac_result,
                                 'Status': hostname['status'],
                                 'Status ID': hostname['status ID']}
+
+                            # send a ping nmap scan to wake device
+                            host = str(ip_result)
+                            nmap_args = '-sn'
+                            scanner = PortScanner()
+                            scanner.scan(hosts=host, arguments=nmap_args)
 
                             # The first value added to 'results'
                             # is the router value. This is only added if the
@@ -1003,10 +1046,11 @@ def diff(results):
                 count_remove += 1
                 remove.append(itm)
                 list_diff_items.append(itm)
-                msg7 = ('Device with ID {} and Mac Address {} '
+                msg7 = ('{} with IP {} and Mac Address {} '
                         'not found, '
                         'checking if it should be removed '
-                        .format(itm['ID'],
+                        .format(itm['Category'],
+                                itm['IP'],
                                 itm['Mac Address']))
                 logger.debug('ASSET NOT FOUND {}'.format(count_remove))
                 logger.debug(msg7)
