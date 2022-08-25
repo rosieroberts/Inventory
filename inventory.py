@@ -183,7 +183,7 @@ def club_scan(ip):
         logger.critical('Remote end closed connection without response', exc_info=True)
         logger.debug('Scanning next club....')
     except(TypeError):
-        logger.critical('Scan for {} ended abruptly'.format(ip_location), exc_info=True)
+        logger.critical('Scan for {} ended abruptly'.format(results[0]['Location']), exc_info=True)
         logger.debug('Scanning next club....')
     except(ValueError):
         logger.critical('Scan for {} cannot be completed, club is not in Snipe-IT'.format(results[0]['Location']))
