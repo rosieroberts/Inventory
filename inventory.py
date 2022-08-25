@@ -155,7 +155,7 @@ def club_scan(ip):
 
                 # Use database "deleted"
                 del_coll = db['deleted']
-                
+
                 # Find out location of IP
                 ip_location = snipe_coll.find_one({'IP': ip},
                                                   {'Location': 1, '_id': 0})
@@ -165,7 +165,7 @@ def club_scan(ip):
                 ip_res = list(ip_res)
                 ip_res = [item['IP'] for item in ip_res]
 
-                # also find all ips in deleted 
+                # also find all ips in deleted
                 ip_del = del_coll.find({'Location': ip_location['Location']},
                                        {'_snipeit_ip_6': 1, '_id': 0})
                 ip_del = list(ip_del)
