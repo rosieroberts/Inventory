@@ -1086,7 +1086,11 @@ def diff(results):
                         for item in reversed(check_remove_2):
                             remove.pop(item)
                         if len(remove) > 0:
-                            logger.debug('There are items to remove for club {} from Snipe-it this quarter'.format(itm['Location']))
+                            logger.debug('There are items to remove for {} from Snipe-it this quarter'.format(itm['Location']))
+            else:
+                remove.clear()
+                logger.debug('No items to remove for {}'.format(itm['Location']))
+
         except(KeyError):
             logger.critical('There is something not working with removing items from remove list', exc_info=True)
 
@@ -1112,7 +1116,7 @@ def diff(results):
     else:
         logger.info('_____No differences found____')
 
-    return [add, [], restore, update]
+    return [add, remove, restore, update]
 
 
 def api_call(club_id, add, remove, restore, update):
