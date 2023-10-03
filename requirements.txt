@@ -21,6 +21,6 @@ scp==0.13.3
 six==1.16.0
 tenacity==7.0.0
 textfsm==1.1.0
-urllib3==1.26.5
+urllib3==1.26.17
 zipp==3.4.1
 setuptools>=65.5.1 # not directly required, pinned by Snyk to avoid a vulnerability
