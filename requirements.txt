@@ -2,7 +2,7 @@ bcrypt==3.2.0
 certifi==2022.12.7
 cffi==1.14.5
 chardet==4.0.0
-cryptography==3.3.2
+cryptography==42.0.0
 easysnmp==0.2.5
 future==0.18.3
 idna==2.10
