@@ -5,7 +5,7 @@ chardet==4.0.0
 cryptography==3.3.2
 easysnmp==0.2.5
 future==0.18.3
-idna==2.10
+idna==3.7
 importlib-resources==5.1.2
 netaddr==0.8.0
 netmiko==3.4.0
